@@ -1,88 +1,179 @@
-import { useState } from "react";
-import { Search, Filter, Plus, Edit2, Calendar, Trash2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Filter, Plus, Edit2, Trash2, Eye, X, Mail, Phone } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { card } from "@/utils/card";
+import { COLORS } from "@/theme/colors";
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+} from "@/services/employees.service";
+import { Employee } from "@/mocks/employees";
 
 interface EmployeesProps {
   dark: boolean;
 }
 
 export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const all = [
-    {
-      code: "CC-001",
-      ci: "12345678",
-      name: "Carlos Mamani Quispe",
-      role: "Auxiliar",
-      status: "Activo",
-      periods: 4,
-    },
-    {
-      code: "CC-002",
-      ci: "87654321",
-      name: "Ana Flores Mendoza",
-      role: "Auxiliar",
-      status: "Activo",
-      periods: 3,
-    },
-    {
-      code: "CC-003",
-      ci: "11223344",
-      name: "Luis Quispe Torrez",
-      role: "Técnico",
-      status: "Activo",
-      periods: 5,
-    },
-    {
-      code: "CC-004",
-      ci: "44332211",
-      name: "María Torres García",
-      role: "Auxiliar",
-      status: "Inactivo",
-      periods: 0,
-    },
-    {
-      code: "CC-005",
-      ci: "55667788",
-      name: "Jorge Condori López",
-      role: "Técnico",
-      status: "Activo",
-      periods: 6,
-    },
-    {
-      code: "CC-006",
-      ci: "99887766",
-      name: "Sofía Vargas Choque",
-      role: "Auxiliar",
-      status: "Activo",
-      periods: 4,
-    },
-    {
-      code: "CC-007",
-      ci: "33445566",
-      name: "Diego Mamani Cruz",
-      role: "Auxiliar",
-      status: "Activo",
-      periods: 3,
-    },
-    {
-      code: "CC-008",
-      ci: "77889900",
-      name: "Patricia Rojas Lima",
-      role: "Coordinador",
-      status: "Licencia",
-      periods: 2,
-    },
-  ];
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
-  const rows = all.filter(
-    (e) =>
-      e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.code.toLowerCase().includes(search.toLowerCase()) ||
-      e.ci.includes(search)
-  );
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia">("Todos");
+  const [hoursFilter, setHoursFilter] = useState<"Todas" | 20 | 40>("Todas");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Modals state
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+
+  // Form values
+  const [formValues, setFormValues] = useState<Omit<Employee, "periods">>({
+    code: "",
+    ci: "",
+    name: "",
+    role: "Auxiliar",
+    status: "Activo",
+    email: "",
+    phone: "",
+    contractedHours: 40,
+    assignedHours: 0,
+  });
+
+  const loadEmployees = async () => {
+    setLoading(true);
+    try {
+      const list = await getEmployees();
+      setEmployees(list);
+    } catch (error) {
+      console.error("Error al cargar empleados:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  // Filter operations
+  const filteredRows = employees.filter((emp) => {
+    const matchesSearch =
+      emp.name.toLowerCase().includes(search.toLowerCase()) ||
+      emp.code.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      statusFilter === "Todos" || emp.status === statusFilter;
+    const matchesHours =
+      hoursFilter === "Todas" || emp.contractedHours === hoursFilter;
+    return matchesSearch && matchesStatus && matchesHours;
+  });
+
+  const totalPages = Math.ceil(filteredRows.length / itemsPerPage) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [filteredRows.length, totalPages, currentPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedRows = filteredRows.slice(startIndex, startIndex + itemsPerPage);
+
+  const handleOpenCreate = () => {
+    setIsEditing(false);
+    // Auto-generate code e.g. CC-009
+    const codes = employees.map((e) => {
+      const match = e.code.match(/CC-(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+    const nextNum = codes.length > 0 ? Math.max(...codes) + 1 : 1;
+    const nextCode = `CC-${nextNum.toString().padStart(3, "0")}`;
+
+    setFormValues({
+      code: nextCode,
+      ci: "",
+      name: "",
+      role: "Auxiliar",
+      status: "Activo",
+      email: "",
+      phone: "",
+      contractedHours: 40,
+      assignedHours: 0,
+    });
+    setFormModalOpen(true);
+  };
+
+  const handleOpenEdit = (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setIsEditing(true);
+    setFormValues({
+      code: emp.code,
+      ci: emp.ci,
+      name: emp.name,
+      role: emp.role,
+      status: emp.status,
+      email: emp.email,
+      phone: emp.phone,
+      contractedHours: emp.contractedHours,
+      assignedHours: emp.assignedHours,
+    });
+    setFormModalOpen(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formValues.code || !formValues.name || !formValues.ci) {
+      alert("Por favor complete los campos obligatorios (*)");
+      return;
+    }
+
+    try {
+      if (isEditing && selectedEmployee) {
+        await updateEmployee(selectedEmployee.code, {
+          ...formValues,
+          periods: Math.ceil(formValues.assignedHours / 4),
+        });
+      } else {
+        await createEmployee({
+          ...formValues,
+          periods: Math.ceil(formValues.assignedHours / 4),
+        });
+      }
+      setFormModalOpen(false);
+      loadEmployees();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Error al guardar el empleado");
+    }
+  };
+
+  const handleOpenDelete = (emp: Employee) => {
+    setEmployeeToDelete(emp);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (employeeToDelete) {
+      try {
+        await deleteEmployee(employeeToDelete.code);
+        setDeleteConfirmOpen(false);
+        setEmployeeToDelete(null);
+        loadEmployees();
+      } catch (err) {
+        console.error(err);
+        alert("Error al eliminar el empleado");
+      }
+    }
+  };
 
   return (
     <div
@@ -106,39 +197,120 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nombre, código o CI..."
-                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none w-72 ${
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Buscar por nombre o código..."
+                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none w-72 transition-all ${
                   dark
-                    ? "bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-purple-500/60"
-                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-purple-600/50"
+                    ? "bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-blue-500/60"
+                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
                 }`}
               />
             </div>
             <button
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer ${
-                dark
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer transition-all ${
+                showFilters
+                  ? dark
+                    ? "bg-white/10 border-white/20 text-white font-medium"
+                    : "bg-slate-100 border-slate-350 text-slate-800 font-medium"
+                  : dark
                   ? "border-white/10 text-white/50 hover:bg-white/5"
                   : "border-slate-200 text-slate-500 hover:bg-slate-50"
               }`}
             >
-              <Filter size={13} /> Filtrar
+              <Filter size={13} /> Filtrar {(statusFilter !== "Todos" || hoursFilter !== "Todas") && "•"}
             </button>
           </div>
           <button
+            onClick={handleOpenCreate}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
-            style={{ background: "#6A1B9A" }}
+            style={{ background: COLORS.primary }}
           >
             <Plus size={14} /> Nuevo empleado
           </button>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <div
+            className={`p-4 border-b flex flex-wrap gap-6 items-center ${
+              dark ? "border-white/8 bg-white/2" : "border-slate-100 bg-slate-50/50"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold ${dark ? "text-white/50" : "text-slate-500"}`}>
+                Estado:
+              </span>
+              <div className="flex gap-1.5">
+                {(["Todos", "Activo", "Inactivo", "Licencia"] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => {
+                      setStatusFilter(status);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                      statusFilter === status
+                        ? "text-white"
+                        : dark
+                        ? "bg-white/5 text-white/60 hover:bg-white/10"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                    style={statusFilter === status ? { background: COLORS.primary } : {}}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold ${dark ? "text-white/50" : "text-slate-500"}`}>
+                Horas Contratadas:
+              </span>
+              <div className="flex gap-1.5">
+                {(["Todas", 20, 40] as const).map((hours) => (
+                  <button
+                    key={hours}
+                    onClick={() => {
+                      setHoursFilter(hours);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                      hoursFilter === hours
+                        ? "text-white"
+                        : dark
+                        ? "bg-white/5 text-white/60 hover:bg-white/10"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                    style={hoursFilter === hours ? { background: COLORS.primary } : {}}
+                  >
+                    {hours === "Todas" ? "Todas" : `${hours} horas`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Código", "CI", "Nombre completo", "Cargo", "Estado", "Periodos asignados", "Acciones"].map((col) => (
+                {[
+                  "Código",
+                  "Nombre completo",
+                  "Correo",
+                  "Teléfono",
+                  "Horas contratadas",
+                  "Horas asignadas",
+                  "Estado",
+                  "Acciones",
+                ].map((col) => (
                   <th
                     key={col}
                     className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${
@@ -151,74 +323,110 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((emp, i) => (
-                <tr
-                  key={i}
-                  className={`border-t transition-colors ${
-                    dark ? "border-white/6 hover:bg-white/3" : "border-slate-100 hover:bg-purple-50/10"
-                  }`}
-                >
-                  <td className="px-5 py-3.5">
-                    <span
-                      className={`text-xs font-mono font-bold ${
-                        dark ? "text-purple-400" : "text-purple-700"
-                      }`}
-                    >
-                      {emp.code}
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8">
+                    <span className={dark ? "text-white/50" : "text-slate-500"}>
+                      Cargando empleados...
                     </span>
                   </td>
-                  <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/50" : "text-slate-500"}`}>
-                    {emp.ci}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={emp.name} size={32} bg="#6A1B9A" />
-                      <span className={`text-sm font-medium ${dark ? "text-white" : "text-slate-800"}`}>
-                        {emp.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
-                    {emp.role}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <StatusBadge status={emp.status} />
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: Math.min(emp.periods, 6) }).map((_, j) => (
-                          <div key={j} className="w-4 h-1.5 rounded-full" style={{ background: "#6A1B9A" }} />
-                        ))}
-                      </div>
-                      <span className={`text-xs ml-1 ${dark ? "text-white/40" : "text-slate-400"}`}>
-                        {emp.periods}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          dark ? "hover:bg-white/8 text-white/40" : "hover:bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          dark ? "hover:bg-white/8 text-white/40" : "hover:bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        <Calendar size={13} />
-                      </button>
-                      <button className="p-1.5 rounded-lg transition-colors hover:bg-red-50 text-red-400 cursor-pointer">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                </tr>
+              ) : paginatedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8">
+                    <span className={dark ? "text-white/50" : "text-slate-500"}>
+                      No se encontraron empleados
+                    </span>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedRows.map((emp) => (
+                  <tr
+                    key={emp.code}
+                    className={`border-t transition-colors ${
+                      dark
+                        ? "border-white/6 hover:bg-white/3"
+                        : "border-slate-100 hover:bg-blue-50/10"
+                    }`}
+                  >
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`text-xs font-mono font-bold ${
+                          dark ? "text-blue-400" : "text-blue-700"
+                        }`}
+                      >
+                        {emp.code}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={emp.name} size={32} bg={COLORS.primary} />
+                        <span className={`text-sm font-medium ${dark ? "text-white" : "text-slate-800"}`}>
+                          {emp.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/50" : "text-slate-600"}`}>
+                      {emp.email}
+                    </td>
+                    <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/50" : "text-slate-600"}`}>
+                      {emp.phone}
+                    </td>
+                    <td className={`px-5 py-3.5 text-sm font-semibold ${dark ? "text-white/50" : "text-slate-700"}`}>
+                      {emp.contractedHours} hrs
+                    </td>
+                    <td className="px-5 py-3.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold ${dark ? "text-white/70" : "text-slate-800"}`}>
+                          {emp.assignedHours} hrs
+                        </span>
+                        <span className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
+                          ({Math.round((emp.assignedHours / emp.contractedHours) * 100)}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <StatusBadge status={emp.status} />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedEmployee(emp);
+                            setDetailModalOpen(true);
+                          }}
+                          title="Ver detalle"
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            dark
+                              ? "hover:bg-white/8 text-white/50 hover:text-white"
+                              : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEdit(emp)}
+                          title="Editar"
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            dark
+                              ? "hover:bg-white/8 text-white/50 hover:text-white"
+                              : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDelete(emp)}
+                          title="Eliminar"
+                          className="p-1.5 rounded-lg transition-colors hover:bg-red-50 text-red-455 hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -230,27 +438,460 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
           }`}
         >
           <p className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
-            Mostrando {rows.length} de {all.length} empleados
+            Mostrando {filteredRows.length > 0 ? startIndex + 1 : 0} a{" "}
+            {Math.min(startIndex + itemsPerPage, filteredRows.length)} de {filteredRows.length} empleados
           </p>
           <div className="flex gap-1">
-            {[1, 2, 3].map((n) => (
-              <button
-                key={n}
-                className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                  n === 1
-                    ? "text-white"
-                    : dark
-                    ? "text-white/35 hover:bg-white/6"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
-                style={n === 1 ? { background: "#6A1B9A" } : {}}
-              >
-                {n}
-              </button>
-            ))}
+            {Array.from({ length: totalPages }).map((_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    pageNum === currentPage
+                      ? "text-white"
+                      : dark
+                      ? "text-white/35 hover:bg-white/6"
+                      : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                  style={pageNum === currentPage ? { background: COLORS.primary } : {}}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
+
+      {/* DETAIL MODAL */}
+      {detailModalOpen && selectedEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div
+            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${
+              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <h3 className="text-lg font-bold">Detalle del Empleado</h3>
+              <button
+                onClick={() => setDetailModalOpen(false)}
+                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${
+                  dark ? "text-white/50" : "text-slate-400"
+                }`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="py-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <Avatar name={selectedEmployee.name} size={64} bg={COLORS.primary} />
+                <div>
+                  <h4 className="text-lg font-semibold">{selectedEmployee.name}</h4>
+                  <div className="flex gap-2 mt-1">
+                    <span
+                      className={`text-xs font-mono px-2 py-0.5 rounded-md ${
+                        dark ? "bg-white/8 text-blue-400" : "bg-blue-50 text-blue-700"
+                      }`}
+                    >
+                      {selectedEmployee.code}
+                    </span>
+                    <StatusBadge status={selectedEmployee.status} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    CI
+                  </span>
+                  <span className="font-mono mt-0.5 block">{selectedEmployee.ci}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Cargo
+                  </span>
+                  <span className="mt-0.5 block">{selectedEmployee.role}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Correo Electrónico
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Mail size={14} className={dark ? "text-white/45" : "text-slate-400"} />
+                    <a href={`mailto:${selectedEmployee.email}`} className="text-blue-500 hover:underline">
+                      {selectedEmployee.email}
+                    </a>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Teléfono
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Phone size={14} className={dark ? "text-white/45" : "text-slate-400"} />
+                    <span>{selectedEmployee.phone}</span>
+                  </div>
+                </div>
+                <div>
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Horas Contratadas
+                  </span>
+                  <span className="font-semibold text-base mt-0.5 block">
+                    {selectedEmployee.contractedHours} horas
+                  </span>
+                </div>
+                <div>
+                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Horas Asignadas
+                  </span>
+                  <span className="font-semibold text-base mt-0.5 block">
+                    {selectedEmployee.assignedHours} horas
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1">
+                  <span className={dark ? "text-white/50" : "text-slate-500"}>
+                    Porcentaje de Carga Asignada
+                  </span>
+                  <span>
+                    {Math.round((selectedEmployee.assignedHours / selectedEmployee.contractedHours) * 100)}%
+                  </span>
+                </div>
+                <div className={`w-full h-2 rounded-full overflow-hidden ${dark ? "bg-white/10" : "bg-slate-100"}`}>
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round((selectedEmployee.assignedHours / selectedEmployee.contractedHours) * 100)
+                      )}%`,
+                      background: COLORS.primary,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-4 border-t border-white/10">
+              <button
+                onClick={() => setDetailModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 cursor-pointer text-white"
+                style={{ background: COLORS.primary }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE & EDIT FORM MODAL */}
+      {formModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div
+            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${
+              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <h3 className="text-lg font-bold">{isEditing ? "Editar Empleado" : "Nuevo Empleado"}</h3>
+              <button
+                type="button"
+                onClick={() => setFormModalOpen(false)}
+                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${
+                  dark ? "text-white/50" : "text-slate-400"
+                }`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleFormSubmit}>
+              {/* Body */}
+              <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Código *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isEditing}
+                      value={formValues.code}
+                      onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60 disabled:opacity-50"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50 disabled:opacity-50"
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      CI *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formValues.ci}
+                      onChange={(e) => setFormValues({ ...formValues, ci: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"}`}
+                  >
+                    Nombre Completo *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formValues.name}
+                    onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                      dark
+                        ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                        : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                    }`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Correo Electrónico
+                    </label>
+                    <input
+                      type="email"
+                      value={formValues.email}
+                      onChange={(e) => setFormValues({ ...formValues, email: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Teléfono
+                    </label>
+                    <input
+                      type="text"
+                      value={formValues.phone}
+                      onChange={(e) => setFormValues({ ...formValues, phone: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Cargo
+                    </label>
+                    <select
+                      value={formValues.role}
+                      onChange={(e) => setFormValues({ ...formValues, role: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    >
+                      <option value="Auxiliar">Auxiliar</option>
+                      <option value="Técnico">Técnico</option>
+                      <option value="Coordinador">Coordinador</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Estado
+                    </label>
+                    <select
+                      value={formValues.status}
+                      onChange={(e) => setFormValues({ ...formValues, status: e.target.value as any })}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    >
+                      <option value="Activo">Activo</option>
+                      <option value="Inactivo">Inactivo</option>
+                      <option value="Licencia">Licencia</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Horas Contratadas
+                    </label>
+                    <div className="flex gap-4 mt-2">
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="contractedHours"
+                          checked={formValues.contractedHours === 20}
+                          onChange={() => setFormValues({ ...formValues, contractedHours: 20 })}
+                          className="accent-[#0F4C97]"
+                        />
+                        20 horas
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="contractedHours"
+                          checked={formValues.contractedHours === 40}
+                          onChange={() => setFormValues({ ...formValues, contractedHours: 40 })}
+                          className="accent-[#0F4C97]"
+                        />
+                        40 horas
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1 ${
+                        dark ? "text-white/60" : "text-slate-500"
+                      }`}
+                    >
+                      Horas Asignadas
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={formValues.assignedHours}
+                      onChange={(e) =>
+                        setFormValues({ ...formValues, assignedHours: parseInt(e.target.value, 10) || 0 })
+                      }
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
+                        dark
+                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setFormModalOpen(false)}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                    dark
+                      ? "border-white/10 text-white/70 hover:bg-white/5"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 cursor-pointer"
+                  style={{ background: COLORS.primary }}
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      {deleteConfirmOpen && employeeToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div
+            className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${
+              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+            }`}
+          >
+            <h3 className="text-lg font-bold text-red-500 flex items-center gap-2 mb-2">
+              <Trash2 size={20} /> Eliminar Empleado
+            </h3>
+            <p className={`text-sm mb-6 ${dark ? "text-white/75" : "text-slate-600"}`}>
+              ¿Está seguro de que desea eliminar al empleado{" "}
+              <span className="font-semibold">{employeeToDelete.name}</span> ({employeeToDelete.code})? Esta
+              acción no se puede deshacer.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                  dark
+                    ? "border-white/10 text-white/70 hover:bg-white/5"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-all cursor-pointer"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

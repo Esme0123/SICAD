@@ -37,3 +37,26 @@ export const MOCK_WEEKLY_ASSIGNMENTS: WeeklyAssignment = {
 };
 
 export const MOCK_DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"] as const;
+
+export interface Schedule {
+  id: string;
+  employeeCode: string;
+  employeeName: string;
+  day: "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado";
+  startTime: string;
+  endTime: string;
+  period: string;
+  status: "Activo" | "Inactivo";
+}
+
+export const MOCK_SCHEDULES: Schedule[] = [
+  { id: "SCH-001", employeeCode: "CC-001", employeeName: "Carlos Mamani Quispe", day: "Lunes", startTime: "07:15", endTime: "08:15", period: "Periodo 1", status: "Activo" },
+  { id: "SCH-002", employeeCode: "CC-001", employeeName: "Carlos Mamani Quispe", day: "Lunes", startTime: "08:15", endTime: "09:15", period: "Periodo 2", status: "Activo" },
+  { id: "SCH-003", employeeCode: "CC-002", employeeName: "Ana Flores Mendoza", day: "Martes", startTime: "08:15", endTime: "09:15", period: "Periodo 2", status: "Activo" },
+  { id: "SCH-004", employeeCode: "CC-002", employeeName: "Ana Flores Mendoza", day: "Martes", startTime: "09:15", endTime: "10:15", period: "Periodo 3", status: "Activo" },
+  { id: "SCH-005", employeeCode: "CC-003", employeeName: "Luis Quispe Torrez", day: "Miércoles", startTime: "10:15", endTime: "11:15", period: "Periodo 4", status: "Activo" },
+  { id: "SCH-006", employeeCode: "CC-003", employeeName: "Luis Quispe Torrez", day: "Miércoles", startTime: "11:15", endTime: "12:15", period: "Periodo 5", status: "Activo" },
+  { id: "SCH-007", employeeCode: "CC-004", employeeName: "María Torres García", day: "Jueves", startTime: "07:15", endTime: "08:15", period: "Periodo 1", status: "Inactivo" },
+  { id: "SCH-008", employeeCode: "CC-005", employeeName: "Jorge Condori López", day: "Viernes", startTime: "13:15", endTime: "14:15", period: "Periodo 7", status: "Activo" },
+  { id: "SCH-009", employeeCode: "CC-006", employeeName: "Sofía Vargas Choque", day: "Sábado", startTime: "09:15", endTime: "10:15", period: "Periodo 3", status: "Activo" },
+];
