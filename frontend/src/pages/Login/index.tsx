@@ -82,28 +82,28 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
       exit={{ opacity: 0 }}
       className="flex w-full h-screen overflow-hidden"
     >
-      {/* Left panel */}
+      {/* Left panel - Ahora usa las variables CSS del theme */}
       <div
         className="hidden lg:flex w-[44%] flex-col items-center justify-center relative overflow-hidden"
         style={{
           background:
-            "linear-gradient(150deg, #2A0835 0%, #4A148C 50%, #6A1B9A 100%)",
+            "linear-gradient(150deg, var(--color-primary-hover) 0%, var(--color-primary) 100%)",
         }}
       >
         <div
-          className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] rounded-full opacity-[0.07]"
-          style={{ background: "radial-gradient(circle, #64B5F6, transparent)" }}
+          className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] rounded-full opacity-[0.15]"
+          style={{ background: "radial-gradient(circle, var(--color-primary-light), transparent)" }}
         />
         <div
-          className="absolute bottom-[-20%] left-[-15%] w-[380px] h-[380px] rounded-full opacity-[0.05]"
-          style={{ background: "radial-gradient(circle, #64B5F6, transparent)" }}
+          className="absolute bottom-[-20%] left-[-15%] w-[380px] h-[380px] rounded-full opacity-[0.1]"
+          style={{ background: "radial-gradient(circle, var(--color-primary-light), transparent)" }}
         />
 
         <div className="relative z-10 flex flex-col items-center gap-8 px-14">
           <UCBLogo size={96} />
           <div className="text-center">
             <h1 className="text-5xl font-black text-white tracking-tight">SICAD</h1>
-            <p className="text-white/50 text-sm mt-2 leading-relaxed max-w-[280px]">
+            <p className="text-white/70 text-sm mt-2 leading-relaxed max-w-[280px]">
               Sistema de Control de Asistencia para el Centro de Cómputo UCB
             </p>
           </div>
@@ -118,38 +118,37 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
                 className="flex items-center gap-3 px-4 py-3 rounded-xl"
                 style={{
                   background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.1)",
                 }}
               >
-                <span className="text-[#64B5F6]">{item.icon}</span>
-                <span className="text-white/60 text-sm">{item.text}</span>
+                {/* Usamos el color secundario (Dorado UCB) para los íconos */}
+                <span style={{ color: "var(--color-secondary)" }}>{item.icon}</span>
+                <span className="text-white/80 text-sm">{item.text}</span>
               </div>
             ))}
           </div>
           <div
-            className="h-px w-full max-w-[280px] opacity-20"
-            style={{ background: "#64B5F6" }}
+            className="h-px w-full max-w-[280px] opacity-30"
+            style={{ background: "var(--color-secondary)" }}
           />
-          <p className="text-white/25 text-xs text-center">
+          <p className="text-white/40 text-xs text-center">
             Desarrollado por<br />
-            <span className="text-white/40">Esmeralda Paula Medina Paredes</span>
+            <span className="text-white/60">Esmeralda Paula Medina Paredes</span>
           </p>
         </div>
       </div>
 
       {/* Right panel */}
       <div
-        className={`flex-1 flex items-center justify-center p-8 ${
-          dark ? "bg-[#0B0F19]" : "bg-slate-50"
-        }`}
+        className={`flex-1 flex items-center justify-center p-8 ${dark ? "bg-[#0B0F19]" : "bg-slate-50"
+          }`}
       >
         <motion.div
           initial={{ y: 16, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.1, duration: 0.5 }}
-          className={`w-full max-w-md ${
-            dark ? "bg-[#1E293B] border-white/8" : "bg-white border-slate-200"
-          } rounded-2xl shadow-2xl border p-10`}
+          className={`w-full max-w-md ${dark ? "bg-[#1E293B] border-white/8" : "bg-white border-slate-200"
+            } rounded-2xl shadow-2xl border p-10`}
         >
           <div className="flex flex-col items-center mb-2 lg:hidden">
             <UCBLogo size={52} />
@@ -188,9 +187,8 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
                 <button
                   type="button"
                   onClick={() => setShowPass((s) => !s)}
-                  className={`absolute right-3.5 top-[38px] ${
-                    dark ? "text-white/30 hover:text-white/60" : "text-slate-400 hover:text-slate-600"
-                  }`}
+                  className={`absolute right-3.5 top-[38px] ${dark ? "text-white/30 hover:text-white/60" : "text-slate-400 hover:text-slate-600"
+                    }`}
                 >
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
@@ -204,13 +202,12 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
               >
                 <input type="checkbox" className="hidden" {...register("remember")} />
                 <div
-                  className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                    rememberVal
-                      ? "border-purple-700 bg-purple-700"
+                  className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${rememberVal
+                      ? "border-primary bg-primary" // Cambiado a primary (Azul)
                       : dark
-                      ? "border-white/20"
-                      : "border-slate-300"
-                  }`}
+                        ? "border-white/20"
+                        : "border-slate-300"
+                    }`}
                 >
                   {rememberVal && <Check size={10} className="text-white" strokeWidth={3} />}
                 </div>
@@ -220,7 +217,7 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
               </label>
               <button
                 type="button"
-                className="text-sm font-medium hover:underline text-[#6A1B9A]"
+                className="text-sm font-medium hover:underline text-primary" // Cambiado a text-primary
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -231,12 +228,9 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
-              style={{
-                background: loading
-                  ? "#64748B"
-                  : "linear-gradient(135deg, #6A1B9A 0%, #8E24AA 100%)",
-              }}
+              // Simplificado usando clases de Tailwind (bg-primary)
+              className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${loading ? "bg-muted-foreground" : "bg-primary hover:opacity-90 shadow-md shadow-primary/20"
+                }`}
             >
               {loading ? (
                 <>
