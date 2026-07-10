@@ -19,6 +19,7 @@ import { COLORS } from "@/theme/colors";
 type NavId =
   | "dashboard"
   | "employees"
+  | "leaves"
   | "periods"
   | "qr"
   | "history"
@@ -31,13 +32,14 @@ interface SidebarProps {
 }
 
 const navItems: { id: NavId; label: string; path: string; icon: React.ReactNode }[] = [
-  { id: "dashboard", label: "Dashboard",     path: "/dashboard",          icon: <Home size={18} /> },
-  { id: "employees", label: "Empleados",     path: "/employees",          icon: <Users size={18} /> },
-  { id: "periods",   label: "Periodos",      path: "/attendance/periods", icon: <Calendar size={18} /> },
-  { id: "qr",        label: "Pantalla QR",   path: "/attendance/qr",      icon: <QrCode size={18} /> },
-  { id: "history",   label: "Historial",     path: "/attendance/history", icon: <ClipboardList size={18} /> },
-  { id: "reports",   label: "Reportes",      path: "/reports",            icon: <BarChart2 size={18} /> },
-  { id: "settings",  label: "Configuración", path: "/settings",           icon: <SettingsIcon size={18} /> },
+  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: <Home size={18} /> },
+  { id: "employees", label: "Empleados", path: "/employees", icon: <Users size={18} /> },
+  { id: "leaves", label: "Permisos", path: "/leaves", icon: <Users size={18} /> },
+  { id: "periods", label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} /> },
+  { id: "qr", label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} /> },
+  { id: "history", label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} /> },
+  { id: "reports", label: "Reportes", path: "/reports", icon: <BarChart2 size={18} /> },
+  { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} /> },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
@@ -84,10 +86,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
             key={item.id}
             to={item.path}
             className={({ isActive }) =>
-              `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm text-left ${
-                isActive
-                  ? "text-white bg-white/14 font-medium"
-                  : "text-white/50 hover:text-white/80 hover:bg-white/5"
+              `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm text-left ${isActive
+                ? "text-white bg-white/14 font-medium"
+                : "text-white/50 hover:text-white/80 hover:bg-white/5"
               }`
             }
           >

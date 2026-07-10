@@ -4,6 +4,7 @@ import { RootLayout } from "../layouts/RootLayout";
 import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { Employees } from "@/pages/Employees";
+import { LeavesView } from "@/pages/Leaves";
 import { Attendance } from "@/pages/Attendance";
 import { QRView } from "@/pages/Attendance/QRView";
 import { SuccessView } from "@/pages/Attendance/SuccessView";
@@ -26,7 +27,7 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard dark={dark} />} />
         <Route path="/employees" element={<Employees dark={dark} />} />
-
+        <Route path="/leaves" element={<LeavesView dark={dark} />} />
         <Route path="/attendance" element={<Attendance />}>
           <Route path="" element={<Navigate to="/attendance/qr" replace />} />
           <Route path="qr" element={<QRView dark={dark} />} />

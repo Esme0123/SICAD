@@ -10,6 +10,7 @@ interface TopbarProps {
 const screenMeta: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Dashboard", subtitle: "Vista general — Centro de Cómputo UCB" },
   "/employees": { title: "Gestión de Empleados", subtitle: "Administra el personal y auxiliares del Centro" },
+  "/leaves": { title: "Gestión de Permisos", subtitle: "Administra los permisos del personal" },
   "/attendance/periods": { title: "Asignación de Periodos", subtitle: "Configura los horarios de cada empleado" },
   "/attendance/qr": { title: "Pantalla QR", subtitle: "Código de registro de asistencia activo" },
   "/attendance/success": { title: "Pantalla QR", subtitle: "Asistencia registrada exitosamente" },
@@ -34,9 +35,8 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
 
   return (
     <header
-      className={`flex items-center justify-between px-6 h-16 border-b flex-shrink-0 ${
-        dark ? "bg-[#1E293B] border-white/8" : "bg-white border-slate-100"
-      }`}
+      className={`flex items-center justify-between px-6 h-16 border-b flex-shrink-0 ${dark ? "bg-[#1E293B] border-white/8" : "bg-white border-slate-100"
+        }`}
     >
       <div className="flex flex-col justify-center">
         <h2 className={`text-base font-semibold leading-tight ${dark ? "text-white" : "text-slate-900"}`}>
@@ -53,9 +53,8 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
         </span>
         <div className={`w-px h-5 mx-1 ${dark ? "bg-white/10" : "bg-slate-200"}`} />
         <button
-          className={`relative p-2 rounded-xl transition-colors cursor-pointer ${
-            dark ? "hover:bg-white/6 text-white/40" : "hover:bg-slate-100 text-slate-500"
-          }`}
+          className={`relative p-2 rounded-xl transition-colors cursor-pointer ${dark ? "hover:bg-white/6 text-white/40" : "hover:bg-slate-100 text-slate-500"
+            }`}
         >
           <Bell size={17} />
           <span
@@ -65,9 +64,8 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
         </button>
         <button
           onClick={onToggleDark}
-          className={`p-2 rounded-xl transition-colors cursor-pointer ${
-            dark ? "hover:bg-white/6 text-yellow-400" : "hover:bg-slate-100 text-slate-500"
-          }`}
+          className={`p-2 rounded-xl transition-colors cursor-pointer ${dark ? "hover:bg-white/6 text-yellow-400" : "hover:bg-slate-100 text-slate-500"
+            }`}
         >
           {dark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
