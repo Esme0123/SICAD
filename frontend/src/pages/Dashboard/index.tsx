@@ -8,6 +8,7 @@ import {
   Activity,
   UserCheck,
   Wifi,
+  Search,
 } from "lucide-react";
 import {
   XAxis,
@@ -33,420 +34,425 @@ interface DashboardProps {
 // Extensive mock attendance database
 const ALL_MOCK_ATTENDANCES = [
   { name: "Carlos Mamani Quispe", code: "CC-001", ci: "12345678", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "10:15–11:15", time: "10:18", recordStatus: "Puntual" },
-  { name: "Ana Flores Mendoza", code: "CC-002", ci: "87654321", status: "Activo", contractedHours: 20, date: "09/07/2026", period: "10:15–11:15", time: "10:24", recordStatus: "Tardanza" },
-  { name: "Luis Quispe Torrez", code: "CC-003", ci: "11223344", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "10:15–11:15", time: "10:15", recordStatus: "Puntual" },
-  { name: "María Torres García", code: "CC-004", ci: "44332211", status: "Inactivo", contractedHours: 20, date: "09/07/2026", period: "10:15–11:15", time: "—", recordStatus: "Ausente" },
-  { name: "Jorge Condori López", code: "CC-005", ci: "55667788", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "08:15–09:15", time: "—", recordStatus: "Ausente" },
-  { name: "Sofía Vargas Choque", code: "CC-006", ci: "99887766", status: "Activo", contractedHours: 20, date: "09/07/2026", period: "09:15–10:15", time: "09:17", recordStatus: "Puntual" },
-  { name: "Diego Mamani Cruz", code: "CC-007", ci: "33445566", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "10:15–11:15", time: "10:15", recordStatus: "Puntual" },
-  { name: "Patricia Rojas Lima", code: "CC-008", ci: "77889900", status: "Licencia", contractedHours: 20, date: "09/07/2026", period: "07:15–08:15", time: "07:15", recordStatus: "Puntual" },
-
-  // June data
-  { name: "Carlos Mamani Quispe", code: "CC-001", ci: "12345678", status: "Activo", contractedHours: 40, date: "09/06/2026", period: "10:15–11:15", time: "10:20", recordStatus: "Tardanza" },
-  { name: "Ana Flores Mendoza", code: "CC-002", ci: "87654321", status: "Activo", contractedHours: 20, date: "09/06/2026", period: "10:15–11:15", time: "10:16", recordStatus: "Puntual" },
-  { name: "Luis Quispe Torrez", code: "CC-003", ci: "11223344", status: "Activo", contractedHours: 40, date: "09/06/2026", period: "10:15–11:15", time: "10:15", recordStatus: "Puntual" },
-  { name: "Sofía Vargas Choque", code: "CC-006", ci: "99887766", status: "Activo", contractedHours: 20, date: "09/06/2026", period: "09:15–10:15", time: "—", recordStatus: "Ausente" },
-  { name: "Diego Mamani Cruz", code: "CC-007", ci: "33445566", status: "Activo", contractedHours: 40, date: "09/06/2026", period: "10:15–11:15", time: "10:25", recordStatus: "Tardanza" },
+  { name: "Ana Flores Mendoza", code: "CC-002", ci: "87654321", status: "Activo", contractedHours: 20, date: "09/07/2026", period: "10:15–11:15", time: "10:20", recordStatus: "Atraso" },
+  { name: "Luis Vargas Silva", code: "CC-003", ci: "55443322", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "08:15–09:15", time: "08:10", recordStatus: "Puntual" },
+  { name: "María Rojas Choque", code: "CC-004", ci: "99887766", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "08:15–09:15", time: "08:16", recordStatus: "Atraso" },
+  { name: "Jorge Condori Paco", code: "CC-005", ci: "11223344", status: "Activo", contractedHours: 20, date: "09/07/2026", period: "07:15–08:15", time: "07:12", recordStatus: "Puntual" },
+  { name: "Elena Ramos Poma", code: "CC-006", ci: "22334455", status: "Activo", contractedHours: 40, date: "09/07/2026", period: "07:15–08:15", time: "07:25", recordStatus: "Atraso" },
+  { name: "Roberto Nina Tarqui", code: "CC-007", ci: "66778899", status: "Inactivo", contractedHours: 40, date: "09/07/2026", period: "10:15–11:15", time: "10:15", recordStatus: "Puntual" },
+  { name: "Carmen Apaza Cruz", code: "CC-008", ci: "33445566", status: "Activo", contractedHours: 20, date: "09/07/2026", period: "11:15–12:15", time: "11:13", recordStatus: "Puntual" },
 ];
 
-const MONTH_MAP: Record<string, string> = {
-  Enero: "01",
-  Febrero: "02",
-  Marzo: "03",
-  Abril: "04",
-  Mayo: "05",
-  Junio: "06",
-  Julio: "07",
-  Agosto: "08",
-  Septiembre: "09",
-  Octubre: "10",
-  Noviembre: "11",
-  Diciembre: "12",
-};
-
 export const Dashboard: React.FC<DashboardProps> = ({ dark }) => {
+  const [activeTab, setActiveTab] = useState("Hoy");
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  // Filter States
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("Todos");
-  const [selectedStatus, setSelectedStatus] = useState("Todos");
-  const [selectedHours, setSelectedHours] = useState("Todas");
+  // Search and Suggestions State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Status Filters
+  const [statusFilter, setStatusFilter] = useState("Todos");
+
+  const loadEmployees = async () => {
+    try {
+      const list = await getEmployees();
+      setEmployees(list);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const list = await getEmployees();
-        setEmployees(list);
-      } catch (err) {
-        console.error("Error al cargar empleados:", err);
-      }
-    };
-    fetchEmployees();
+    loadEmployees();
   }, []);
 
-  // Filter logic: Employees
-  const filteredEmployees = employees.filter((emp) => {
+  const totalEmployees = employees.length || 24;
+  const activeEmployees = employees.filter((e) => e.status === "Activo").length || 21;
+  const onLeave = employees.filter((e) => e.status === "Licencia").length || 1;
+
+  // Derive search suggestions
+  const suggestions = searchQuery.trim()
+    ? employees
+      .filter(
+        (emp) =>
+          emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          emp.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (emp.ci && emp.ci.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+      .slice(0, 5) // Limit to 5 suggestions
+    : [];
+
+  // Extended mocked activity
+  const [extraRecords, setExtraRecords] = useState<typeof ALL_MOCK_ATTENDANCES>([]);
+
+  useEffect(() => {
+    // Simulate incoming new attendance records every few seconds to make dashboard feel alive
+    const interval = setInterval(() => {
+      const rnd = Math.random();
+      if (rnd > 0.7 && extraRecords.length < 5) {
+        const newRecord = {
+          name: "Nuevo Registro Test",
+          code: "CC-099",
+          ci: "00000000",
+          status: "Activo",
+          contractedHours: 20,
+          date: "09/07/2026",
+          period: "12:15–13:15",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          recordStatus: Math.random() > 0.5 ? "Puntual" : "Atraso",
+        };
+        setExtraRecords((prev) => [newRecord, ...prev]);
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [extraRecords]);
+
+  const filteredActivity = [...extraRecords, ...ALL_MOCK_ATTENDANCES].filter((a) => {
     const matchesSearch =
-      employeeSearch.trim() === "" ||
-      emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      emp.code.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      emp.ci.includes(employeeSearch);
-    const matchesStatus = selectedStatus === "Todos" || emp.status === selectedStatus;
-    const matchesHours = selectedHours === "Todas" || emp.contractedHours.toString() === selectedHours;
-    return matchesSearch && matchesStatus && matchesHours;
+      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.ci && a.ci.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatus = statusFilter === "Todos" || a.recordStatus === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
-  // Filter logic: Attendances
-  const filteredAttendances = ALL_MOCK_ATTENDANCES.filter((att) => {
-    const emp = employees.find((e) => e.code === att.code);
-    const matchesSearch =
-      employeeSearch.trim() === "" ||
-      att.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      att.code.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      att.ci.includes(employeeSearch);
-    const matchesStatus =
-      selectedStatus === "Todos" || (emp ? emp.status === selectedStatus : att.status === selectedStatus);
-    const matchesHours =
-      selectedHours === "Todas" ||
-      (emp ? emp.contractedHours.toString() === selectedHours : att.contractedHours.toString() === selectedHours);
+  const activity = filteredActivity.map((r) => ({
+    name: r.name,
+    action: r.recordStatus,
+    period: `Periodo: ${r.period}`,
+    t: r.time,
+    col: r.recordStatus === "Puntual" ? COLORS.success : COLORS.danger,
+  }));
 
-    let matchesMonth = true;
-    if (selectedMonth !== "Todos") {
-      const monthCode = MONTH_MAP[selectedMonth];
-      const recordMonth = att.date.split("/")[1];
-      matchesMonth = recordMonth === monthCode;
-    }
+  // Recharts data
+  const attendanceData = [
+    { time: "07:00", count: 2 },
+    { time: "08:00", count: 15 },
+    { time: "09:00", count: 8 },
+    { time: "10:00", count: 22 },
+    { time: "11:00", count: 10 },
+    { time: "12:00", count: 5 },
+    { time: "13:00", count: 18 },
+  ];
 
-    return matchesSearch && matchesStatus && matchesHours && matchesMonth;
-  });
-
-  // Stats Card data computation
-  const totalAttendances = filteredAttendances.length;
-  const punctualLateAttendances = filteredAttendances.filter(
-    (att) => att.recordStatus === "Puntual" || att.recordStatus === "Tardanza"
-  ).length;
-  const complianceRate = totalAttendances > 0 ? Math.round((punctualLateAttendances / totalAttendances) * 100) : 0;
-
-  const isSingleEmployee = filteredEmployees.length === 1;
-  const singleEmp = isSingleEmployee ? filteredEmployees[0] : null;
-
-  const stats = [
+  const statCards = [
     {
-      label: isSingleEmployee ? "Horas asignadas" : "Empleados registrados",
-      value: isSingleEmployee ? `${singleEmp?.assignedHours} hrs` : filteredEmployees.length.toString(),
-      trend: isSingleEmployee ? "Carga horaria" : `${filteredEmployees.filter((e) => e.status === "Activo").length} activos`,
-      icon: <Users size={19} />,
-      col: COLORS.primary,
+      title: "Empleados Activos",
+      value: activeEmployees.toString(),
+      sub: `De ${totalEmployees} registrados`,
+      icon: <Users size={20} className="text-blue-500" />,
+      bg: dark ? "bg-blue-500/10" : "bg-blue-50",
+      col: "text-blue-500",
     },
     {
-      label: isSingleEmployee ? "Horas contratadas" : "Periodo actual",
-      value: isSingleEmployee ? `${singleEmp?.contractedHours} hrs` : "10:15–11:15",
-      trend: isSingleEmployee ? "Carga contratada" : "En curso",
-      icon: <Clock size={19} />,
-      col: "#F9A825",
+      title: "Asistencia Hoy",
+      value: "85%",
+      sub: "+2.5% vs ayer",
+      icon: <UserCheck size={20} className="text-green-500" />,
+      bg: dark ? "bg-green-500/10" : "bg-green-50",
+      col: "text-green-500",
     },
     {
-      label: "Próximo periodo",
-      value: "11:15–12:15",
-      trend: "42 min",
-      icon: <Activity size={19} />,
-      col: "#64B5F6",
+      title: "Atrasos",
+      value: "12",
+      sub: "-3 vs ayer",
+      icon: <Clock size={20} className="text-orange-500" />,
+      bg: dark ? "bg-orange-500/10" : "bg-orange-50",
+      col: "text-orange-500",
     },
     {
-      label: "Asistencias del mes",
-      value: filteredAttendances.filter((att) => att.recordStatus !== "Ausente").length.toString(),
-      trend: `${complianceRate}% cumplimiento`,
-      icon: <UserCheck size={19} />,
-      col: "#2E7D32",
+      title: "En Licencia",
+      value: onLeave.toString(),
+      sub: "Sin asignación hoy",
+      icon: <Activity size={20} className="text-purple-500" />,
+      bg: dark ? "bg-purple-500/10" : "bg-purple-50",
+      col: "text-purple-500",
     },
   ];
 
-  // Dynamic Chart 1: AreaChart (Asistencias del día)
-  const timeSlots = ["07:15", "08:15", "09:15", "10:15", "11:15", "12:15", "13:15", "14:15", "15:15", "16:15"];
-  const areaData = timeSlots.map((slot) => {
-    const count = filteredAttendances.filter((att) => {
-      const attStart = att.period.split("–")[0]?.trim() || "";
-      return attStart === slot && att.recordStatus !== "Ausente";
-    }).length;
-    return { h: slot, n: count };
-  });
-
-  // Dynamic Chart 2: BarChart (Semana actual - Presentes vs Ausentes)
-  const days = ["Lun", "Mar", "Mié", "Jue", "Vie"];
-  const weekData = days.map((day, idx) => {
-    const employeeRatio = employees.length > 0 ? filteredEmployees.length / employees.length : 1;
-    const defaultPresents = [10, 9, 11, 8, 12][idx];
-    const defaultAbsents = [2, 3, 1, 4, 0][idx];
-    return {
-      d: day,
-      p: Math.round(defaultPresents * employeeRatio),
-      a: Math.round(defaultAbsents * employeeRatio),
-    };
-  });
-
-  // Dynamic Recent Activity list
-  const activity = filteredAttendances.slice(0, 5).map((att) => {
-    // Le decimos a TypeScript que esto es un string genérico
-    let col: string = "#16A34A";
-    let action = "Asistencia registrada";
-
-    if (att.recordStatus === "Tardanza") {
-      col = "#F59E0B";
-      action = "Llegada tardía";
-    } else if (att.recordStatus === "Ausente") {
-      col = "#DC2626";
-      action = "Ausencia detectada";
-    }
-    return {
-      name: att.name,
-      action,
-      period: att.period,
-      t: att.time === "—" ? "hace 1h" : `a las ${att.time}`,
-      col,
-    };
-  });
-
-  const ttStyle = {
-    background: dark ? "#1E293B" : "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 11,
-    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-    color: dark ? "#F8FAFC" : "#1E293B",
-  };
-  const gridColor = dark ? "#334155" : "#F1F5F9";
-
   return (
     <div
-      className="flex-1 overflow-y-auto p-6 space-y-5"
+      className="flex-1 overflow-y-auto p-6 space-y-6"
       style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}
     >
-      {/* Filters Bar */}
-      <div className={card(dark, "p-4 flex flex-wrap items-center justify-between gap-4")}>
-        <div className="flex flex-wrap items-center gap-3.5 w-full">
-          {/* Empleado Search */}
-          <div className="flex-1 min-w-[200px] flex flex-col gap-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>
-              Empleado
-            </span>
-            <input
-              type="text"
-              value={employeeSearch}
-              onChange={(e) => setEmployeeSearch(e.target.value)}
-              placeholder="Buscar por nombre, código o CI..."
-              className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all ${dark
-                  ? "bg-[#1E293B] border-white/10 text-white placeholder-white/20 focus:border-blue-500/60"
-                  : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-            />
-          </div>
-
-          {/* Mes */}
-          <div className="w-44 flex flex-col gap-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>
-              Mes
-            </span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all ${dark
-                  ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                  : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className={`text-2xl font-bold tracking-tight ${dark ? "text-white" : "text-slate-800"}`}>
+            Panel de Control
+          </h2>
+          <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-slate-500"}`}>
+            Resumen de actividad y estado del sistema en tiempo real.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {["Hoy", "Semana", "Mes"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${activeTab === t
+                  ? "bg-[#0F4C97] text-white shadow-md shadow-blue-900/20"
+                  : dark
+                    ? "bg-white/5 text-white/50 hover:bg-white/10"
+                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
                 }`}
             >
-              <option value="Todos">Todos los meses</option>
-              {Object.keys(MONTH_MAP).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Estado */}
-          <div className="w-44 flex flex-col gap-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>
-              Estado Empleado
-            </span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all ${dark
-                  ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                  : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-            >
-              <option value="Todos">Todos</option>
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-              <option value="Licencia">Licencia</option>
-            </select>
-          </div>
-
-          {/* Horas */}
-          <div className="w-44 flex flex-col gap-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>
-              Horas Contratadas
-            </span>
-            <select
-              value={selectedHours}
-              onChange={(e) => setSelectedHours(e.target.value)}
-              className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all ${dark
-                  ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                  : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-            >
-              <option value="Todas">Todas</option>
-              <option value="20">20 horas</option>
-              <option value="40">40 horas</option>
-            </select>
-          </div>
+              {t}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* QR active banner */}
-      <div
-        className="rounded-2xl px-6 py-4 flex items-center justify-between"
-        style={{
-          background: `linear-gradient(135deg, ${COLORS.primaryHover} 0%, ${COLORS.primary} 100%)`,
-        }}
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white/12">
-            <QrCode size={20} className="text-white" />
-          </div>
-          <div>
-            <p className="text-white font-semibold text-sm">QR Activo — Periodo 10:15–11:15</p>
-            <p className="text-white/50 text-xs mt-0.5">
-              Código rotando cada 10 segundos · Servidor en línea
-            </p>
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full"
-          style={{ background: "rgba(46,125,50,0.2)" }}
-        >
-          <Wifi size={12} className="text-green-400" />
-          <span className="text-green-400 text-xs font-semibold">En línea</span>
-        </div>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
+      {/* STAT CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((s, i) => (
           <motion.div
             key={i}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className={card(dark, "p-5")}
+            transition={{ delay: i * 0.1 }}
+            className={card(dark, "p-5 flex items-start justify-between group")}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `${s.col}14` }}
-              >
-                <span style={{ color: s.col }}>{s.icon}</span>
-              </div>
-              <ArrowUpRight size={14} className={dark ? "text-white/15" : "text-slate-300"} />
+            <div>
+              <p className={`text-sm font-medium ${dark ? "text-white/50" : "text-slate-500"}`}>
+                {s.title}
+              </p>
+              <h3 className={`text-3xl font-black mt-1 tracking-tight ${dark ? "text-white" : "text-slate-800"}`}>
+                {s.value}
+              </h3>
+              <p className={`text-xs mt-1.5 flex items-center gap-1 font-medium ${s.col}`}>
+                <ArrowUpRight size={12} /> {s.sub}
+              </p>
             </div>
-            <p
-              className={`text-2xl font-bold leading-none mb-1.5 ${dark ? "text-white" : "text-slate-900"
-                }`}
-            >
-              {s.value}
-            </p>
-            <p className={`text-xs mb-1 ${dark ? "text-white/40" : "text-slate-500"}`}>{s.label}</p>
-            <span className="text-xs font-semibold" style={{ color: s.col }}>
-              {s.trend}
-            </span>
+            <div className={`p-3 rounded-2xl ${s.bg} transition-transform group-hover:scale-110`}>
+              {s.icon}
+            </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-5 gap-4">
-        <div className={card(dark, "col-span-3 p-5")}>
-          <div className="flex items-center justify-between mb-4">
+      {/* CHARTS ROW */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={card(dark, "lg:col-span-2 p-6 flex flex-col")}>
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className={`font-semibold text-sm ${dark ? "text-white" : "text-slate-800"}`}>
-                Asistencias del día
+              <h3 className={`font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+                Flujo de Asistencia
               </h3>
-              <p className={`text-xs mt-0.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
-                Por periodo horario — {selectedMonth === "Todos" ? "Hoy" : selectedMonth}
+              <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
+                Registros por hora (Hoy)
               </p>
             </div>
+            <button
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer ${dark ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
+            >
+              <QrCode size={14} /> Modo Escáner
+            </button>
           </div>
-          <ResponsiveContainer width="100%" height={170}>
-            <AreaChart data={areaData}>
-              <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.primary} stopOpacity={dark ? 0.25 : 0.12} />
-                  <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-              <XAxis
-                dataKey="h"
-                tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }}
-                axisLine={false}
-                tickLine={false}
-                width={24}
-              />
-              <Tooltip contentStyle={ttStyle} />
-              <Area
-                type="monotone"
-                dataKey="n"
-                stroke={COLORS.primary}
-                strokeWidth={2.5}
-                fill="url(#g1)"
-                name="Asistencias"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="flex-1 min-h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={attendanceData}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke={dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}
+                />
+                <XAxis
+                  dataKey="time"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: dark ? "#888" : "#A0AEC0", fontSize: 12 }}
+                  dy={10}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: dark ? "#888" : "#A0AEC0", fontSize: 12 }}
+                  dx={-10}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: dark ? "#1E293B" : "#FFF",
+                    borderColor: dark ? "rgba(255,255,255,0.1)" : "#E2E8F0",
+                    borderRadius: "12px",
+                    color: dark ? "#FFF" : "#000",
+                    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+                  }}
+                  itemStyle={{ color: COLORS.primary, fontWeight: "bold" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke={COLORS.primary}
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorCount)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className={card(dark, "col-span-2 p-5")}>
-          <h3 className={`font-semibold text-sm ${dark ? "text-white" : "text-slate-800"}`}>
-            Semana actual
-          </h3>
-          <p className={`text-xs mt-0.5 mb-4 ${dark ? "text-white/35" : "text-slate-400"}`}>
-            Presentes vs ausentes
-          </p>
-          <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={weekData} barSize={13} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-              <XAxis
-                dataKey="d"
-                tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }}
-                axisLine={false}
-                tickLine={false}
-                width={22}
-              />
-              <Tooltip contentStyle={ttStyle} />
-              <Bar dataKey="p" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="Presentes" />
-              <Bar dataKey="a" fill="#64B5F6" radius={[4, 4, 0, 0]} name="Ausentes" />
-            </BarChart>
-          </ResponsiveContainer>
+
+        <div className={card(dark, "p-6 flex flex-col")}>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className={`font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+                Estado del Sistema
+              </h3>
+              <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
+                Métricas operativas
+              </p>
+            </div>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-green-500 bg-green-500/10 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online
+            </span>
+          </div>
+
+          <div className="space-y-5 flex-1 flex flex-col justify-center">
+            {[
+              {
+                l: "Lector QR Principal",
+                v: "Conectado",
+                c: "text-green-500",
+                bg: "bg-green-500",
+                i: <QrCode size={14} />,
+              },
+              {
+                l: "Sincronización BD",
+                v: "Hace 2 min",
+                c: "text-blue-500",
+                bg: "bg-blue-500",
+                i: <Activity size={14} />,
+              },
+              {
+                l: "Latencia de Red",
+                v: "45ms",
+                c: "text-orange-500",
+                bg: "bg-orange-500",
+                i: <Wifi size={14} />,
+              },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${dark ? "bg-white/5" : "bg-slate-50"
+                      } ${item.c}`}
+                  >
+                    {item.i}
+                  </div>
+                  <span className={`text-sm font-medium ${dark ? "text-white/70" : "text-slate-700"}`}>
+                    {item.l}
+                  </span>
+                </div>
+                <span className={`text-xs font-bold ${item.c}`}>{item.v}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className={`mt-6 pt-5 border-t ${dark ? "border-white/10" : "border-slate-100"}`}>
+            <div className="flex justify-between text-xs mb-2">
+              <span className={dark ? "text-white/50" : "text-slate-500"}>Uso de Almacenamiento</span>
+              <span className={`font-semibold ${dark ? "text-white" : "text-slate-700"}`}>45%</span>
+            </div>
+            <div className={`w-full h-1.5 rounded-full ${dark ? "bg-white/10" : "bg-slate-100"}`}>
+              <div className="h-full rounded-full bg-[#0F4C97] w-[45%]" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Activity */}
-      <div className={card(dark, "p-5")}>
-        <h3 className={`font-semibold text-sm mb-4 ${dark ? "text-white" : "text-slate-800"}`}>
-          Actividad reciente
-        </h3>
-        <div className="space-y-2.5">
+      {/* ACTIVITY FEED */}
+      <div className={card(dark, "p-0 overflow-hidden")}>
+        <div className={`p-5 border-b flex flex-wrap items-center justify-between gap-4 ${dark ? "border-white/10" : "border-slate-100"}`}>
+          <div>
+            <h3 className={`font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+              Actividad Reciente
+            </h3>
+            <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
+              Últimos registros de asistencia
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input with Auto-Suggestions */}
+            <div className="relative w-full sm:w-64">
+              <Search
+                size={14}
+                className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"}`}
+              />
+              <input
+                type="text"
+                placeholder="Buscar empleado (nombre, CI, cód...)"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                className={`w-full pl-9 pr-4 py-2 rounded-xl text-sm border outline-none transition-all ${dark
+                    ? "bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-blue-500/60"
+                    : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-600/50"
+                  }`}
+              />
+              {/* Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  className={`absolute z-10 w-full mt-1 rounded-xl border shadow-lg overflow-hidden ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"
+                    }`}
+                >
+                  {suggestions.map((emp) => (
+                    <div
+                      key={emp.code}
+                      onClick={() => {
+                        setSearchQuery(emp.name);
+                        setShowSuggestions(false);
+                      }}
+                      className={`px-4 py-2.5 text-sm cursor-pointer transition-colors border-b last:border-b-0 ${dark
+                          ? "hover:bg-white/10 text-white border-white/5"
+                          : "hover:bg-slate-100 text-slate-800 border-slate-50"
+                        }`}
+                    >
+                      <div className="font-medium">{emp.name}</div>
+                      <div className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
+                        <span className={`font-mono ${dark ? "text-blue-400" : "text-blue-600"}`}>{emp.code}</span> • CI: {emp.ci}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Status Filters */}
+            <div className="flex gap-1.5">
+              {["Todos", "Puntual", "Atraso"].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${statusFilter === f
+                      ? "bg-[#0F4C97] text-white"
+                      : dark
+                        ? "bg-white/5 text-white/50 hover:bg-white/10"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5">
           {activity.length === 0 ? (
             <p className={`text-xs py-4 text-center ${dark ? "text-white/30" : "text-slate-400"}`}>
               No hay actividad registrada que coincida con los filtros
@@ -455,15 +461,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ dark }) => {
             activity.map((a, i) => (
               <div
                 key={i}
-                className={`flex items-center gap-4 p-3 rounded-xl ${dark ? "bg-white/4" : "bg-slate-50"
+                className={`flex items-center gap-4 p-3 rounded-xl mb-2 last:mb-0 transition-colors ${dark ? "bg-white/4 hover:bg-white/6" : "bg-slate-50 hover:bg-slate-100"
                   }`}
               >
                 <Avatar name={a.name} size={34} bg={COLORS.primary} />
                 <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-medium truncate ${dark ? "text-white" : "text-slate-800"
-                      }`}
-                  >
+                  <p className={`text-sm font-medium truncate ${dark ? "text-white" : "text-slate-800"}`}>
                     {a.name}
                   </p>
                   <p className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
