@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, X, Calendar, Clock, User } from "lucide-react";
-import { card } from "@/utils/card";
+import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
-import { StatusBadge } from "@/components/common/StatusBadge";
 import { getEmployees } from "@/services/employees.service";
 import { Employee } from "@/mocks/employees";
 import {
   getSchedules,
   createSchedule,
-  updateSchedule,
   deleteSchedule,
 } from "@/services/schedules.service";
 import { Schedule, MOCK_TIME_SLOTS } from "@/mocks/schedules";
@@ -18,35 +15,31 @@ interface PeriodsViewProps {
   dark: boolean;
 }
 
+type DayOfWeek = "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado";
+const DAYS_OF_WEEK: DayOfWeek[] = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
 export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>("Todos");
-  const [selectedDayFilter, setSelectedDayFilter] = useState<string>("Todos");
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("Todos");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedDaysFilter, setSelectedDaysFilter] = useState<DayOfWeek[]>([...DAYS_OF_WEEK]);
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
+  const [scheduleToDelete, setScheduleToDelete] = useState<any>(null);
 
-  // Form values
-  const [formValues, setFormValues] = useState<Omit<Schedule, "id">>({
-    employeeCode: "",
-    employeeName: "",
-    day: "Lunes",
-    startTime: "07:15",
-    endTime: "08:15",
-    period: "Periodo 1",
-    status: "Activo",
+  // Form values para Asignación Múltiple (Multidía)
+  const [modalEmployee, setModalEmployee] = useState<string>("");
+  const [modalDay, setModalDay] = useState<DayOfWeek>("Lunes");
+  const [modalSlotsByDay, setModalSlotsByDay] = useState<Record<DayOfWeek, number[]>>({
+    Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
   });
+
+  const totalSelectedSlots = Object.values(modalSlotsByDay).flat().length;
 
   const loadData = async () => {
     setLoading(true);
@@ -56,9 +49,9 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
         getEmployees(),
       ]);
       setSchedules(scheduleList);
-      setEmployees(employeeList.filter(emp => emp.status === "Activo")); // show only active employees in select list
+      setEmployees(employeeList.filter(emp => emp.status === "Activo"));
     } catch (error) {
-      console.error("Error al cargar datos de horarios/empleados:", error);
+      console.error("Error al cargar datos:", error);
     } finally {
       setLoading(false);
     }
@@ -68,664 +61,422 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     loadData();
   }, []);
 
-  const handleEmployeeChange = (code: string) => {
-    const emp = employees.find((e) => e.code === code);
-    setFormValues((prev) => ({
-      ...prev,
-      employeeCode: code,
-      employeeName: emp ? emp.name : "",
-    }));
-  };
-
-  const handlePeriodChange = (slotIndex: number) => {
-    const slot = MOCK_TIME_SLOTS[slotIndex];
-    if (slot) {
-      const times = slot.label.split(" – ");
-      setFormValues((prev) => ({
-        ...prev,
-        period: `Periodo ${slotIndex + 1}`,
-        startTime: times[0] || "",
-        endTime: times[1] || "",
-      }));
-    }
-  };
-
-  const handleOpenCreate = () => {
-    setIsEditing(false);
-    const defaultEmp = employees[0] ? employees[0].code : "";
-    const defaultEmpName = employees[0] ? employees[0].name : "";
-
-    setFormValues({
-      employeeCode: defaultEmp,
-      employeeName: defaultEmpName,
-      day: "Lunes",
-      startTime: "07:15",
-      endTime: "08:15",
-      period: "Periodo 1",
-      status: "Activo",
+  const resetModal = () => {
+    setModalEmployee("");
+    setModalDay("Lunes");
+    setModalSlotsByDay({
+      Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
     });
-    setFormModalOpen(true);
   };
 
-  const handleOpenEdit = (sch: Schedule) => {
-    setSelectedSchedule(sch);
-    setIsEditing(true);
-    setFormValues({
-      employeeCode: sch.employeeCode,
-      employeeName: sch.employeeName,
-      day: sch.day,
-      startTime: sch.startTime,
-      endTime: sch.endTime,
-      period: sch.period,
-      status: sch.status,
-    });
-    setFormModalOpen(true);
-  };
+  const handleSaveSchedules = async () => {
+    if (!modalEmployee || totalSelectedSlots === 0) return;
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formValues.employeeCode) {
-      alert("Por favor seleccione un empleado");
-      return;
-    }
+    const emp = employees.find(e => e.code === modalEmployee);
+    if (!emp) return;
 
-    try {
-      if (isEditing && selectedSchedule) {
-        await updateSchedule(selectedSchedule.id, formValues);
-      } else {
-        const nextId = `SCH-${Date.now().toString().slice(-4)}`;
-        await createSchedule({
-          id: nextId,
-          ...formValues,
-        });
+    // Recorremos cada día y guardamos sus respectivos periodos
+    for (const day of DAYS_OF_WEEK) {
+      const slotsForDay = modalSlotsByDay[day];
+      for (const slotId of slotsForDay) {
+        const slotIndex = MOCK_TIME_SLOTS.findIndex(s => s.id === slotId);
+        const slotDetails = MOCK_TIME_SLOTS[slotIndex];
+
+        if (slotDetails) {
+          const times = slotDetails.label.split(" – ");
+          await createSchedule({
+            // Generamos un ID único y aleatorio para no tener conflictos en React
+            id: `SCH-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 7)}`,
+            employeeCode: emp.code,
+            employeeName: emp.name,
+            day: day,
+            period: `Periodo ${slotIndex + 1}`,
+            startTime: times[0] || "",
+            endTime: times[1] || "",
+            status: "Activo"
+          });
+        }
       }
-      setFormModalOpen(false);
-      loadData();
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Error al guardar el horario");
     }
-  };
 
-  const handleOpenDelete = (sch: Schedule) => {
-    setScheduleToDelete(sch);
-    setDeleteConfirmOpen(true);
+    await loadData();
+    setFormModalOpen(false);
+    resetModal();
   };
 
   const handleDeleteConfirm = async () => {
     if (scheduleToDelete) {
-      try {
-        await deleteSchedule(scheduleToDelete.id);
-        setDeleteConfirmOpen(false);
-        setScheduleToDelete(null);
-        loadData();
-      } catch (err) {
-        console.error(err);
-        alert("Error al eliminar el horario");
-      }
+      await deleteSchedule(scheduleToDelete.id);
+      await loadData();
     }
+    setDeleteConfirmOpen(false);
+    setScheduleToDelete(null);
   };
 
-  // Filter operations
-  const filteredRows = schedules.filter((sch) => {
-    const matchesEmployee =
-      selectedEmployeeFilter === "Todos" || sch.employeeCode === selectedEmployeeFilter;
-    const matchesDay = selectedDayFilter === "Todos" || sch.day === selectedDayFilter;
-    const matchesStatus =
-      selectedStatusFilter === "Todos" || sch.status === selectedStatusFilter;
-    return matchesEmployee && matchesDay && matchesStatus;
+  const toggleSlotSelection = (slotId: number) => {
+    setModalSlotsByDay(prev => {
+      const daySlots = prev[modalDay];
+      if (daySlots.includes(slotId)) {
+        return { ...prev, [modalDay]: daySlots.filter(id => id !== slotId) };
+      } else {
+        return { ...prev, [modalDay]: [...daySlots, slotId] };
+      }
+    });
+  };
+
+  const toggleDayFilter = (day: DayOfWeek) => {
+    setSelectedDaysFilter(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  // ── LÓGICA DE AGRUPACIÓN (MATRIZ SEMANAL) ──
+  const aggregatedSchedules = Array.from(
+    schedules.reduce((acc, current) => {
+      const empId = current.employeeCode || current.employeeName;
+
+      if (!acc.has(empId)) {
+        const employeeRef = employees.find(e => e.code === current.employeeCode || e.name === current.employeeName);
+        acc.set(empId, {
+          employeeId: empId,
+          employeeName: current.employeeName,
+          code: current.employeeCode || empId,
+          ci: (employeeRef as any)?.ci || "",
+          days: {
+            Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
+          }
+        });
+      }
+
+      const empData = acc.get(empId)!;
+      const dayName = current.day;
+
+      if (empData.days[dayName]) {
+        empData.days[dayName].push({
+          id: current.id,
+          period: current.period,
+          startTime: current.startTime,
+          endTime: current.endTime,
+          status: current.status
+        });
+      }
+      return acc;
+    }, new Map<string, any>()).values()
+  );
+
+  const filteredEmployees = aggregatedSchedules.filter((emp: any) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = term === "" ||
+      emp.employeeName?.toLowerCase().includes(term) ||
+      emp.code?.toLowerCase().includes(term) ||
+      emp.ci?.toLowerCase().includes(term);
+
+    const matchesDay = selectedDaysFilter.length === 0 || selectedDaysFilter.some(day => emp.days[day] && emp.days[day].length > 0);
+
+    return matchesSearch && matchesDay;
   });
 
-  const totalPages = Math.ceil(filteredRows.length / itemsPerPage) || 1;
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [filteredRows.length, totalPages, currentPage]);
-
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedRows = filteredRows.slice(startIndex, startIndex + itemsPerPage);
+  if (loading) {
+    return <div className={`p-8 text-center ${dark ? "text-white" : "text-slate-800"}`}>Cargando horarios...</div>;
+  }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto p-6"
-      style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}
-    >
-      <div className={card(dark, "overflow-hidden")}>
-        {/* Toolbar & Filters */}
-        <div
-          className={`flex flex-wrap items-center justify-between gap-4 p-5 border-b ${
-            dark ? "border-white/8" : "border-slate-100"
-          }`}
+    <div className="space-y-6">
+      {/* Botón superior alineado a la derecha */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => {
+            resetModal();
+            setFormModalOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
         >
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Filter Employee */}
-            <div className="flex flex-col gap-1">
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider ${
-                  dark ? "text-white/40" : "text-slate-400"
-                }`}
-              >
-                Empleado
-              </span>
-              <select
-                value={selectedEmployeeFilter}
-                onChange={(e) => {
-                  setSelectedEmployeeFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all w-48 ${
-                  dark
-                    ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-              >
-                <option value="Todos">Todos los empleados</option>
-                {employees.map((emp) => (
-                  <option key={emp.code} value={emp.code}>
-                    {emp.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <Plus size={18} />
+          Nueva Asignación
+        </button>
+      </div>
 
-            {/* Filter Day */}
-            <div className="flex flex-col gap-1">
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider ${
-                  dark ? "text-white/40" : "text-slate-400"
-                }`}
-              >
-                Día
-              </span>
-              <select
-                value={selectedDayFilter}
-                onChange={(e) => {
-                  setSelectedDayFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all w-36 ${
-                  dark
-                    ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-              >
-                <option value="Todos">Todos los días</option>
-                <option value="Lunes">Lunes</option>
-                <option value="Martes">Martes</option>
-                <option value="Miércoles">Miércoles</option>
-                <option value="Jueves">Jueves</option>
-                <option value="Viernes">Viernes</option>
-                <option value="Sábado">Sábado</option>
-              </select>
-            </div>
+      {/* Controles y Filtros */}
+      <div className={`p-4 rounded-xl border flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
+        {/* Buscador de Texto */}
+        <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-transparent w-full xl:w-80">
+          <Search size={16} className={dark ? "text-white/40" : "text-slate-400"} />
+          <input
+            type="text"
+            placeholder="Buscar por Nombre, Código o CI..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className={`bg-transparent outline-none text-sm font-medium w-full ${dark ? "text-white placeholder-white/40" : "text-slate-700 placeholder-slate-400"}`}
+          />
+        </div>
 
-            {/* Filter Status */}
-            <div className="flex flex-col gap-1">
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider ${
-                  dark ? "text-white/40" : "text-slate-400"
-                }`}
-              >
-                Estado
-              </span>
-              <select
-                value={selectedStatusFilter}
-                onChange={(e) => {
-                  setSelectedStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-sm outline-none transition-all w-36 ${
-                  dark
-                    ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
-              >
-                <option value="Todos">Todos los estados</option>
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-              </select>
-            </div>
-          </div>
-
+        {/* Filtro Múltiple de Días */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-sm font-semibold mr-2 ${dark ? "text-white/60" : "text-slate-500"}`}>
+            Mostrar días:
+          </span>
+          {/* Botón de TODOS */}
           <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
-            style={{ background: COLORS.primary }}
+            onClick={() => setSelectedDaysFilter([...DAYS_OF_WEEK])}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${selectedDaysFilter.length === DAYS_OF_WEEK.length
+                ? "bg-primary border-primary text-white shadow-sm"
+                : dark
+                  ? "bg-transparent border-white/20 text-white/60 hover:bg-white/5"
+                  : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
           >
-            <Plus size={14} /> Asignar horario
+            Todos
           </button>
-        </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Día", "Hora inicio", "Hora fin", "Período", "Estado", "Acciones"].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${
-                        dark ? "text-white/35" : "text-slate-400"
-                      }`}
-                    >
-                      {col}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8">
-                    <span className={dark ? "text-white/50" : "text-slate-500"}>
-                      Cargando horarios...
-                    </span>
-                  </td>
-                </tr>
-              ) : paginatedRows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8">
-                    <span className={dark ? "text-white/50" : "text-slate-500"}>
-                      No se encontraron horarios asignados
-                    </span>
-                  </td>
-                </tr>
-              ) : (
-                paginatedRows.map((sch) => (
-                  <tr
-                    key={sch.id}
-                    className={`border-t transition-colors ${
-                      dark
-                        ? "border-white/6 hover:bg-white/3"
-                        : "border-slate-100 hover:bg-blue-50/10"
-                    }`}
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={sch.employeeName} size={32} bg={COLORS.primary} />
-                        <div>
-                          <span
-                            className={`text-sm font-medium block ${
-                              dark ? "text-white" : "text-slate-800"
-                            }`}
-                          >
-                            {sch.employeeName}
-                          </span>
-                          <span
-                            className={`text-xs block font-mono ${
-                              dark ? "text-white/35" : "text-slate-400"
-                            }`}
-                          >
-                            {sch.employeeCode}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td
-                      className={`px-5 py-3.5 text-sm font-medium ${
-                        dark ? "text-white/80" : "text-slate-700"
-                      }`}
-                    >
-                      {sch.day}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={13} className={dark ? "text-white/30" : "text-slate-400"} />
-                        <span
-                          className={`font-mono text-xs ${dark ? "text-blue-400" : "text-blue-700"}`}
-                        >
-                          {sch.startTime}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={13} className={dark ? "text-white/30" : "text-slate-400"} />
-                        <span
-                          className={`font-mono text-xs ${dark ? "text-blue-400" : "text-blue-700"}`}
-                        >
-                          {sch.endTime}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
-                          dark
-                            ? "bg-white/4 border-white/8 text-white/70"
-                            : "bg-slate-50 border-slate-200 text-slate-600"
-                        }`}
-                      >
-                        {sch.period}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusBadge status={sch.status} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenEdit(sch)}
-                          title="Editar"
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            dark
-                              ? "hover:bg-white/8 text-white/50 hover:text-white"
-                              : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                          }`}
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDelete(sch)}
-                          title="Eliminar"
-                          className="p-1.5 rounded-lg transition-colors hover:bg-red-50 text-red-400 hover:text-red-600 cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+          <div className="h-4 w-px bg-slate-300 dark:bg-white/20 mx-1"></div>
 
-        {/* Footer */}
-        <div
-          className={`flex items-center justify-between px-5 py-3 border-t ${
-            dark ? "border-white/8" : "border-slate-100"
-          }`}
-        >
-          <p className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
-            Mostrando {filteredRows.length > 0 ? startIndex + 1 : 0} a{" "}
-            {Math.min(startIndex + itemsPerPage, filteredRows.length)} de {filteredRows.length} horarios
-          </p>
-          <div className="flex gap-1">
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const pageNum = i + 1;
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                    pageNum === currentPage
-                      ? "text-white"
-                      : dark
-                      ? "text-white/35 hover:bg-white/6"
-                      : "text-slate-50 hover:bg-slate-100"
+          {DAYS_OF_WEEK.map(day => {
+            const isSelected = selectedDaysFilter.includes(day);
+            return (
+              <button
+                key={day}
+                onClick={() => toggleDayFilter(day)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${isSelected
+                    ? "bg-primary/10 border-primary text-primary"
+                    : dark
+                      ? "bg-transparent border-white/20 text-white/60 hover:bg-white/5"
+                      : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}
-                  style={pageNum === currentPage ? { background: COLORS.primary } : {}}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
+              >
+                {day}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* ASSIGN / EDIT HORARIO FORM MODAL */}
+      {/* Tabla Matriz Semanal (Con Scroll Vertical) */}
+      <div className={`overflow-x-auto overflow-y-auto max-h-[60vh] rounded-xl border relative ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
+        <table className="w-full text-left border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr className={`border-b ${dark ? "bg-slate-800 border-white/10" : "bg-slate-50 border-slate-200"}`}>
+              <th className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider ${dark ? "text-white/60" : "text-slate-500"} min-w-[240px]`}>
+                Empleado
+              </th>
+              {DAYS_OF_WEEK.map((day) => {
+                if (!selectedDaysFilter.includes(day)) return null;
+                return (
+                  <th key={day} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-center ${dark ? "text-white/60" : "text-slate-500"} min-w-[140px]`}>
+                    {day}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {filteredEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={selectedDaysFilter.length + 1} className={`px-4 py-12 text-center text-sm ${dark ? "text-white/40" : "text-slate-400"}`}>
+                  No se encontraron asignaciones que coincidan con los filtros.
+                </td>
+              </tr>
+            ) : (
+              filteredEmployees.map((emp: any) => (
+                <tr key={emp.employeeId} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors`}>
+                  <td className="px-4 py-4 align-top">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={emp.employeeName} size={36} bg={COLORS.primary} />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold truncate ${dark ? "text-white" : "text-slate-800"}`}>
+                          {emp.employeeName}
+                        </p>
+                        <div className={`flex items-center gap-2 mt-0.5 ${dark ? "text-white/40" : "text-slate-500"}`}>
+                          <p className="text-xs font-medium">{emp.code}</p>
+                          {emp.ci && (
+                            <>
+                              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-white/20"></span>
+                              <p className="text-xs">CI: {emp.ci}</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {DAYS_OF_WEEK.map((day) => {
+                    if (!selectedDaysFilter.includes(day)) return null;
+                    const dayPeriods = [...emp.days[day]].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                    return (
+                      <td key={day} className="px-3 py-3 align-top border-l border-slate-100 dark:border-white/5">
+                        <div className="flex flex-col gap-2 justify-start items-center h-full">
+                          {dayPeriods.length === 0 ? (
+                            <span className={`text-xs block italic py-2 ${dark ? "text-white/10" : "text-slate-300"}`}>—</span>
+                          ) : (
+                            dayPeriods.map((slot) => (
+                              <div
+                                key={slot.id}
+                                className={`group relative w-full flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${dark
+                                    ? "bg-purple-900/20 border-purple-800/40 text-purple-200 hover:border-purple-500/80"
+                                    : "bg-blue-50 border-blue-100 text-blue-700 hover:border-blue-300"
+                                  }`}
+                              >
+                                <span className="text-xs font-bold tracking-wide">
+                                  {slot.startTime} - {slot.endTime}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setScheduleToDelete({ ...slot, employeeName: emp.employeeName, day });
+                                    setDeleteConfirmOpen(true);
+                                  }}
+                                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-md transition-transform transform hover:scale-110 cursor-pointer"
+                                  title="Eliminar periodo"
+                                >
+                                  <X size={12} strokeWidth={3} />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal - Asignación Múltiple (Multidía) */}
       {formModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div
-            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${
-              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
-            }`}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h3 className="text-lg font-bold">{isEditing ? "Editar Horario" : "Asignar Horario"}</h3>
-              <button
-                type="button"
-                onClick={() => setFormModalOpen(false)}
-                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${
-                  dark ? "text-white/50" : "text-slate-400"
-                }`}
-              >
-                <X size={18} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl p-6 ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold flex items-center gap-2 ${dark ? "text-white" : "text-slate-800"}`}>
+                <CheckSquare className="text-primary" size={24} />
+                Asignar Horarios
+              </h3>
+              <button onClick={() => setFormModalOpen(false)} className={`cursor-pointer ${dark ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-600"}`}>
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit}>
-              {/* Body */}
-              <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-                {/* Employee select */}
-                <div>
-                  <label
-                    className={`block text-xs font-semibold mb-1 ${
-                      dark ? "text-white/60" : "text-slate-500"
-                    }`}
-                  >
-                    Empleado *
-                  </label>
-                  <select
-                    required
-                    disabled={isEditing}
-                    value={formValues.employeeCode}
-                    onChange={(e) => handleEmployeeChange(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                      dark
-                        ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60 disabled:opacity-50"
-                        : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50 disabled:opacity-50"
-                    }`}
-                  >
-                    <option value="" disabled>
-                      Seleccione un empleado...
-                    </option>
-                    {employees.map((emp) => (
-                      <option key={emp.code} value={emp.code}>
-                        {emp.name} ({emp.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="space-y-6">
+              {/* Selector de Empleado */}
+              <div className="space-y-2">
+                <label className={`text-sm font-semibold ${dark ? "text-white/70" : "text-slate-600"}`}>
+                  <User size={14} className="inline mr-1" /> Seleccionar Empleado
+                </label>
+                <select
+                  value={modalEmployee}
+                  onChange={(e) => setModalEmployee(e.target.value)}
+                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-black/20 border-white/10 text-white" : "bg-slate-50 border-slate-200"}`}
+                >
+                  <option value="" disabled>Seleccione un empleado...</option>
+                  {employees.map(emp => (
+                    <option key={emp.code} value={emp.code}>{emp.name}</option>
+                  ))}
+                </select>
+              </div>
 
-                {/* Day & Status */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
-                    >
-                      Día de la semana *
-                    </label>
-                    <select
-                      value={formValues.day}
-                      onChange={(e) => setFormValues({ ...formValues, day: e.target.value as any })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
-                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
-                    >
-                      <option value="Lunes">Lunes</option>
-                      <option value="Martes">Martes</option>
-                      <option value="Miércoles">Miércoles</option>
-                      <option value="Jueves">Jueves</option>
-                      <option value="Viernes">Viernes</option>
-                      <option value="Sábado">Sábado</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
-                    >
-                      Estado
-                    </label>
-                    <select
-                      value={formValues.status}
-                      onChange={(e) => setFormValues({ ...formValues, status: e.target.value as any })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
-                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
-                    >
-                      <option value="Activo">Activo</option>
-                      <option value="Inactivo">Inactivo</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Period Quick selector */}
-                <div>
-                  <label
-                    className={`block text-xs font-semibold mb-1 ${
-                      dark ? "text-white/60" : "text-slate-500"
-                    }`}
-                  >
-                    Selección Rápida de Periodo (Opcional)
-                  </label>
-                  <select
-                    onChange={(e) => handlePeriodChange(parseInt(e.target.value, 10))}
-                    defaultValue=""
-                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                      dark
-                        ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                        : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                    }`}
-                  >
-                    <option value="" disabled>
-                      Seleccionar periodo predefinido...
-                    </option>
-                    {MOCK_TIME_SLOTS.map((slot, idx) => (
-                      <option key={slot.id} value={idx}>
-                        Periodo {idx + 1} ({slot.label})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Custom Period Label */}
-                <div>
-                  <label
-                    className={`block text-xs font-semibold mb-1 ${
-                      dark ? "text-white/60" : "text-slate-500"
-                    }`}
-                  >
-                    Nombre del Periodo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formValues.period}
-                    onChange={(e) => setFormValues({ ...formValues, period: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                      dark
-                        ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
-                        : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                    }`}
-                  />
-                </div>
-
-                {/* Start & End Hours */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
-                    >
-                      Hora de inicio *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="HH:MM"
-                      value={formValues.startTime}
-                      onChange={(e) => setFormValues({ ...formValues, startTime: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
-                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
-                    >
-                      Hora de fin *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="HH:MM"
-                      value={formValues.endTime}
-                      onChange={(e) => setFormValues({ ...formValues, endTime: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
-                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
-                    />
-                  </div>
+              {/* Selector de Días (Botones) */}
+              <div className="space-y-2">
+                <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
+                  <Calendar size={14} className="inline mr-1" /> 1. Navega por los días
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {DAYS_OF_WEEK.map(day => {
+                    const count = modalSlotsByDay[day].length;
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => setModalDay(day)}
+                        className={`relative px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${modalDay === day
+                            ? "bg-primary border-primary text-white shadow-md"
+                            : dark
+                              ? "bg-transparent border-white/20 text-white/60 hover:bg-white/10"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                      >
+                        {day}
+                        {/* Burbuja indicadora si ese día ya tiene periodos marcados */}
+                        {count > 0 && (
+                          <span className="absolute -top-2.5 -right-2 bg-secondary text-primary text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black shadow-sm border-2 border-white dark:border-[#1E293B]">
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+              {/* Cuadrícula de Checkboxes */}
+              <div className={`space-y-3 p-4 rounded-xl border ${dark ? "bg-black/10 border-white/5" : "bg-slate-50/50 border-slate-100"}`}>
+                <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
+                  <Clock size={14} className="inline mr-1" /> 2. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[25vh] overflow-y-auto p-1">
+                  {MOCK_TIME_SLOTS.map((slot, index) => {
+                    const isSelected = modalSlotsByDay[modalDay].includes(slot.id);
+                    return (
+                      <div
+                        key={slot.id}
+                        onClick={() => toggleSlotSelection(slot.id)}
+                        className={`cursor-pointer border-2 rounded-xl p-3 flex flex-col items-center justify-center transition-all select-none ${isSelected
+                            ? "border-primary bg-primary/10 text-primary shadow-sm"
+                            : dark
+                              ? "border-white/10 hover:border-white/30 text-white/60 bg-black/20"
+                              : "border-slate-200 hover:border-primary/40 text-slate-600 bg-white"
+                          }`}
+                      >
+                        <span className="font-bold text-sm">{slot.label}</span>
+                        <span className="text-xs opacity-70 mt-1">Periodo {index + 1}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100 dark:border-white/10">
+              <span className={`text-sm font-medium ${dark ? "text-white/50" : "text-slate-500"}`}>
+                Total a guardar: <strong className="text-primary text-base">{totalSelectedSlots}</strong> periodos
+              </span>
+              <div className="flex gap-3">
                 <button
-                  type="button"
                   onClick={() => setFormModalOpen(false)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
-                    dark
-                      ? "border-white/10 text-white/70 hover:bg-white/5"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${dark ? "hover:bg-white/10 text-white/70" : "hover:bg-slate-100 text-slate-600"}`}
                 >
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 cursor-pointer"
-                  style={{ background: COLORS.primary }}
+                  onClick={handleSaveSchedules}
+                  disabled={!modalEmployee || totalSelectedSlots === 0}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity flex items-center gap-2 cursor-pointer ${!modalEmployee || totalSelectedSlots === 0 ? "bg-slate-400 cursor-not-allowed opacity-50" : "bg-primary hover:opacity-90 shadow-md"
+                    }`}
                 >
-                  Guardar
+                  Guardar {totalSelectedSlots > 0 ? `(${totalSelectedSlots})` : ""}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION DIALOG */}
+      {/* Delete Confirmation Modal */}
       {deleteConfirmOpen && scheduleToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div
-            className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${
-              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
-            }`}
-          >
-            <h3 className="text-lg font-bold text-red-500 flex items-center gap-2 mb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md rounded-2xl shadow-2xl p-6 ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+            <h3 className={`text-xl font-bold mb-3 flex items-center gap-2 text-red-500`}>
               <Trash2 size={20} /> Eliminar Asignación
             </h3>
             <p className={`text-sm mb-6 ${dark ? "text-white/75" : "text-slate-600"}`}>
-              ¿Está seguro de que desea eliminar la asignación del empleado{" "}
-              <span className="font-semibold">{scheduleToDelete.employeeName}</span> para el día{" "}
-              <span className="font-semibold">{scheduleToDelete.day}</span> en el periodo{" "}
-              <span className="font-semibold">{scheduleToDelete.period}</span> ({scheduleToDelete.startTime} -{" "}
-              {scheduleToDelete.endTime})? Esta acción no se puede deshacer.
+              ¿Está seguro de que desea eliminar el periodo de{" "}
+              <span className="font-semibold">{scheduleToDelete.startTime} a {scheduleToDelete.endTime}</span> del día{" "}
+              <span className="font-semibold">{scheduleToDelete.day}</span> para el empleado{" "}
+              <span className="font-semibold">{scheduleToDelete.employeeName}</span>?
             </p>
-
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmOpen(false)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
-                  dark
-                    ? "border-white/10 text-white/70 hover:bg-white/5"
-                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${dark ? "border-white/10 text-white/70 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
               >
                 Cancelar
               </button>
@@ -733,7 +484,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 onClick={handleDeleteConfirm}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-all cursor-pointer"
               >
-                Eliminar
+                Sí, eliminar
               </button>
             </div>
           </div>

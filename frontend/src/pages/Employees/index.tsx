@@ -67,9 +67,12 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
   // Filter operations
   const filteredRows = employees.filter((emp) => {
+    const searchTerm = search.toLowerCase();
     const matchesSearch =
-      emp.name.toLowerCase().includes(search.toLowerCase()) ||
-      emp.code.toLowerCase().includes(search.toLowerCase());
+      emp.name.toLowerCase().includes(searchTerm) ||
+      emp.code.toLowerCase().includes(searchTerm) ||
+      (emp.ci && emp.ci.toLowerCase().includes(searchTerm));
+
     const matchesStatus =
       statusFilter === "Todos" || emp.status === statusFilter;
     const matchesHours =
@@ -183,17 +186,15 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       <div className={card(dark, "overflow-hidden")}>
         {/* Toolbar */}
         <div
-          className={`flex items-center justify-between p-5 border-b ${
-            dark ? "border-white/8" : "border-slate-100"
-          }`}
+          className={`flex items-center justify-between p-5 border-b ${dark ? "border-white/8" : "border-slate-100"
+            }`}
         >
           <div className="flex items-center gap-2.5">
             <div className="relative">
               <Search
                 size={15}
-                className={`absolute left-3 top-1/2 -translate-y-1/2 ${
-                  dark ? "text-white/30" : "text-slate-400"
-                }`}
+                className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"
+                  }`}
               />
               <input
                 value={search}
@@ -201,25 +202,23 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   setSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Buscar por nombre o código..."
-                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none w-72 transition-all ${
-                  dark
+                placeholder="Buscar por nombre, CI o código..."
+                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none w-72 transition-all ${dark
                     ? "bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-blue-500/60"
                     : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                }`}
+                  }`}
               />
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer transition-all ${
-                showFilters
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer transition-all ${showFilters
                   ? dark
                     ? "bg-white/10 border-white/20 text-white font-medium"
                     : "bg-slate-100 border-slate-350 text-slate-800 font-medium"
                   : dark
-                  ? "border-white/10 text-white/50 hover:bg-white/5"
-                  : "border-slate-200 text-slate-500 hover:bg-slate-50"
-              }`}
+                    ? "border-white/10 text-white/50 hover:bg-white/5"
+                    : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                }`}
             >
               <Filter size={13} /> Filtrar {(statusFilter !== "Todos" || hoursFilter !== "Todas") && "•"}
             </button>
@@ -236,9 +235,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
         {/* Filters Panel */}
         {showFilters && (
           <div
-            className={`p-4 border-b flex flex-wrap gap-6 items-center ${
-              dark ? "border-white/8 bg-white/2" : "border-slate-100 bg-slate-50/50"
-            }`}
+            className={`p-4 border-b flex flex-wrap gap-6 items-center ${dark ? "border-white/8 bg-white/2" : "border-slate-100 bg-slate-50/50"
+              }`}
           >
             <div className="flex items-center gap-2">
               <span className={`text-xs font-semibold ${dark ? "text-white/50" : "text-slate-500"}`}>
@@ -252,13 +250,12 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       setStatusFilter(status);
                       setCurrentPage(1);
                     }}
-                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                      statusFilter === status
+                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${statusFilter === status
                         ? "text-white"
                         : dark
-                        ? "bg-white/5 text-white/60 hover:bg-white/10"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
+                          ? "bg-white/5 text-white/60 hover:bg-white/10"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
                     style={statusFilter === status ? { background: COLORS.primary } : {}}
                   >
                     {status}
@@ -279,13 +276,12 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       setHoursFilter(hours);
                       setCurrentPage(1);
                     }}
-                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                      hoursFilter === hours
+                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${hoursFilter === hours
                         ? "text-white"
                         : dark
-                        ? "bg-white/5 text-white/60 hover:bg-white/10"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
+                          ? "bg-white/5 text-white/60 hover:bg-white/10"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
                     style={hoursFilter === hours ? { background: COLORS.primary } : {}}
                   >
                     {hours === "Todas" ? "Todas" : `${hours} horas`}
@@ -304,6 +300,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 {[
                   "Código",
                   "Nombre completo",
+                  "CI",
                   "Correo",
                   "Teléfono",
                   "Horas contratadas",
@@ -313,9 +310,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 ].map((col) => (
                   <th
                     key={col}
-                    className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${
-                      dark ? "text-white/35" : "text-slate-400"
-                    }`}
+                    className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/35" : "text-slate-400"
+                      }`}
                   >
                     {col}
                   </th>
@@ -325,7 +321,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8">
+                  <td colSpan={9} className="text-center py-8">
                     <span className={dark ? "text-white/50" : "text-slate-500"}>
                       Cargando empleados...
                     </span>
@@ -333,7 +329,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 </tr>
               ) : paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8">
+                  <td colSpan={9} className="text-center py-8">
                     <span className={dark ? "text-white/50" : "text-slate-500"}>
                       No se encontraron empleados
                     </span>
@@ -343,17 +339,15 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 paginatedRows.map((emp) => (
                   <tr
                     key={emp.code}
-                    className={`border-t transition-colors ${
-                      dark
+                    className={`border-t transition-colors ${dark
                         ? "border-white/6 hover:bg-white/3"
                         : "border-slate-100 hover:bg-blue-50/10"
-                    }`}
+                      }`}
                   >
                     <td className="px-5 py-3.5">
                       <span
-                        className={`text-xs font-mono font-bold ${
-                          dark ? "text-blue-400" : "text-blue-700"
-                        }`}
+                        className={`text-xs font-mono font-bold ${dark ? "text-blue-400" : "text-blue-700"
+                          }`}
                       >
                         {emp.code}
                       </span>
@@ -365,6 +359,9 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                           {emp.name}
                         </span>
                       </div>
+                    </td>
+                    <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/70" : "text-slate-700"}`}>
+                      {emp.ci}
                     </td>
                     <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/50" : "text-slate-600"}`}>
                       {emp.email}
@@ -396,22 +393,20 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                             setDetailModalOpen(true);
                           }}
                           title="Ver detalle"
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            dark
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark
                               ? "hover:bg-white/8 text-white/50 hover:text-white"
                               : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                          }`}
+                            }`}
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           onClick={() => handleOpenEdit(emp)}
                           title="Editar"
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            dark
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark
                               ? "hover:bg-white/8 text-white/50 hover:text-white"
                               : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                          }`}
+                            }`}
                         >
                           <Edit2 size={13} />
                         </button>
@@ -433,9 +428,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
         {/* Footer */}
         <div
-          className={`flex items-center justify-between px-5 py-3 border-t ${
-            dark ? "border-white/8" : "border-slate-100"
-          }`}
+          className={`flex items-center justify-between px-5 py-3 border-t ${dark ? "border-white/8" : "border-slate-100"
+            }`}
         >
           <p className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
             Mostrando {filteredRows.length > 0 ? startIndex + 1 : 0} a{" "}
@@ -448,13 +442,12 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                    pageNum === currentPage
+                  className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${pageNum === currentPage
                       ? "text-white"
                       : dark
-                      ? "text-white/35 hover:bg-white/6"
-                      : "text-slate-500 hover:bg-slate-100"
-                  }`}
+                        ? "text-white/35 hover:bg-white/6"
+                        : "text-slate-500 hover:bg-slate-100"
+                    }`}
                   style={pageNum === currentPage ? { background: COLORS.primary } : {}}
                 >
                   {pageNum}
@@ -469,18 +462,16 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       {detailModalOpen && selectedEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div
-            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${
-              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
-            }`}
+            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <h3 className="text-lg font-bold">Detalle del Empleado</h3>
               <button
                 onClick={() => setDetailModalOpen(false)}
-                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${
-                  dark ? "text-white/50" : "text-slate-400"
-                }`}
+                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${dark ? "text-white/50" : "text-slate-400"
+                  }`}
               >
                 <X size={18} />
               </button>
@@ -494,9 +485,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   <h4 className="text-lg font-semibold">{selectedEmployee.name}</h4>
                   <div className="flex gap-2 mt-1">
                     <span
-                      className={`text-xs font-mono px-2 py-0.5 rounded-md ${
-                        dark ? "bg-white/8 text-blue-400" : "bg-blue-50 text-blue-700"
-                      }`}
+                      className={`text-xs font-mono px-2 py-0.5 rounded-md ${dark ? "bg-white/8 text-blue-400" : "bg-blue-50 text-blue-700"
+                        }`}
                     >
                       {selectedEmployee.code}
                     </span>
@@ -599,9 +589,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       {formModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div
-            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${
-              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
-            }`}
+            className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl border transition-all ${dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
@@ -609,9 +598,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               <button
                 type="button"
                 onClick={() => setFormModalOpen(false)}
-                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${
-                  dark ? "text-white/50" : "text-slate-400"
-                }`}
+                className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${dark ? "text-white/50" : "text-slate-400"
+                  }`}
               >
                 <X size={18} />
               </button>
@@ -623,9 +611,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Código *
                     </label>
@@ -635,18 +622,16 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       disabled={isEditing}
                       value={formValues.code}
                       onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60 disabled:opacity-50"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50 disabled:opacity-50"
-                      }`}
+                        }`}
                     />
                   </div>
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       CI *
                     </label>
@@ -655,11 +640,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       required
                       value={formValues.ci}
                       onChange={(e) => setFormValues({ ...formValues, ci: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                        }`}
                     />
                   </div>
                 </div>
@@ -675,20 +659,18 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                     required
                     value={formValues.name}
                     onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                      dark
+                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                         ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
                         : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                    }`}
+                      }`}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Correo Electrónico
                     </label>
@@ -696,18 +678,16 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       type="email"
                       value={formValues.email}
                       onChange={(e) => setFormValues({ ...formValues, email: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                        }`}
                     />
                   </div>
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Teléfono
                     </label>
@@ -715,11 +695,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       type="text"
                       value={formValues.phone}
                       onChange={(e) => setFormValues({ ...formValues, phone: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                        }`}
                     />
                   </div>
                 </div>
@@ -727,20 +706,18 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Cargo
                     </label>
                     <select
                       value={formValues.role}
                       onChange={(e) => setFormValues({ ...formValues, role: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                        }`}
                     >
                       <option value="Auxiliar">Auxiliar</option>
                       <option value="Técnico">Técnico</option>
@@ -749,20 +726,18 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   </div>
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Estado
                     </label>
                     <select
                       value={formValues.status}
                       onChange={(e) => setFormValues({ ...formValues, status: e.target.value as any })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
                           ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
                           : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                        }`}
                     >
                       <option value="Activo">Activo</option>
                       <option value="Inactivo">Inactivo</option>
@@ -774,9 +749,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Horas Contratadas
                     </label>
@@ -805,25 +779,23 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   </div>
                   <div>
                     <label
-                      className={`block text-xs font-semibold mb-1 ${
-                        dark ? "text-white/60" : "text-slate-500"
-                      }`}
+                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
+                        }`}
                     >
                       Horas Asignadas
                     </label>
                     <input
                       type="number"
-                      min={0}
+                      disabled
                       value={formValues.assignedHours}
-                      onChange={(e) =>
-                        setFormValues({ ...formValues, assignedHours: parseInt(e.target.value, 10) || 0 })
-                      }
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
-                        dark
-                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                      }`}
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                          ? "bg-white/5 border-white/10 text-white/50 cursor-not-allowed"
+                          : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                        }`}
                     />
+                    <p className={`text-[10px] mt-1.5 leading-tight ${dark ? "text-white/40" : "text-slate-400"}`}>
+                      *Este valor se calcula automáticamente desde el módulo de Horarios.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -833,11 +805,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 <button
                   type="button"
                   onClick={() => setFormModalOpen(false)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
-                    dark
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${dark
                       ? "border-white/10 text-white/70 hover:bg-white/5"
                       : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   Cancelar
                 </button>
@@ -858,9 +829,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       {deleteConfirmOpen && employeeToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div
-            className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${
-              dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
-            }`}
+            className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
           >
             <h3 className="text-lg font-bold text-red-500 flex items-center gap-2 mb-2">
               <Trash2 size={20} /> Eliminar Empleado
@@ -874,11 +844,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmOpen(false)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
-                  dark
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${dark
                     ? "border-white/10 text-white/70 hover:bg-white/5"
                     : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 Cancelar
               </button>
