@@ -14,19 +14,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, token, setUser, setToken, clearAuth } = useAuthStore();
 
   useEffect(() => {
-    // Check local storage on mount
+    // Restaura el token desde localStorage al montar la app.
+    // El objeto user se reestablece cuando el usuario vuelve a iniciar sesión
+    // o cuando se implemente GET /api/auth/me.
     const savedToken = localStorage.getItem("sicad_token");
     if (savedToken && !token) {
       setToken(savedToken);
-      // Here you would normally fetch current user info
-      setUser({
-        id: "1",
-        name: "Admin UCB",
-        email: "admin@ucb.edu.bo",
-        role: "Administrador",
-      });
     }
-  }, [token, setToken, setUser]);
+  }, [token, setToken]);
 
   const login = (newToken: string, newUser: { id: string; name: string; email: string; role: string }) => {
     setToken(newToken);

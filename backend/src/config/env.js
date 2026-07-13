@@ -4,7 +4,7 @@
 
 require('dotenv').config();
 
-const required = ['DATABASE_URL', 'QR_SECRET_KEY'];
+const required = ['DATABASE_URL', 'QR_SECRET_KEY', 'JWT_SECRET'];
 
 for (const key of required) {
   if (!process.env[key]) {
@@ -23,4 +23,7 @@ module.exports = {
   QR_VALIDITY_SECONDS: parseInt(process.env.QR_VALIDITY_SECONDS || '30', 10),
 
   NODE_ENV: process.env.NODE_ENV || 'development',
+
+  // JWT Secret Key
+  JWT_SECRET: process.env.JWT_SECRET,
 };

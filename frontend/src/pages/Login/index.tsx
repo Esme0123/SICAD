@@ -14,10 +14,12 @@ import {
   UserCheck,
   QrCode,
   BarChart2,
+  AlertCircle,
 } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 import { FormInput } from "@/components/forms/FormInput";
 import { useAuth } from "@/context/AuthContext";
+import { login as loginService } from "@/services/auth.service";
 
 // Define the validation schema with Zod
 const loginSchema = z.object({
@@ -42,6 +44,7 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
   const { login } = useAuth();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const {
     register,
@@ -60,19 +63,25 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
 
   const rememberVal = watch("remember");
 
-  const onSubmit = (_data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // Login with mockup data
-      login("mockup-jwt-token", {
-        id: "1",
-        name: "Admin UCB",
-        email: "admin@ucb.edu.bo",
-        role: "Administrador",
+    setApiError(null);
+    try {
+      const { token, user } = await loginService({
+        email:    data.email,
+        password: data.password,
       });
+      login(token, user);
       navigate("/dashboard");
-    }, 1400);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Error inesperado. Intenta nuevamente.";
+      setApiError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -163,6 +172,22 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Error de API */}
+            {apiError && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm"
+                style={{
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{apiError}</span>
+              </motion.div>
+            )}
             <FormInput
               label="Correo electrónico"
               type="email"
