@@ -1,0 +1,221 @@
+// ============================================================
+// SICAD - Sistema de Control de Asistencia
+// Prisma Schema — PostgreSQL (Neon.tech)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Rol {
+  ADMIN
+  EMPLEADO
+}
+
+enum EstadoPermiso {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+// ============================================================
+// USUARIO (Empleados y Administradores)
+// ============================================================
+
+model Usuario {
+  id                Int                @id @default(autoincrement())
+  nombre            String
+  email             String             @unique
+  password          String
+  rol               Rol                @default(EMPLEADO)
+
+  /// Meta de horas semanales/quincenales (ej. 20 o 40)
+  horasBase         Int                @default(40)
+
+  /// Sumatoria automática de horas asignadas en HorarioAsignado
+  /// Se recalcula en la aplicación cada vez que se modifica el horario
+  horasProgramadas  Float              @default(0)
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relaciones
+  horariosAsignados HorarioAsignado[]
+  asistencias       Asistencia[]
+  permisos          Permiso[]
+
+  @@map("usuarios")
+}
+
+// ============================================================
+// CATÁLOGO DE PERIODOS
+// Bloques de tiempo de la universidad
+// Ej: { horaInicio: "07:15", horaFin: "08:15", nombre: "Bloque 1" }
+// ============================================================
+
+model Periodo {
+  id          Int                @id @default(autoincrement())
+  nombre      String             // Ej: "Bloque 1", "Bloque 2"
+  horaInicio  String             // Formato "HH:mm" — Ej: "07:15"
+  horaFin     String             // Formato "HH:mm" — Ej: "08:15"
+  duracion    Int                // Duración en minutos (calculada)
+  activo      Boolean            @default(true)
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relaciones
+  horariosAsignados HorarioAsignado[]
+
+  @@map("periodos")
+}
+
+// ============================================================
+// HORARIO ASIGNADO
+// Relaciona Usuario <-> Periodo con un día de la semana
+// Un usuario puede tener múltiples periodos por día
+// ============================================================
+
+model HorarioAsignado {
+  id          Int      @id @default(autoincrement())
+
+  usuarioId   Int
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  periodoId   Int
+  periodo     Periodo  @relation(fields: [periodoId], references: [id], onDelete: Restrict)
+
+  /// "Lunes" | "Martes" | "Miercoles" | "Jueves" | "Viernes" | "Sabado"
+  diaSemana   String
+
+  createdAt   DateTime @default(now())
+
+  // Un usuario no puede tener el mismo periodo asignado dos veces el mismo día
+  @@unique([usuarioId, periodoId, diaSemana])
+  @@map("horarios_asignados")
+}
+
+// ============================================================
+// ASISTENCIA
+// Lógica de bloques continuos:
+//   - Un usuario puede registrar VARIAS asistencias por día
+//   - Escanea al inicio del primer bloque continuo (horaEntrada)
+//   - Escanea al final del último bloque continuo (horaSalida)
+//   - horaSalida es nullable hasta que el empleado cierre el turno
+// ============================================================
+
+model Asistencia {
+  id          Int       @id @default(autoincrement())
+
+  usuarioId   Int
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// Solo la fecha (sin hora), permite agrupar bloques del mismo día
+  fecha       DateTime  @db.Date
+
+  horaEntrada DateTime
+  horaSalida  DateTime?  // Nullable: se rellena cuando el empleado escanea al salir
+
+  /// Minutos de tolerancia aplicados en este registro (para auditoría)
+  minutosTolerancia Int @default(0)
+
+  /// Observaciones opcionales (tardanza, permiso parcial, etc.)
+  observacion String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("asistencias")
+}
+
+// ============================================================
+// CATÁLOGO DE TIPOS DE PERMISO
+// Ej: "Baja médica", "Permiso personal", "Vacaciones"
+// ============================================================
+
+model TipoPermiso {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  activo      Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relaciones
+  permisos    Permiso[]
+
+  @@map("tipos_permiso")
+}
+
+// ============================================================
+// PERMISO
+// Solicitudes de ausencia vinculadas a Usuario y TipoPermiso
+// ============================================================
+
+model Permiso {
+  id             Int           @id @default(autoincrement())
+
+  usuarioId      Int
+  usuario        Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  tipoPermisoId  Int
+  tipoPermiso    TipoPermiso   @relation(fields: [tipoPermisoId], references: [id], onDelete: Restrict)
+
+  fechaInicio    DateTime      @db.Date
+  fechaFin       DateTime      @db.Date
+  motivo         String
+  estado         EstadoPermiso @default(PENDIENTE)
+
+  /// ID del administrador que aprobó/rechazó
+  revisadoPor    Int?
+  fechaRevision  DateTime?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("permisos")
+}
+
+// ============================================================
+// CONFIGURACIÓN DEL SISTEMA
+// Una sola fila (id = 1). Se usa upsert desde la app.
+// Campos extraídos directamente de la UI de configuración.
+// ============================================================
+
+model Configuracion {
+  id                      Int      @id @default(1)
+
+  nombreInstitucion       String   @default("SICAD")
+
+  /// "xlsx" | "csv" | "pdf"
+  formatoExportacion      String   @default("xlsx")
+
+  /// Minutos de gracia antes de marcar tardanza
+  tiempoToleranciaMinutos Int      @default(10)
+
+  /// Tiempo de vida del código QR en segundos
+  duracionQrSegundos      Int      @default(30)
+
+  /// Hora de inicio del control de asistencia (formato "HH:mm")
+  horaAperturaControl     String   @default("06:00")
+
+  /// Hora de cierre del control de asistencia (formato "HH:mm")
+  horaCierreControl       String   @default("22:00")
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("configuracion")
+}
+
