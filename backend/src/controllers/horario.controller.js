@@ -101,4 +101,75 @@ async function asignar(req, res) {
   }
 }
 
-module.exports = { getPeriodos, getHorarioUsuario, asignar };
+// ── GET /api/horarios/empleados ──────────────────────────────
+// Devuelve todos los empleados con sus horarios asignados
+async function getHorariosEmpleados(req, res) {
+  try {
+    const empleados = await prisma.usuario.findMany({
+      where: { rol: 'EMPLEADO' },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        horasBase: true,
+        horasProgramadas: true,
+        codigo: true,
+        ci: true,
+        celular: true,
+        activo: true,
+        rol: true,
+        horariosAsignados: {
+          include: { periodo: true },
+        },
+      },
+      orderBy: { nombre: 'asc' },
+    });
+    res.json({ ok: true, data: empleados });
+  } catch (error) {
+    console.error('[horario.getHorariosEmpleados]', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener horarios de empleados' });
+  }
+}
+
+// ── DELETE /api/horarios/:id ──────────────────────────────────
+// Elimina un bloque de horario asignado y recalcula horasProgramadas
+async function eliminarAsignacion(req, res) {
+  try {
+    const id = parseInt(req.params.id);
+    const asignacion = await prisma.horarioAsignado.findUnique({ where: { id } });
+    if (!asignacion) {
+      return res.status(404).json({ ok: false, message: 'Asignación no encontrada' });
+    }
+
+    const { usuarioId } = asignacion;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.horarioAsignado.delete({ where: { id } });
+
+      // Recalcular horasProgramadas
+      const todosLosHorarios = await tx.horarioAsignado.findMany({
+        where: { usuarioId },
+        include: { periodo: { select: { duracion: true } } },
+      });
+
+      const totalMinutos = todosLosHorarios.reduce(
+        (acc, h) => acc + (h.periodo?.duracion ?? 0),
+        0
+      );
+      const horasProgramadas = parseFloat((totalMinutos / 60).toFixed(2));
+
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: { horasProgramadas },
+      });
+    });
+
+    res.json({ ok: true, message: 'Horario eliminado correctamente' });
+  } catch (error) {
+    console.error('[horario.eliminarAsignacion]', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar horario' });
+  }
+}
+
+module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion };
+

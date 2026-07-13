@@ -2,14 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
-import { getEmployees } from "@/services/employees.service";
-import { Employee } from "@/mocks/employees";
+import { getEmployees, Employee } from "@/services/employees.service";
 import {
   getSchedules,
   createSchedule,
   deleteSchedule,
+  getPeriods,
+  Periodo,
+  Schedule,
 } from "@/services/schedules.service";
-import { Schedule, MOCK_TIME_SLOTS } from "@/mocks/schedules";
 
 interface PeriodsViewProps {
   dark: boolean;
@@ -21,6 +22,7 @@ const DAYS_OF_WEEK: DayOfWeek[] = ["Lunes", "Martes", "Miércoles", "Jueves", "V
 export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [periods, setPeriods] = useState<Periodo[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -44,12 +46,14 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [scheduleList, employeeList] = await Promise.all([
+      const [scheduleList, employeeList, periodList] = await Promise.all([
         getSchedules(),
         getEmployees(),
+        getPeriods(),
       ]);
       setSchedules(scheduleList);
-      setEmployees(employeeList.filter(emp => emp.status === "Activo"));
+      setEmployees(employeeList.filter(emp => emp.status === "Activo" && emp.role !== "Administrador"));
+      setPeriods(periodList);
     } catch (error) {
       console.error("Error al cargar datos:", error);
     } finally {
@@ -70,38 +74,29 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   };
 
   const handleSaveSchedules = async () => {
-    if (!modalEmployee || totalSelectedSlots === 0) return;
+    if (!modalEmployee) return;
 
     const emp = employees.find(e => e.code === modalEmployee);
-    if (!emp) return;
+    if (!emp || !emp.id) return;
 
-    // Recorremos cada día y guardamos sus respectivos periodos
-    for (const day of DAYS_OF_WEEK) {
-      const slotsForDay = modalSlotsByDay[day];
-      for (const slotId of slotsForDay) {
-        const slotIndex = MOCK_TIME_SLOTS.findIndex(s => s.id === slotId);
-        const slotDetails = MOCK_TIME_SLOTS[slotIndex];
-
-        if (slotDetails) {
-          const times = slotDetails.label.split(" – ");
-          await createSchedule({
-            // Generamos un ID único y aleatorio para no tener conflictos en React
-            id: `SCH-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 7)}`,
-            employeeCode: emp.code,
-            employeeName: emp.name,
-            day: day,
-            period: `Periodo ${slotIndex + 1}`,
-            startTime: times[0] || "",
-            endTime: times[1] || "",
-            status: "Activo"
-          });
-        }
+    try {
+      // Recorremos cada día y guardamos sus respectivos periodos agrupados
+      for (const day of DAYS_OF_WEEK) {
+        const slotsForDay = modalSlotsByDay[day];
+        // Enviar la petición de asignación por día con el array de periodos seleccionados
+        await createSchedule({
+          usuarioId: emp.id,
+          diaSemana: day,
+          periodosIds: slotsForDay,
+        });
       }
+      await loadData();
+      setFormModalOpen(false);
+      resetModal();
+    } catch (error) {
+      console.error("Error al guardar horarios:", error);
+      alert("Ocurrió un error al guardar los horarios.");
     }
-
-    await loadData();
-    setFormModalOpen(false);
-    resetModal();
   };
 
   const handleDeleteConfirm = async () => {
@@ -413,7 +408,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                   <Clock size={14} className="inline mr-1" /> 2. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[25vh] overflow-y-auto p-1">
-                  {MOCK_TIME_SLOTS.map((slot, index) => {
+                  {periods.map((slot, index) => {
                     const isSelected = modalSlotsByDay[modalDay].includes(slot.id);
                     return (
                       <div
@@ -426,8 +421,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                               : "border-slate-200 hover:border-primary/40 text-slate-600 bg-white"
                           }`}
                       >
-                        <span className="font-bold text-sm">{slot.label}</span>
-                        <span className="text-xs opacity-70 mt-1">Periodo {index + 1}</span>
+                        <span className="font-bold text-sm">{slot.horaInicio} - {slot.horaFin}</span>
+                        <span className="text-xs opacity-70 mt-1">{slot.nombre}</span>
                       </div>
                     );
                   })}

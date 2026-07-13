@@ -46,6 +46,11 @@ model Usuario {
   /// Se recalcula en la aplicación cada vez que se modifica el horario
   horasProgramadas  Float              @default(0)
 
+  codigo            String?            @unique
+  ci                String?
+  celular           String?
+  activo            Boolean            @default(true)
+
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 

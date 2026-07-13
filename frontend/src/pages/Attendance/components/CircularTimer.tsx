@@ -15,13 +15,13 @@ export const CircularTimer: React.FC<CircularTimerProps> = ({
   const circ = 2 * Math.PI * r;
   const progress = (seconds / total) * circ;
   
-  // Use institutional colors: Red Error (#C62828), Orange Warning (#F9A825), Green Success (#2E7D32)
-  const col = seconds <= 3 ? "#C62828" : seconds <= 6 ? "#F9A825" : "#2E7D32";
+  // Use institutional colors from CSS variables
+  const col = seconds <= 3 ? "var(--destructive)" : seconds <= 6 ? "var(--accent)" : "var(--primary)";
 
   return (
     <div className="relative flex items-center justify-center w-32 h-32">
       <svg width="128" height="128" viewBox="0 0 128 128" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="64" cy="64" r={r} fill="none" stroke={dark ? "#1E3054" : "#E2E8F0"} strokeWidth="8" />
+        <circle cx="64" cy="64" r={r} fill="none" stroke="var(--muted)" strokeWidth="8" />
         <circle
           cx="64"
           cy="64"

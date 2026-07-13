@@ -1,6 +1,7 @@
 import api from "./api";
 
 export interface Employee {
+  id?: number;
   code: string;
   ci: string;
   name: string;
@@ -13,24 +14,38 @@ export interface Employee {
   assignedHours: number;
 }
 
+export interface UsuarioBackend {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: "ADMIN" | "EMPLEADO";
+  horasBase: number;
+  horasProgramadas: number;
+  codigo?: string | null;
+  ci?: string | null;
+  celular?: string | null;
+  activo?: boolean;
+}
+
 /**
  * Lista todos los empleados desde el backend.
  * GET /api/usuarios
  */
 export async function getEmployees(): Promise<Employee[]> {
-  const { data } = await api.get<{ ok: boolean; data: any[] }>("/usuarios");
+  const { data } = await api.get<{ ok: boolean; data: UsuarioBackend[] }>("/usuarios");
   if (!data.ok) {
     throw new Error("Error al obtener la lista de empleados");
   }
   return data.data.map((user) => ({
-    code: `CC-${String(user.id).padStart(3, "0")}`,
-    ci: "N/A",
+    id: user.id,
+    code: user.codigo || `CC-${String(user.id).padStart(3, "0")}`,
+    ci: user.ci || "N/A",
     name: user.nombre,
     role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
-    status: "Activo",
+    status: user.activo ? "Activo" : "Inactivo",
     periods: Math.ceil(user.horasProgramadas / 4),
     email: user.email,
-    phone: "N/A",
+    phone: user.celular || "N/A",
     contractedHours: user.horasBase === 20 ? 20 : 40,
     assignedHours: user.horasProgramadas,
   }));
@@ -44,19 +59,20 @@ export async function getEmployeeByCode(code: string): Promise<Employee | undefi
   const id = idMatch ? parseInt(idMatch[1], 10) : 0;
   if (!id) return undefined;
 
-  const { data } = await api.get<{ ok: boolean; data: any }>(`/usuarios/${id}`);
+  const { data } = await api.get<{ ok: boolean; data: UsuarioBackend }>(`/usuarios/${id}`);
   if (!data.ok || !data.data) return undefined;
 
   const user = data.data;
   return {
-    code: `CC-${String(user.id).padStart(3, "0")}`,
-    ci: "N/A",
+    id: user.id,
+    code: user.codigo || `CC-${String(user.id).padStart(3, "0")}`,
+    ci: user.ci || "N/A",
     name: user.nombre,
     role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
-    status: "Activo",
+    status: user.activo ? "Activo" : "Inactivo",
     periods: Math.ceil(user.horasProgramadas / 4),
     email: user.email,
-    phone: "N/A",
+    phone: user.celular || "N/A",
     contractedHours: user.horasBase === 20 ? 20 : 40,
     assignedHours: user.horasProgramadas,
   };
@@ -76,6 +92,9 @@ export async function createEmployee(employee: Omit<Employee, "periods">): Promi
     password: password,
     rol: "EMPLEADO",
     horasBase: employee.contractedHours,
+    ci: employee.ci ? employee.ci.trim() : null,
+    celular: employee.phone ? employee.phone.trim() : null,
+    activo: employee.status === "Activo",
   };
 
   const { data } = await api.post<{ ok: boolean; data: any }>("/usuarios", payload);

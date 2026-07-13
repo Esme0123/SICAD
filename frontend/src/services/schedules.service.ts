@@ -1,59 +1,99 @@
-import { Schedule, MOCK_SCHEDULES } from "@/mocks/schedules";
+import api from "./api";
 
-const STORAGE_KEY = "sicad_schedules";
-
-function getStoredSchedules(): Schedule[] {
-  if (typeof window === "undefined") return MOCK_SCHEDULES;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_SCHEDULES));
-    return MOCK_SCHEDULES;
-  }
-  try {
-    return JSON.parse(stored);
-  } catch (e) {
-    return MOCK_SCHEDULES;
-  }
+export interface Schedule {
+  id: string;
+  employeeCode: string;
+  employeeName: string;
+  day: "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado";
+  startTime: string;
+  endTime: string;
+  period: string;
+  status: "Activo" | "Inactivo";
 }
 
-function saveSchedules(schedules: Schedule[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(schedules));
-  }
+export interface CreateSchedulePayload {
+  usuarioId: number;
+  diaSemana: string;
+  periodosIds: number[];
 }
+
+export interface Periodo {
+  id: number;
+  nombre: string;
+  horaInicio: string;
+  horaFin: string;
+  duracion: number;
+  activo: boolean;
+}
+
+const mapDayToFrontend = (day: string): "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado" => {
+  if (day === "Miercoles") return "Miércoles";
+  if (day === "Sabado") return "Sábado";
+  return day as any;
+};
+
+const mapDayToBackend = (day: string): string => {
+  if (day === "Miércoles") return "Miercoles";
+  if (day === "Sábado") return "Sabado";
+  return day;
+};
 
 export async function getSchedules(): Promise<Schedule[]> {
-  return getStoredSchedules();
-}
-
-export async function createSchedule(schedule: Schedule): Promise<Schedule> {
-  const schedules = getStoredSchedules();
-  schedules.push(schedule);
-  saveSchedules(schedules);
-  return schedule;
-}
-
-export async function updateSchedule(id: string, updatedData: Partial<Schedule>): Promise<Schedule> {
-  const schedules = getStoredSchedules();
-  const idx = schedules.findIndex((s) => s.id === id);
-  if (idx === -1) {
-    throw new Error("Horario no encontrado");
+  const { data } = await api.get<{ ok: boolean; data: any[] }>("/horarios/empleados");
+  if (!data.ok) {
+    throw new Error("Error al obtener la lista de horarios");
   }
-  const updated = { ...schedules[idx], ...updatedData };
-  schedules[idx] = updated;
-  saveSchedules(schedules);
-  return updated;
+
+  const schedules: Schedule[] = [];
+  data.data.forEach((emp) => {
+    if (emp.horariosAsignados && Array.isArray(emp.horariosAsignados)) {
+      emp.horariosAsignados.forEach((h: any) => {
+        schedules.push({
+          id: String(h.id),
+          employeeCode: emp.codigo || `CC-${String(emp.id).padStart(3, "0")}`,
+          employeeName: emp.nombre,
+          day: mapDayToFrontend(h.diaSemana),
+          startTime: h.periodo?.horaInicio || "",
+          endTime: h.periodo?.horaFin || "",
+          period: h.periodo?.nombre || "",
+          status: emp.activo ? "Activo" : "Inactivo",
+        });
+      });
+    }
+  });
+  return schedules;
+}
+
+export async function createSchedule(payload: CreateSchedulePayload): Promise<any> {
+  const { data } = await api.post<{ ok: boolean; data: any }>("/horarios/asignar", {
+    usuarioId: payload.usuarioId,
+    diaSemana: mapDayToBackend(payload.diaSemana),
+    periodosIds: payload.periodosIds,
+  });
+  if (!data.ok) {
+    throw new Error("Error al asignar horarios");
+  }
+  return data.data;
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
-  const schedules = getStoredSchedules();
-  const filtered = schedules.filter((s) => s.id !== id);
-  saveSchedules(filtered);
+  const { data } = await api.delete<{ ok: boolean }>(`/horarios/${id}`);
+  if (!data.ok) {
+    throw new Error("Error al eliminar el periodo de horario");
+  }
+}
+
+export async function getPeriods(): Promise<Periodo[]> {
+  const { data } = await api.get<{ ok: boolean; data: Periodo[] }>("/horarios/periodos");
+  if (!data.ok) {
+    throw new Error("Error al obtener la lista de periodos");
+  }
+  return data.data;
 }
 
 export default {
   getSchedules,
   createSchedule,
-  updateSchedule,
   deleteSchedule,
+  getPeriods,
 };

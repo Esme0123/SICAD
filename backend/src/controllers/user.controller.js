@@ -15,6 +15,10 @@ async function getAll(req, res) {
         rol: true,
         horasBase: true,
         horasProgramadas: true,
+        codigo: true,
+        ci: true,
+        celular: true,
+        activo: true,
         createdAt: true,
       },
       orderBy: { nombre: 'asc' },
@@ -47,19 +51,67 @@ async function getById(req, res) {
 // POST /api/usuarios
 async function create(req, res) {
   try {
-    const { nombre, email, password, rol, horasBase } = req.body;
+    const { nombre, email, password, rol, horasBase, ci, celular, activo } = req.body;
     if (!nombre || !email || !password) {
       return res.status(400).json({ ok: false, message: 'nombre, email y password son requeridos' });
     }
+
+    // Buscar el último usuario registrado con código 'CC-'
+    const ultimoUsuario = await prisma.usuario.findFirst({
+      where: {
+        codigo: {
+          startsWith: 'CC-',
+        },
+      },
+      orderBy: {
+        codigo: 'desc',
+      },
+    });
+
+    let nuevoCodigo = 'CC-001';
+    if (ultimoUsuario && ultimoUsuario.codigo) {
+      const match = ultimoUsuario.codigo.match(/CC-(\d+)/);
+      if (match) {
+        const numero = parseInt(match[1], 10);
+        const siguiente = numero + 1;
+        nuevoCodigo = `CC-${String(siguiente).padStart(3, '0')}`;
+      }
+    }
+
+    const ciGuardar = (ci && typeof ci === 'string' && ci.trim()) ? ci.trim() : null;
+    const celularGuardar = (celular && typeof celular === 'string' && celular.trim()) ? celular.trim() : null;
+    const activoGuardar = activo !== undefined ? Boolean(activo) : true;
+
     const passwordHash = await bcrypt.hash(password, 10);
     const usuario = await prisma.usuario.create({
-      data: { nombre, email, password: passwordHash, rol, horasBase },
-      select: { id: true, nombre: true, email: true, rol: true, horasBase: true, horasProgramadas: true },
+      data: {
+        nombre,
+        email,
+        password: passwordHash,
+        rol,
+        horasBase,
+        codigo: nuevoCodigo,
+        ci: ciGuardar,
+        celular: celularGuardar,
+        activo: activoGuardar,
+      },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        horasBase: true,
+        horasProgramadas: true,
+        codigo: true,
+        ci: true,
+        celular: true,
+        activo: true,
+      },
     });
     res.status(201).json({ ok: true, data: usuario });
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ ok: false, message: 'El email ya está registrado' });
+      return res.status(409).json({ ok: false, message: 'El email o código ya está registrado' });
     }
     console.error('[user.create]', error);
     res.status(500).json({ ok: false, message: 'Error al crear usuario' });
@@ -112,6 +164,10 @@ async function getEmpleados(req, res) {
         email: true,
         horasBase: true,
         horasProgramadas: true,
+        codigo: true,
+        ci: true,
+        celular: true,
+        activo: true,
         horariosAsignados: {
           include: { periodo: { select: { nombre: true, horaInicio: true, horaFin: true, duracion: true } } },
         },
