@@ -76,6 +76,7 @@ model Periodo {
 
   // Relaciones
   horariosAsignados HorarioAsignado[]
+  permisoPeriodos   PermisoPeriodo[]
 
   @@map("periodos")
 }
@@ -126,6 +127,9 @@ model Asistencia {
   horaEntrada DateTime
   horaSalida  DateTime?  // Nullable: se rellena cuando el empleado escanea al salir
 
+  /// true cuando el cronjob cierra el turno automáticamente (el empleado olvidó marcar salida)
+  salidaOmitida Boolean @default(false)
+
   /// Minutos de tolerancia aplicados en este registro (para auditoría)
   minutosTolerancia Int @default(0)
 
@@ -172,8 +176,8 @@ model Permiso {
   tipoPermisoId  Int
   tipoPermiso    TipoPermiso   @relation(fields: [tipoPermisoId], references: [id], onDelete: Restrict)
 
-  fechaInicio    DateTime      @db.Date
-  fechaFin       DateTime      @db.Date
+  /// Fecha del día en que aplica el permiso (puede ser parcial: solo algunos periodos)
+  fecha          DateTime      @db.Date
   motivo         String
   estado         EstadoPermiso @default(PENDIENTE)
 
@@ -184,7 +188,30 @@ model Permiso {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  // Relación con los periodos afectados por este permiso
+  periodos       PermisoPeriodo[]
+
   @@map("permisos")
+}
+
+// ============================================================
+// PERMISO PERIODO
+// Tabla intermedia: un permiso puede cubrir 1, 2 o N periodos
+// del mismo día (permiso parcial)
+// ============================================================
+
+model PermisoPeriodo {
+  id          Int     @id @default(autoincrement())
+
+  permisoId   Int
+  permiso     Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  periodoId   Int
+  periodo     Periodo @relation(fields: [periodoId], references: [id], onDelete: Restrict)
+
+  // Un permiso no puede registrar el mismo periodo dos veces
+  @@unique([permisoId, periodoId])
+  @@map("permiso_periodos")
 }
 
 // ============================================================

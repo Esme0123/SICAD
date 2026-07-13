@@ -1,21 +1,61 @@
+// src/index.js
+// Punto de entrada del servidor Express — SICAD Backend
+
+// Carga y valida variables de entorno PRIMERO (falla rápido si faltan)
+const env = require('./config/env');
+
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+
+// ── Rutas ────────────────────────────────────────────────────
+const qrRoutes          = require('./routes/qr.routes');
+const userRoutes        = require('./routes/user.routes');
+const configRoutes      = require('./routes/config.routes');
+const permisoRoutes     = require('./routes/permiso.routes');
+const asistenciaRoutes  = require('./routes/asistencia.routes');
 
 const app = express();
 
-// Middlewares
-app.use(cors()); // Permite peticiones de tu frontend
-app.use(express.json()); // Permite recibir datos en formato JSON
+// ── Middlewares globales ─────────────────────────────────────
+app.use(cors());
+app.use(express.json());
 
-// Ruta de prueba
+// ── Health check ─────────────────────────────────────────────
 app.get('/', (req, res) => {
-    res.json({ mensaje: '¡El backend está funcionando!' });
+  res.json({
+    mensaje: '¡El backend SICAD está funcionando!',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      qr:          '/api/qr',
+      usuarios:    '/api/usuarios',
+      configuracion: '/api/configuracion',
+      permisos:    '/api/permisos',
+      asistencia:  '/api/asistencia',
+    },
+  });
 });
 
-// Definir el puerto
-const PORT = process.env.PORT || 3000;
+// ── Rutas de la API ──────────────────────────────────────────
+// QR
+app.use('/api/qr',            qrRoutes);
+// Usuarios & Empleados
+app.use('/api/usuarios',      userRoutes);
+// Configuración del sistema (singleton)
+app.use('/api/configuracion', configRoutes);
+// Permisos y permisos parciales
+app.use('/api/permisos',      permisoRoutes);
+// Asistencia (núcleo de escaneo QR)
+app.use('/api/asistencia',    asistenciaRoutes);
 
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+// ── Manejador global de errores 404 ─────────────────────────
+app.use((req, res) => {
+  res.status(404).json({ ok: false, message: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
 });
+
+// ── Arranque del servidor ────────────────────────────────────
+app.listen(env.PORT, () => {
+  console.log(`[SICAD] Servidor corriendo en http://localhost:${env.PORT}`);
+  console.log(`[SICAD] Entorno: ${env.NODE_ENV}`);
+});
+
