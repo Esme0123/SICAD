@@ -151,7 +151,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       } else {
         await createEmployee({
           ...formValues,
-          periods: Math.ceil(formValues.assignedHours / 4),
         });
       }
       setFormModalOpen(false);
