@@ -13,6 +13,8 @@ const userRoutes        = require('./routes/user.routes');
 const configRoutes      = require('./routes/config.routes');
 const permisoRoutes     = require('./routes/permiso.routes');
 const asistenciaRoutes  = require('./routes/asistencia.routes');
+const authRoutes        = require('./routes/auth.routes');
+const horarioRoutes     = require('./routes/horario.routes');
 
 const app = express();
 
@@ -27,20 +29,26 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     endpoints: {
-      qr:          '/api/qr',
-      usuarios:    '/api/usuarios',
+      auth:         '/api/auth',
+      qr:           '/api/qr',
+      usuarios:     '/api/usuarios',
+      horarios:     '/api/horarios',
       configuracion: '/api/configuracion',
-      permisos:    '/api/permisos',
-      asistencia:  '/api/asistencia',
+      permisos:     '/api/permisos',
+      asistencia:   '/api/asistencia',
     },
   });
 });
 
 // ── Rutas de la API ──────────────────────────────────────────
+// Autenticación
+app.use('/api/auth',          authRoutes);
 // QR
 app.use('/api/qr',            qrRoutes);
 // Usuarios & Empleados
 app.use('/api/usuarios',      userRoutes);
+// Horarios asignados
+app.use('/api/horarios',      horarioRoutes);
 // Configuración del sistema (singleton)
 app.use('/api/configuracion', configRoutes);
 // Permisos y permisos parciales
