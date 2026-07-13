@@ -1,6 +1,7 @@
 // src/controllers/user.controller.js
 // CRUD de usuarios + consulta de horas base/programadas
 
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 
 // GET /api/usuarios
@@ -50,8 +51,9 @@ async function create(req, res) {
     if (!nombre || !email || !password) {
       return res.status(400).json({ ok: false, message: 'nombre, email y password son requeridos' });
     }
+    const passwordHash = await bcrypt.hash(password, 10);
     const usuario = await prisma.usuario.create({
-      data: { nombre, email, password, rol, horasBase },
+      data: { nombre, email, password: passwordHash, rol, horasBase },
       select: { id: true, nombre: true, email: true, rol: true, horasBase: true, horasProgramadas: true },
     });
     res.status(201).json({ ok: true, data: usuario });

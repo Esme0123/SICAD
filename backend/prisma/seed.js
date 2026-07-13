@@ -55,21 +55,37 @@ async function main() {
   });
   console.log(`✅ Configuración por defecto creada/verificada (id: ${config.id})`);
 
-  // ── 3. Catálogo de 6 Periodos ────────────────────────────────
+  // ── 3. Catálogo de Periodos Reales ─────────────────────────
   const periodosData = [
-    { nombre: 'Bloque 1', horaInicio: '07:15', horaFin: '08:15' },
+    { nombre: 'Bloque 1', horaInicio: '07:00', horaFin: '08:15' },
     { nombre: 'Bloque 2', horaInicio: '08:15', horaFin: '09:15' },
     { nombre: 'Bloque 3', horaInicio: '09:15', horaFin: '10:15' },
-    { nombre: 'Bloque 4', horaInicio: '10:30', horaFin: '11:30' },
-    { nombre: 'Bloque 5', horaInicio: '11:30', horaFin: '12:30' },
-    { nombre: 'Bloque 6', horaInicio: '12:30', horaFin: '13:30' },
+    { nombre: 'Bloque 4', horaInicio: '10:15', horaFin: '11:15' },
+    { nombre: 'Bloque 5', horaInicio: '11:15', horaFin: '12:15' },
+    { nombre: 'Bloque 6', horaInicio: '12:15', horaFin: '13:15' },
+    { nombre: 'Bloque 7', horaInicio: '13:15', horaFin: '14:15' },
+    { nombre: 'Bloque 8', horaInicio: '14:15', horaFin: '15:15' },
+    { nombre: 'Bloque 9', horaInicio: '15:15', horaFin: '16:15' },
+    { nombre: 'Bloque 10', horaInicio: '16:15', horaFin: '17:15' },
+    { nombre: 'Bloque 11', horaInicio: '17:15', horaFin: '18:15' },
+    { nombre: 'Bloque 12', horaInicio: '18:15', horaFin: '19:15' },
+    { nombre: 'Bloque 13', horaInicio: '19:15', horaFin: '20:15' },
+    { nombre: 'Bloque 14', horaInicio: '20:15', horaFin: '21:15' },
+    { nombre: 'Bloque 15', horaInicio: '21:15', horaFin: '22:15' },
   ];
 
   for (const p of periodosData) {
     const duracion = calcularDuracion(p.horaInicio, p.horaFin);
 
-    // Buscar por nombre para no duplicar
-    const existing = await prisma.periodo.findFirst({ where: { nombre: p.nombre } });
+    // Buscar por nombre o por rango de horas para evitar duplicados
+    const existing = await prisma.periodo.findFirst({
+      where: {
+        OR: [
+          { nombre: p.nombre },
+          { AND: [{ horaInicio: p.horaInicio }, { horaFin: p.horaFin }] }
+        ]
+      }
+    });
 
     if (!existing) {
       await prisma.periodo.create({
@@ -77,7 +93,12 @@ async function main() {
       });
       console.log(`✅ Periodo creado: ${p.nombre} (${p.horaInicio} - ${p.horaFin}, ${duracion} min)`);
     } else {
-      console.log(`⏩ Periodo ya existe: ${p.nombre}`);
+      // Actualizar si existe para asegurarnos de que tiene el nombre y duración correctos
+      await prisma.periodo.update({
+        where: { id: existing.id },
+        data: { nombre: p.nombre, duracion }
+      });
+      console.log(`⏩ Periodo actualizado/verificado: ${p.nombre} (${p.horaInicio} - ${p.horaFin})`);
     }
   }
 

@@ -29,13 +29,14 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     endpoints: {
-      auth:         '/api/auth',
-      qr:           '/api/qr',
-      usuarios:     '/api/usuarios',
-      horarios:     '/api/horarios',
-      configuracion: '/api/configuracion',
-      permisos:     '/api/permisos',
-      asistencia:   '/api/asistencia',
+      auth:           '/api/auth',
+      qr:             '/api/qr',
+      usuarios:       '/api/usuarios',
+      horarios:       '/api/horarios',
+      configuracion:  '/api/configuracion',
+      permisos:       '/api/permisos',
+      asistencia:     '/api/asistencia',
+      asistencias:    '/api/asistencias',
     },
   });
 });
@@ -53,8 +54,9 @@ app.use('/api/horarios',      horarioRoutes);
 app.use('/api/configuracion', configRoutes);
 // Permisos y permisos parciales
 app.use('/api/permisos',      permisoRoutes);
-// Asistencia (núcleo de escaneo QR)
+// Asistencia (núcleo de escaneo QR) — montada en ambos paths (con y sin 's')
 app.use('/api/asistencia',    asistenciaRoutes);
+app.use('/api/asistencias',   asistenciaRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {

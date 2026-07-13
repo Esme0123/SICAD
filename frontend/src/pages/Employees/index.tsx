@@ -54,8 +54,11 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
     try {
       const list = await getEmployees();
       setEmployees(list);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cargar empleados:", error);
+      if (error?.response?.status === 401) {
+        window.location.href = "/login";
+      }
     } finally {
       setLoading(false);
     }
@@ -372,12 +375,32 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                     <td className={`px-5 py-3.5 text-sm font-semibold ${dark ? "text-white/50" : "text-slate-700"}`}>
                       {emp.contractedHours} hrs
                     </td>
-                    <td className="px-5 py-3.5 text-sm">
+                     <td className="px-5 py-3.5 text-sm">
                       <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${dark ? "text-white/70" : "text-slate-800"}`}>
+                        <span
+                          className={`font-semibold ${
+                            emp.assignedHours > emp.contractedHours
+                              ? "text-red-500 font-bold animate-pulse"
+                              : emp.assignedHours === emp.contractedHours
+                              ? "text-green-500"
+                              : dark
+                              ? "text-white/70"
+                              : "text-slate-800"
+                          }`}
+                        >
                           {emp.assignedHours} hrs
                         </span>
-                        <span className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
+                        <span
+                          className={`text-xs ${
+                            emp.assignedHours > emp.contractedHours
+                              ? "text-red-500 font-bold"
+                              : emp.assignedHours === emp.contractedHours
+                              ? "text-green-500 font-medium"
+                              : dark
+                              ? "text-white/30"
+                              : "text-slate-400"
+                          }`}
+                        >
                           ({Math.round((emp.assignedHours / emp.contractedHours) * 100)}%)
                         </span>
                       </div>
