@@ -8,7 +8,7 @@ async function getAll(req, res) {
   try {
     const permisos = await prisma.permiso.findMany({
       include: {
-        usuario: { select: { id: true, nombre: true, email: true } },
+        usuario: { select: { id: true, nombre: true, codigo: true, ci: true } },
         tipoPermiso: { select: { id: true, nombre: true } },
         periodos: { include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } } },
       },
@@ -42,15 +42,15 @@ async function getById(req, res) {
 }
 
 // POST /api/permisos
-// Body: { usuarioId, tipoPermisoId, fecha, motivo, periodosIds: [1, 2, 3] }
+// Body: { usuarioId, tipoPermisoId (o tipoPermisoNombre), fecha, motivo, periodosIds: [1,2,3] }
 async function create(req, res) {
   try {
-    const { usuarioId, tipoPermisoId, fecha, motivo, periodosIds } = req.body;
+    let { usuarioId, tipoPermisoId, tipoPermisoNombre, fecha, motivo, periodosIds, estado } = req.body;
 
-    if (!usuarioId || !tipoPermisoId || !fecha || !motivo) {
+    if (!usuarioId || !fecha || !motivo) {
       return res.status(400).json({
         ok: false,
-        message: 'usuarioId, tipoPermisoId, fecha y motivo son requeridos',
+        message: 'usuarioId, fecha y motivo son requeridos',
       });
     }
 
@@ -61,7 +61,23 @@ async function create(req, res) {
       });
     }
 
-    // Transacción: crea Permiso + PermisoPeriodo en un solo commit
+    // Resolver tipoPermisoId por nombre si se envió tipoPermisoNombre
+    if (!tipoPermisoId && tipoPermisoNombre) {
+      const tipo = await prisma.tipoPermiso.upsert({
+        where: { nombre: tipoPermisoNombre },
+        create: { nombre: tipoPermisoNombre },
+        update: {},
+      });
+      tipoPermisoId = tipo.id;
+    }
+
+    if (!tipoPermisoId) {
+      return res.status(400).json({
+        ok: false,
+        message: 'tipoPermisoId o tipoPermisoNombre es requerido',
+      });
+    }
+
     const permiso = await prisma.$transaction(async (tx) => {
       const nuevoPermiso = await tx.permiso.create({
         data: {
@@ -69,7 +85,7 @@ async function create(req, res) {
           tipoPermisoId: parseInt(tipoPermisoId),
           fecha: new Date(fecha),
           motivo,
-          estado: 'PENDIENTE',
+          estado: estado || 'PENDIENTE',
         },
       });
 
@@ -84,7 +100,7 @@ async function create(req, res) {
       return tx.permiso.findUnique({
         where: { id: nuevoPermiso.id },
         include: {
-          usuario: { select: { id: true, nombre: true } },
+          usuario: { select: { id: true, nombre: true, codigo: true, ci: true } },
           tipoPermiso: { select: { nombre: true } },
           periodos: { include: { periodo: { select: { nombre: true, horaInicio: true, horaFin: true } } } },
         },

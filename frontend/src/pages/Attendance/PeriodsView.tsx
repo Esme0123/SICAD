@@ -46,7 +46,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const selectedEmp = employees.find(e => e.code === modalEmployee);
   const periodosHoy = draftSchedules[modalDay].length;
   const totalActual = Object.values(draftSchedules).flat().length;
-  const maxPeriodos = selectedEmp?.contractedHours === 20 ? 16 : 32;
+  const maxPeriodos = selectedEmp?.contractedHours === 20 ? 20 : 40;
 
   const loadData = async () => {
     setLoading(true);

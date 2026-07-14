@@ -11,6 +11,7 @@ import {
   deleteEmployee,
 } from "@/services/employees.service";
 import { Employee } from "@/mocks/employees";
+import { getPermisos, PermisoBackend } from "@/services/permisos.service";
 
 interface EmployeesProps {
   dark: boolean;
@@ -49,11 +50,14 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
     assignedHours: 0,
   });
 
+  const [permisos, setPermisos] = useState<PermisoBackend[]>([]);
+
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      const list = await getEmployees();
+      const [list, permList] = await Promise.all([getEmployees(), getPermisos()]);
       setEmployees(list);
+      setPermisos(permList);
     } catch (error: any) {
       console.error("Error al cargar empleados:", error);
       if (error?.response?.status === 401) {
@@ -68,6 +72,27 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
     loadEmployees();
   }, []);
 
+  const getDynamicStatus = (emp: Employee): string => {
+    if (emp.status !== "Activo") return emp.status;
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const currentMinutes = today.getHours() * 60 + today.getMinutes();
+    const hasActivePermiso = permisos.some(p => {
+      if (p.estado !== "APROBADO") return false;
+      const permisoDate = p.fecha.split("T")[0];
+      if (permisoDate !== todayStr) return false;
+      if (p.usuario?.codigo !== emp.code) return false;
+      return p.periodos?.some(pp => {
+        const [hI, mI] = pp.periodo.horaInicio.split(":").map(Number);
+        const [hF, mF] = pp.periodo.horaFin.split(":").map(Number);
+        const startMin = hI * 60 + mI;
+        const endMin = hF * 60 + mF;
+        return currentMinutes >= startMin && currentMinutes < endMin;
+      }) ?? false;
+    });
+    return hasActivePermiso ? "Licencia" : emp.status;
+  };
+
   // Filter operations
   const filteredRows = employees.filter((emp) => {
     const searchTerm = search.toLowerCase();
@@ -76,8 +101,9 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
       emp.code.toLowerCase().includes(searchTerm) ||
       (emp.ci && emp.ci.toLowerCase().includes(searchTerm));
 
+    const dynStatus = getDynamicStatus(emp);
     const matchesStatus =
-      statusFilter === "Todos" || emp.status === statusFilter;
+      statusFilter === "Todos" || dynStatus === statusFilter;
     const matchesHours =
       hoursFilter === "Todas" || emp.contractedHours === hoursFilter;
     return matchesSearch && matchesStatus && matchesHours;
@@ -144,9 +170,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
     try {
       if (isEditing && selectedEmployee) {
-        await updateEmployee(selectedEmployee.code, {
+        await updateEmployee(selectedEmployee.id!, {
           ...formValues,
-          periods: Math.ceil(formValues.assignedHours / 4),
         });
       } else {
         await createEmployee({
@@ -169,7 +194,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   const handleDeleteConfirm = async () => {
     if (employeeToDelete) {
       try {
-        await deleteEmployee(employeeToDelete.code);
+        await deleteEmployee(employeeToDelete.id!);
         setDeleteConfirmOpen(false);
         setEmployeeToDelete(null);
         loadEmployees();
@@ -405,7 +430,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={emp.status} />
+                      <StatusBadge status={getDynamicStatus(emp)} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1">
@@ -512,7 +537,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                     >
                       {selectedEmployee.code}
                     </span>
-                    <StatusBadge status={selectedEmployee.status} />
+                    <StatusBadge status={getDynamicStatus(selectedEmployee)} />
                   </div>
                 </div>
               </div>
@@ -763,7 +788,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                     >
                       <option value="Activo">Activo</option>
                       <option value="Inactivo">Inactivo</option>
-                      <option value="Licencia">Licencia</option>
                     </select>
                   </div>
                 </div>

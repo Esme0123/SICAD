@@ -25,6 +25,7 @@ export interface UsuarioBackend {
   ci?: string | null;
   celular?: string | null;
   activo?: boolean;
+  _count?: { horariosAsignados: number };
 }
 
 /**
@@ -36,19 +37,22 @@ export async function getEmployees(): Promise<Employee[]> {
   if (!data.ok) {
     throw new Error("Error al obtener la lista de empleados");
   }
-  return data.data.map((user) => ({
-    id: user.id,
-    code: user.codigo || `CC-${String(user.id).padStart(3, "0")}`,
-    ci: user.ci || "N/A",
-    name: user.nombre,
-    role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
-    status: user.activo ? "Activo" : "Inactivo",
-    periods: Math.ceil(user.horasProgramadas / 4),
-    email: user.email,
-    phone: user.celular || "N/A",
-    contractedHours: user.horasBase === 20 ? 20 : 40,
-    assignedHours: user.horasProgramadas,
-  }));
+  return data.data.map((user) => {
+    const periodCount = user._count?.horariosAsignados ?? 0;
+    return {
+      id: user.id,
+      code: user.codigo || `CC-${String(user.id).padStart(3, "0")}`,
+      ci: user.ci || "N/A",
+      name: user.nombre,
+      role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
+      status: user.activo ? "Activo" : "Inactivo",
+      periods: periodCount,
+      email: user.email,
+      phone: user.celular || "N/A",
+      contractedHours: user.horasBase === 20 ? 20 : 40,
+      assignedHours: periodCount,
+    };
+  });
 }
 
 /**
@@ -108,16 +112,16 @@ export async function createEmployee(employee: Omit<Employee, "periods">): Promi
  * Actualiza un empleado en el backend.
  * PATCH /api/usuarios/:id
  */
-export async function updateEmployee(code: string, updatedData: Partial<Employee>): Promise<any> {
-  const idMatch = code.match(/CC-(\d+)/);
-  const id = idMatch ? parseInt(idMatch[1], 10) : 0;
+export async function updateEmployee(id: number, updatedData: Partial<Employee>): Promise<any> {
   if (!id) throw new Error("ID de empleado inválido");
 
   const payload: any = {};
-  if (updatedData.name) payload.nombre = updatedData.name;
-  if (updatedData.email) payload.email = updatedData.email;
-  if (updatedData.contractedHours) payload.horasBase = updatedData.contractedHours;
-  if (updatedData.status) payload.activo = updatedData.status === "Activo";
+  if (updatedData.name !== undefined) payload.nombre = updatedData.name;
+  if (updatedData.email !== undefined) payload.email = updatedData.email;
+  if (updatedData.contractedHours !== undefined) payload.horasBase = updatedData.contractedHours;
+  if (updatedData.status !== undefined) payload.activo = updatedData.status === "Activo";
+  if (updatedData.phone !== undefined) payload.celular = updatedData.phone;
+  if (updatedData.ci !== undefined) payload.ci = updatedData.ci;
 
   const { data } = await api.patch<{ ok: boolean; data: any }>(`/usuarios/${id}`, payload);
   if (!data.ok) {
@@ -130,9 +134,7 @@ export async function updateEmployee(code: string, updatedData: Partial<Employee
  * Elimina un empleado en el backend.
  * DELETE /api/usuarios/:id
  */
-export async function deleteEmployee(code: string): Promise<void> {
-  const idMatch = code.match(/CC-(\d+)/);
-  const id = idMatch ? parseInt(idMatch[1], 10) : 0;
+export async function deleteEmployee(id: number): Promise<void> {
   if (!id) throw new Error("ID de empleado inválido");
 
   const { data } = await api.delete<{ ok: boolean }>(`/usuarios/${id}`);

@@ -8,6 +8,7 @@ const prisma = require('../config/db');
 async function getAll(req, res) {
   try {
     const usuarios = await prisma.usuario.findMany({
+      where: { rol: 'EMPLEADO' },
       select: {
         id: true,
         nombre: true,
@@ -20,6 +21,7 @@ async function getAll(req, res) {
         celular: true,
         activo: true,
         createdAt: true,
+        _count: { select: { horariosAsignados: true } },
       },
       orderBy: { nombre: 'asc' },
     });
@@ -127,16 +129,37 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     const id = parseInt(req.params.id);
-    const { nombre, email, password, rol, horasBase, horasProgramadas } = req.body;
+    const { nombre, email, password, rol, horasBase, horasProgramadas, activo } = req.body;
+
+    // Validar unicidad del email antes de actualizar
+    if (email !== undefined) {
+      const existing = await prisma.usuario.findUnique({ where: { email } });
+      if (existing && existing.id !== id) {
+        return res.status(400).json({ ok: false, message: 'El email ya está registrado por otro usuario' });
+      }
+    }
+
+    const data = {};
+    if (nombre !== undefined) data.nombre = nombre;
+    if (email !== undefined) data.email = email;
+    if (password !== undefined) data.password = password;
+    if (rol !== undefined) data.rol = rol;
+    if (horasBase !== undefined) data.horasBase = horasBase;
+    if (horasProgramadas !== undefined) data.horasProgramadas = horasProgramadas;
+    if (activo !== undefined) data.activo = Boolean(activo);
+
     const usuario = await prisma.usuario.update({
       where: { id },
-      data: { nombre, email, password, rol, horasBase, horasProgramadas },
-      select: { id: true, nombre: true, email: true, rol: true, horasBase: true, horasProgramadas: true },
+      data,
+      select: { id: true, nombre: true, email: true, rol: true, horasBase: true, horasProgramadas: true, activo: true },
     });
     res.json({ ok: true, data: usuario });
   } catch (error) {
     if (error.code === 'P2025') {
       return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+    if (error.code === 'P2002') {
+      return res.status(409).json({ ok: false, message: 'El email o código ya está registrado' });
     }
     console.error('[user.update]', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar usuario' });
@@ -162,7 +185,7 @@ async function remove(req, res) {
 async function getEmpleados(req, res) {
   try {
     const empleados = await prisma.usuario.findMany({
-      where: { rol: 'EMPLEADO', activo: true },
+      where: { rol: 'EMPLEADO' },
       select: {
         id: true,
         nombre: true,
