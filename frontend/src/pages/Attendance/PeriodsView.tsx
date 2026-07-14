@@ -85,15 +85,13 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     if (!emp || !emp.id) return;
 
     try {
-      for (const day of DAYS_OF_WEEK) {
-        const slotsForDay = draftSchedules[day];
-        if (slotsForDay.length === 0) continue;
-        await createSchedule({
-          usuarioId: emp.id,
-          diaSemana: day,
-          periodosIds: slotsForDay,
-        });
-      }
+      const payloads = DAYS_OF_WEEK.map(day => ({
+        usuarioId: emp.id!,
+        diaSemana: day,
+        periodosIds: draftSchedules[day],
+      }));
+
+      await Promise.all(payloads.map(p => createSchedule(p)));
       await loadData();
       setFormModalOpen(false);
       resetModal();
