@@ -510,5 +510,102 @@ async function marcarMovil(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno };
+/**
+ * GET /api/asistencias/qr-dashboard
+ * Calcula y retorna la información del día actual para la vista de control QR.
+ */
+async function getQrDashboard(req, res) {
+  try {
+    const ahora = new Date();
+    const { start, end } = getDayRange(ahora);
+
+    // 1. Total Asistencias hoy
+    const totalAsistencias = await prisma.asistencia.count({
+      where: {
+        fecha: { gte: start, lte: end }
+      }
+    });
+
+    // 2. Atrasos hoy
+    const atrasos = await prisma.asistencia.count({
+      where: {
+        fecha: { gte: start, lte: end },
+        observacion: {
+          startsWith: 'Llegó'
+        }
+      }
+    });
+
+    // 3. Último registro hoy
+    const ultimo = await prisma.asistencia.findFirst({
+      where: {
+        fecha: { gte: start, lte: end }
+      },
+      include: {
+        usuario: { select: { nombre: true, codigo: true } }
+      },
+      orderBy: {
+        horaEntrada: 'desc'
+      }
+    });
+
+    let ultimoRegistro = null;
+    if (ultimo) {
+      let estadoRegistro = 'A tiempo';
+      let horaMarcada = ultimo.horaEntrada;
+      if (ultimo.horaSalida) {
+        estadoRegistro = 'Salida';
+        horaMarcada = ultimo.horaSalida;
+      } else if (ultimo.observacion && ultimo.observacion.startsWith('Llegó')) {
+        estadoRegistro = 'Atraso';
+      }
+
+      const f = (d) => new Date(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      ultimoRegistro = {
+        nombre: ultimo.usuario.nombre,
+        codigo: ultimo.usuario.codigo || `CC-${String(ultimo.usuarioId).padStart(3, '0')}`,
+        hora: f(horaMarcada),
+        estado: estadoRegistro,
+      };
+    }
+
+    // 4. Periodos activos
+    const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
+    const periodos = await prisma.periodo.findMany({
+      where: { activo: true },
+      orderBy: { horaInicio: 'asc' }
+    });
+
+    const periodosConActivo = periodos.map((p) => {
+      const [hI, mI] = p.horaInicio.split(':').map(Number);
+      const [hF, mF] = p.horaFin.split(':').map(Number);
+      const inicioMin = hI * 60 + mI;
+      const finMin = hF * 60 + mF;
+      const isActive = ahoraMin >= inicioMin && ahoraMin <= finMin;
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        horaInicio: p.horaInicio,
+        horaFin: p.horaFin,
+        activo: isActive
+      };
+    });
+
+    res.json({
+      ok: true,
+      data: {
+        totalAsistencias,
+        atrasos,
+        ultimoRegistro,
+        periodos: periodosConActivo
+      }
+    });
+  } catch (error) {
+    console.error('[asistencia.getQrDashboard]', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener el dashboard del QR' });
+  }
+}
+
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno };
 

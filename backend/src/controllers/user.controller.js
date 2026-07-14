@@ -162,7 +162,7 @@ async function remove(req, res) {
 async function getEmpleados(req, res) {
   try {
     const empleados = await prisma.usuario.findMany({
-      where: { rol: 'EMPLEADO' },
+      where: { rol: 'EMPLEADO', activo: true },
       select: {
         id: true,
         nombre: true,

@@ -85,7 +85,7 @@ export async function getEmployeeByCode(code: string): Promise<Employee | undefi
 export async function createEmployee(employee: Omit<Employee, "periods">): Promise<any> {
   // Generamos un password por defecto basado en su email o un valor seguro
   const password = employee.email ? `${employee.email.split("@")[0]}123` : "sicad123";
-  
+
   const payload = {
     nombre: employee.name,
     email: employee.email,
@@ -117,6 +117,7 @@ export async function updateEmployee(code: string, updatedData: Partial<Employee
   if (updatedData.name) payload.nombre = updatedData.name;
   if (updatedData.email) payload.email = updatedData.email;
   if (updatedData.contractedHours) payload.horasBase = updatedData.contractedHours;
+  if (updatedData.status) payload.activo = updatedData.status === "Activo";
 
   const { data } = await api.patch<{ ok: boolean; data: any }>(`/usuarios/${id}`, payload);
   if (!data.ok) {
