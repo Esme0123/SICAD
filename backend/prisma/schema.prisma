@@ -251,3 +251,12 @@ model Configuracion {
   @@map("configuracion")
 }
 
+model QrNonce {
+  nonce     String   @id
+  consumed  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("qr_nonces")
+}
+

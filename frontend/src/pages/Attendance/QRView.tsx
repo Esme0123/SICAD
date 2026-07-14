@@ -136,7 +136,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </p>
         </div>
 
-        {/* QR Code — token real del servidor */}
+        {/* QR Code — URL completa que el celular puede abrir al escanear */}
         <motion.div
           key={token}
           initial={{ scale: 0.93, opacity: 0 }}
@@ -155,7 +155,11 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
               <span className="text-xs font-medium text-center">Sin conexión al servidor</span>
             </div>
           ) : (
-            <QRCodeDisplay value={token} size={230} color={qrColor} />
+            <QRCodeDisplay
+              value={`${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ""}/marcar?token=${encodeURIComponent(token)}`}
+              size={230}
+              color={qrColor}
+            />
           )}
 
           {/* Corner accents — color institucional */}

@@ -1,13 +1,19 @@
 // src/routes/asistencia.routes.js
 
 const { Router } = require('express');
-const { registrar, getAll, getById, cerrarTurno } = require('../controllers/asistencia.controller');
+const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno } = require('../controllers/asistencia.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
 
-// Todas las rutas de asistencia requieren autenticación
+// Endpoint público para marcación móvil (valida credenciales encriptadas y firma QR por transacción)
+router.post('/marcar-movil',      marcarMovil);
+
+// Todas las rutas de asistencia siguientes requieren autenticación
 router.use(authMiddleware);
+
+// POST /api/asistencias/marcar  — escaneo móvil con cálculo de tolerancia y estado
+router.post('/marcar',            marcar);
 
 // POST /api/asistencia/registrar  — escaneo QR: entrada o salida según estado
 router.post('/registrar',         registrar);
@@ -19,3 +25,4 @@ router.get('/:id',                getById);
 router.patch('/:id/cerrar',       requireRol('ADMIN'), cerrarTurno);
 
 module.exports = router;
+

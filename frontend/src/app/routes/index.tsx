@@ -12,6 +12,7 @@ import { PeriodsView } from "@/pages/Attendance/PeriodsView";
 import { HistoryView } from "@/pages/Attendance/HistoryView";
 import { Reports } from "@/pages/Reports";
 import { Settings } from "@/pages/Settings";
+import { ScanProcessor } from "@/pages/Mobile/ScanProcessor";
 
 interface AppRoutesProps {
   dark: boolean;
@@ -39,6 +40,9 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         <Route path="/reports" element={<Reports dark={dark} />} />
         <Route path="/settings" element={<Settings dark={dark} />} />
       </Route>
+
+      {/* Ruta pública para escaneo móvil — no requiere layout de admin */}
+      <Route path="/marcar" element={<ScanProcessor />} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

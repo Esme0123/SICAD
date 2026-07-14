@@ -52,8 +52,8 @@ async function getById(req, res) {
 async function create(req, res) {
   try {
     const { nombre, email, password, rol, horasBase, ci, celular, activo } = req.body;
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ ok: false, message: 'nombre, email y password son requeridos' });
+    if (!nombre || !email) {
+      return res.status(400).json({ ok: false, message: 'nombre y email son requeridos' });
     }
 
     // Buscar el último usuario registrado con código 'CC-'
@@ -82,7 +82,12 @@ async function create(req, res) {
     const celularGuardar = (celular && typeof celular === 'string' && celular.trim()) ? celular.trim() : null;
     const activoGuardar = activo !== undefined ? Boolean(activo) : true;
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Contraseña por defecto: CI o "123456"
+    const passwordEfectiva = (password && typeof password === 'string' && password.trim())
+      ? password.trim()
+      : (ciGuardar || "123456");
+
+    const passwordHash = await bcrypt.hash(passwordEfectiva, 10);
     const usuario = await prisma.usuario.create({
       data: {
         nombre,

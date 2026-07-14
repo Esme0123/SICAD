@@ -8,13 +8,13 @@ const express = require('express');
 const cors = require('cors');
 
 // ── Rutas ────────────────────────────────────────────────────
-const qrRoutes          = require('./routes/qr.routes');
-const userRoutes        = require('./routes/user.routes');
-const configRoutes      = require('./routes/config.routes');
-const permisoRoutes     = require('./routes/permiso.routes');
-const asistenciaRoutes  = require('./routes/asistencia.routes');
-const authRoutes        = require('./routes/auth.routes');
-const horarioRoutes     = require('./routes/horario.routes');
+const qrRoutes = require('./routes/qr.routes');
+const userRoutes = require('./routes/user.routes');
+const configRoutes = require('./routes/config.routes');
+const permisoRoutes = require('./routes/permiso.routes');
+const asistenciaRoutes = require('./routes/asistencia.routes');
+const authRoutes = require('./routes/auth.routes');
+const horarioRoutes = require('./routes/horario.routes');
 
 const app = express();
 
@@ -29,34 +29,34 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     endpoints: {
-      auth:           '/api/auth',
-      qr:             '/api/qr',
-      usuarios:       '/api/usuarios',
-      horarios:       '/api/horarios',
-      configuracion:  '/api/configuracion',
-      permisos:       '/api/permisos',
-      asistencia:     '/api/asistencia',
-      asistencias:    '/api/asistencias',
+      auth: '/api/auth',
+      qr: '/api/qr',
+      usuarios: '/api/usuarios',
+      horarios: '/api/horarios',
+      configuracion: '/api/configuracion',
+      permisos: '/api/permisos',
+      asistencia: '/api/asistencia',
+      asistencias: '/api/asistencias',
     },
   });
 });
 
 // ── Rutas de la API ──────────────────────────────────────────
 // Autenticación
-app.use('/api/auth',          authRoutes);
+app.use('/api/auth', authRoutes);
 // QR
-app.use('/api/qr',            qrRoutes);
+app.use('/api/qr', qrRoutes);
 // Usuarios & Empleados
-app.use('/api/usuarios',      userRoutes);
+app.use('/api/usuarios', userRoutes);
 // Horarios asignados
-app.use('/api/horarios',      horarioRoutes);
+app.use('/api/horarios', horarioRoutes);
 // Configuración del sistema (singleton)
 app.use('/api/configuracion', configRoutes);
 // Permisos y permisos parciales
-app.use('/api/permisos',      permisoRoutes);
+app.use('/api/permisos', permisoRoutes);
 // Asistencia (núcleo de escaneo QR) — montada en ambos paths (con y sin 's')
-app.use('/api/asistencia',    asistenciaRoutes);
-app.use('/api/asistencias',   asistenciaRoutes);
+app.use('/api/asistencia', asistenciaRoutes);
+app.use('/api/asistencias', asistenciaRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {
@@ -64,8 +64,10 @@ app.use((req, res) => {
 });
 
 // ── Arranque del servidor ────────────────────────────────────
-app.listen(env.PORT, () => {
-  console.log(`[SICAD] Servidor corriendo en http://localhost:${env.PORT}`);
+// Agregamos '0.0.0.0' para obligar a Express a escuchar a tu celular en la red WiFi
+app.listen(env.PORT, '0.0.0.0', () => {
+  console.log(`[SICAD] Servidor corriendo localmente en: http://localhost:${env.PORT}`);
+  console.log(`[SICAD] Accesible en tu red WiFi en: http://192.168.1.8:${env.PORT}`);
   console.log(`[SICAD] Entorno: ${env.NODE_ENV}`);
 });
-
+
