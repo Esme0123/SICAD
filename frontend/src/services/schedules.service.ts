@@ -8,6 +8,7 @@ export interface Schedule {
   startTime: string;
   endTime: string;
   period: string;
+  periodId?: number;
   status: "Activo" | "Inactivo";
 }
 
@@ -56,6 +57,7 @@ export async function getSchedules(): Promise<Schedule[]> {
           startTime: h.periodo?.horaInicio || "",
           endTime: h.periodo?.horaFin || "",
           period: h.periodo?.nombre || "",
+          periodId: h.periodo?.id,
           status: emp.activo ? "Activo" : "Inactivo",
         });
       });

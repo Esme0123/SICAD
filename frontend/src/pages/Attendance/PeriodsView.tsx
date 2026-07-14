@@ -37,11 +37,16 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   // Form values para Asignación Múltiple (Multidía)
   const [modalEmployee, setModalEmployee] = useState<string>("");
   const [modalDay, setModalDay] = useState<DayOfWeek>("Lunes");
-  const [modalSlotsByDay, setModalSlotsByDay] = useState<Record<DayOfWeek, number[]>>({
+  const [draftSchedules, setDraftSchedules] = useState<Record<DayOfWeek, number[]>>({
     Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
   });
 
-  const totalSelectedSlots = Object.values(modalSlotsByDay).flat().length;
+  const totalSelectedSlots = Object.values(draftSchedules).flat().length;
+
+  const selectedEmp = employees.find(e => e.code === modalEmployee);
+  const periodosHoy = draftSchedules[modalDay].length;
+  const totalActual = Object.values(draftSchedules).flat().length;
+  const maxPeriodos = selectedEmp?.contractedHours === 20 ? 16 : 32;
 
   const loadData = async () => {
     setLoading(true);
@@ -68,7 +73,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const resetModal = () => {
     setModalEmployee("");
     setModalDay("Lunes");
-    setModalSlotsByDay({
+    setDraftSchedules({
       Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
     });
   };
@@ -80,10 +85,9 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     if (!emp || !emp.id) return;
 
     try {
-      // Recorremos cada día y guardamos sus respectivos periodos agrupados
       for (const day of DAYS_OF_WEEK) {
-        const slotsForDay = modalSlotsByDay[day];
-        // Enviar la petición de asignación por día con el array de periodos seleccionados
+        const slotsForDay = draftSchedules[day];
+        if (slotsForDay.length === 0) continue;
         await createSchedule({
           usuarioId: emp.id,
           diaSemana: day,
@@ -109,7 +113,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   };
 
   const toggleSlotSelection = (slotId: number) => {
-    setModalSlotsByDay(prev => {
+    setDraftSchedules(prev => {
       const daySlots = prev[modalDay];
       if (daySlots.includes(slotId)) {
         return { ...prev, [modalDay]: daySlots.filter(id => id !== slotId) };
@@ -124,6 +128,25 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
     );
   };
+
+  // ── PRE-CARGA COMPLETA: inicializa draftSchedules con TODOS los periodos del empleado ──
+  useEffect(() => {
+    if (!formModalOpen || !modalEmployee) return;
+
+    const initial: Record<DayOfWeek, number[]> = {
+      Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
+    };
+
+    schedules
+      .filter(s => s.employeeCode === modalEmployee)
+      .forEach(s => {
+        if (s.periodId !== undefined && initial[s.day]) {
+          initial[s.day].push(s.periodId);
+        }
+      });
+
+    setDraftSchedules(initial);
+  }, [formModalOpen, modalEmployee]);
 
   // ── LÓGICA DE AGRUPACIÓN (MATRIZ SEMANAL) ──
   const aggregatedSchedules = Array.from(
@@ -368,6 +391,27 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                     <option key={emp.code} value={emp.code}>{emp.name}</option>
                   ))}
                 </select>
+
+                {modalEmployee && selectedEmp && (
+                  <div className={`mt-3 px-4 py-2.5 rounded-xl border flex items-center justify-between ${
+                    totalActual > maxPeriodos
+                      ? "text-red-500 border-red-500 bg-red-500/10"
+                      : totalActual === maxPeriodos
+                      ? "text-green-600 border-green-500 bg-green-500/10"
+                      : "text-blue-600 border-blue-500 bg-blue-500/10"
+                  }`}>
+                    <span className="text-sm font-semibold">
+                      Periodos asignados: <strong>{totalActual}</strong> / {maxPeriodos}
+                    </span>
+                    <span className="text-xs font-medium opacity-80">
+                      {totalActual > maxPeriodos
+                        ? `Excede por ${totalActual - maxPeriodos}`
+                        : totalActual === maxPeriodos
+                        ? "Máximo alcanzado"
+                        : `Faltan ${maxPeriodos - totalActual}`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Selector de Días (Botones) */}
@@ -377,7 +421,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 </label>
                 <div className="flex flex-wrap gap-3">
                   {DAYS_OF_WEEK.map(day => {
-                    const count = modalSlotsByDay[day].length;
+                    const count = draftSchedules[day].length;
                     return (
                       <button
                         key={day}
@@ -408,8 +452,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                   <Clock size={14} className="inline mr-1" /> 2. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[25vh] overflow-y-auto p-1">
-                  {periods.map((slot, index) => {
-                    const isSelected = modalSlotsByDay[modalDay].includes(slot.id);
+                  {periods.map((slot) => {
+                    const isSelected = draftSchedules[modalDay].includes(slot.id);
                     return (
                       <div
                         key={slot.id}
@@ -443,8 +487,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 </button>
                 <button
                   onClick={handleSaveSchedules}
-                  disabled={!modalEmployee || totalSelectedSlots === 0}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity flex items-center gap-2 cursor-pointer ${!modalEmployee || totalSelectedSlots === 0 ? "bg-slate-400 cursor-not-allowed opacity-50" : "bg-primary hover:opacity-90 shadow-md"
+                  disabled={!modalEmployee || totalSelectedSlots === 0 || (selectedEmp && totalActual > maxPeriodos)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity flex items-center gap-2 cursor-pointer ${!modalEmployee || totalSelectedSlots === 0 || (selectedEmp && totalActual > maxPeriodos) ? "bg-slate-400 cursor-not-allowed opacity-50" : "bg-primary hover:opacity-90 shadow-md"
                     }`}
                 >
                   Guardar {totalSelectedSlots > 0 ? `(${totalSelectedSlots})` : ""}
