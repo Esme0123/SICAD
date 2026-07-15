@@ -277,23 +277,57 @@ async function marcar(req, res) {
     let periodoLabel = null;
 
     if (horarios.length > 0) {
-      // Buscar el periodo más cercano a la hora actual (el que ya inició)
-      const periodoActivo = horarios.find((h) => {
-        const inicioMin = timeToMinutes(h.periodo.horaInicio);
-        const finMin    = timeToMinutes(h.periodo.horaFin);
-        return ahoraMin >= inicioMin && ahoraMin <= finMin;
-      }) ?? horarios[0]; // si no está en ninguno, usar el primero
+      const reachable = horarios.filter((h) => {
+        const im = timeToMinutes(h.periodo.horaInicio);
+        const fm = timeToMinutes(h.periodo.horaFin);
+        return ahoraMin >= im - 30 && ahoraMin <= fm;
+      });
 
-      const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
-      const diferenciaMin = ahoraMin - inicioMin;
+      let periodoActivo;
+
+      if (reachable.length > 0) {
+        periodoActivo = reachable.find((h) => {
+          const im = timeToMinutes(h.periodo.horaInicio);
+          const fm = timeToMinutes(h.periodo.horaFin);
+          return ahoraMin >= im && ahoraMin <= fm;
+        }) ?? reachable.reduce((a, b) =>
+          Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
+          Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
+        );
+      } else {
+        periodoActivo = horarios.reduce((a, b) =>
+          Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
+          Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
+        );
+      }
 
       periodoLabel = `${periodoActivo.periodo.horaInicio}–${periodoActivo.periodo.horaFin}`;
 
-      if (diferenciaMin <= toleranciaMin) {
+      const permiso = await prisma.permiso.findFirst({
+        where: {
+          usuarioId: uid,
+          estado: 'APROBADO',
+          fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+          OR: [
+            { periodos: { some: { periodoId: periodoActivo.periodoId } } },
+            { periodos: { none: {} } },
+          ],
+        },
+      });
+
+      if (permiso) {
         estado = 'A tiempo';
+        observacion = 'Cubierto por permiso';
       } else {
-        estado = 'Atraso';
-        observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+        const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
+        const diferenciaMin = ahoraMin - inicioMin;
+
+        if (diferenciaMin <= toleranciaMin) {
+          estado = 'A tiempo';
+        } else {
+          estado = 'Atraso';
+          observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+        }
       }
     }
 
@@ -463,21 +497,57 @@ async function marcarMovil(req, res) {
         let periodoLabel = null;
 
         if (horarios.length > 0) {
-          const periodoActivo = horarios.find((h) => {
-            const inicioMin = timeToMinutes(h.periodo.horaInicio);
-            const fontMin   = timeToMinutes(h.periodo.horaFin);
-            return ahoraMin >= inicioMin && ahoraMin <= fontMin;
-          }) ?? horarios[0];
+          const reachable = horarios.filter((h) => {
+            const im = timeToMinutes(h.periodo.horaInicio);
+            const fm = timeToMinutes(h.periodo.horaFin);
+            return ahoraMin >= im - 30 && ahoraMin <= fm;
+          });
 
-          const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
-          const diferenciaMin = ahoraMin - inicioMin;
+          let periodoActivo;
+
+          if (reachable.length > 0) {
+            periodoActivo = reachable.find((h) => {
+              const im = timeToMinutes(h.periodo.horaInicio);
+              const fm = timeToMinutes(h.periodo.horaFin);
+              return ahoraMin >= im && ahoraMin <= fm;
+            }) ?? reachable.reduce((a, b) =>
+              Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
+              Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
+            );
+          } else {
+            periodoActivo = horarios.reduce((a, b) =>
+              Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
+              Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
+            );
+          }
+
           periodoLabel = `${periodoActivo.periodo.horaInicio}–${periodoActivo.periodo.horaFin}`;
 
-          if (diferenciaMin <= toleranciaMin) {
+          const permiso = await tx.permiso.findFirst({
+            where: {
+              usuarioId: usuario.id,
+              estado: 'APROBADO',
+              fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+              OR: [
+                { periodos: { some: { periodoId: periodoActivo.periodoId } } },
+                { periodos: { none: {} } },
+              ],
+            },
+          });
+
+          if (permiso) {
             estado = 'A tiempo';
+            observacion = 'Cubierto por permiso';
           } else {
-            estado = 'Atraso';
-            observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+            const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
+            const diferenciaMin = ahoraMin - inicioMin;
+
+            if (diferenciaMin <= toleranciaMin) {
+              estado = 'A tiempo';
+            } else {
+              estado = 'Atraso';
+              observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+            }
           }
         }
 

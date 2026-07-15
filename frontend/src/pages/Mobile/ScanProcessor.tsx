@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { CheckCircle, XCircle, Clock, Loader2, Key, User } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff } from "lucide-react";
 import { marcarAsistenciaMovil, MarcarResponse } from "@/services/qr.service";
 
 type Phase = "input" | "submitting" | "success" | "error";
@@ -17,6 +17,7 @@ export const ScanProcessor: React.FC = () => {
   const navigate        = useNavigate();
   const token           = searchParams.get("token") || "";
 
+  const [showPassword, setShowPassword] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [password, setPassword] = useState("");
 
@@ -28,7 +29,8 @@ export const ScanProcessor: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!codigo.trim() || !password.trim()) {
+    const finalCode = codigo.trim().toUpperCase();
+    if (!finalCode || !password.trim()) {
       alert("Por favor ingrese su código de empleado y contraseña.");
       return;
     }
@@ -36,7 +38,7 @@ export const ScanProcessor: React.FC = () => {
     setState({ phase: "submitting", response: null, errorMsg: "" });
 
     try {
-      const res = await marcarAsistenciaMovil(decodeURIComponent(token), codigo.trim(), password);
+      const res = await marcarAsistenciaMovil(decodeURIComponent(token), finalCode, password);
       if (res.ok) {
         setState({ phase: "success", response: res, errorMsg: "" });
 
@@ -95,7 +97,7 @@ export const ScanProcessor: React.FC = () => {
                   type="text"
                   placeholder="CC-001"
                   value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
+                  onChange={(e) => setCodigo(e.target.value.toUpperCase())}
                   className="bg-transparent outline-none text-sm w-full text-slate-800 dark:text-white placeholder-slate-400"
                   required
                 />
@@ -110,13 +112,20 @@ export const ScanProcessor: React.FC = () => {
               <div className="flex items-center gap-2 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 bg-slate-50/50 dark:bg-black/20 focus-within:border-primary transition-colors">
                 <Key size={16} className="text-slate-400" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-transparent outline-none text-sm w-full text-slate-800 dark:text-white placeholder-slate-400"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white/60 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 

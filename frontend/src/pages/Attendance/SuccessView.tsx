@@ -15,54 +15,54 @@ interface SuccessLocationState {
 }
 
 interface MarkConfig {
-  label:       string;
+  label: string;
   description: string;
-  icon:        React.ReactNode;
-  gradient:    string;
-  shadow:      string;
-  iconColor:   string;
+  icon: React.ReactNode;
+  gradient: string;
+  shadow: string;
+  iconColor: string;
 }
 
 const MARK_CONFIG: Record<MarkType, MarkConfig> = {
   entrada: {
-    label:       "¡Asistencia registrada!",
+    label: "¡Asistencia registrada!",
     description: "Entrada registrada correctamente",
-    icon:        <Check size={48} strokeWidth={2.5} />,
-    gradient:    "linear-gradient(135deg, var(--color-success), #4ADE80)",
-    shadow:      "rgba(22,163,74,0.3)",
-    iconColor:   "text-white",
+    icon: <Check size={48} strokeWidth={2.5} />,
+    gradient: "linear-gradient(135deg, var(--color-success), #4ADE80)",
+    shadow: "rgba(22,163,74,0.3)",
+    iconColor: "text-white",
   },
   atraso: {
-    label:       "Entrada con atraso",
+    label: "Entrada con atraso",
     description: "El registro fue procesado con observación de tardanza",
-    icon:        <AlertTriangle size={48} strokeWidth={2.5} />,
-    gradient:    "linear-gradient(135deg, var(--color-warning), #FCD34D)",
-    shadow:      "rgba(245,158,11,0.3)",
-    iconColor:   "text-white",
+    icon: <AlertTriangle size={48} strokeWidth={2.5} />,
+    gradient: "linear-gradient(135deg, var(--color-warning), #FCD34D)",
+    shadow: "rgba(245,158,11,0.3)",
+    iconColor: "text-white",
   },
   permiso: {
-    label:       "Permiso registrado",
+    label: "Permiso registrado",
     description: "La asistencia fue registrada con permiso autorizado",
-    icon:        <FileText size={48} strokeWidth={2.5} />,
-    gradient:    "linear-gradient(135deg, var(--color-primary), #60A5FA)",
-    shadow:      "rgba(15,76,151,0.3)",
-    iconColor:   "text-white",
+    icon: <FileText size={48} strokeWidth={2.5} />,
+    gradient: "linear-gradient(135deg, var(--color-primary), #60A5FA)",
+    shadow: "rgba(15,76,151,0.3)",
+    iconColor: "text-white",
   },
   salida: {
-    label:       "¡Salida registrada!",
+    label: "¡Salida registrada!",
     description: "Salida registrada correctamente",
-    icon:        <LogOut size={48} strokeWidth={2.5} />,
-    gradient:    "linear-gradient(135deg, var(--color-success), #4ADE80)",
-    shadow:      "rgba(22,163,74,0.3)",
-    iconColor:   "text-white",
+    icon: <LogOut size={48} strokeWidth={2.5} />,
+    gradient: "linear-gradient(135deg, var(--color-success), #4ADE80)",
+    shadow: "rgba(22,163,74,0.3)",
+    iconColor: "text-white",
   },
   ausente: {
-    label:       "Marcado como ausente",
+    label: "Marcado como ausente",
     description: "No se encontró asistencia para el periodo actual",
-    icon:        <XCircle size={48} strokeWidth={2.5} />,
-    gradient:    "linear-gradient(135deg, var(--color-danger), #F87171)",
-    shadow:      "rgba(220,38,38,0.3)",
-    iconColor:   "text-white",
+    icon: <XCircle size={48} strokeWidth={2.5} />,
+    gradient: "linear-gradient(135deg, var(--color-danger), #F87171)",
+    shadow: "rgba(220,38,38,0.3)",
+    iconColor: "text-white",
   },
 };
 
@@ -71,30 +71,29 @@ interface SuccessViewProps {
 }
 
 export const SuccessView: React.FC<SuccessViewProps> = ({ dark }) => {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const state     = (location.state as SuccessLocationState) ?? {};
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state as SuccessLocationState) ?? {};
 
-  const markType     = state.markType     ?? "entrada";
+  const markType = state.markType ?? "entrada";
   const employeeName = state.employeeName ?? "Ana Flores Mendoza";
-  const period       = state.period       ?? "10:15 – 11:15";
+  const period = state.period ?? "10:15 – 11:15";
 
   const cfg = MARK_CONFIG[markType];
 
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(id);
-          navigate("/attendance/qr");
-          return 0;
-        }
-        return c - 1;
-      });
+    const timer = setTimeout(() => {
+      navigate("/attendance/qr");
+    }, 25000);
+    const interval = setInterval(() => {
+      setCountdown((c) => Math.max(c - 1, 0));
     }, 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [navigate]);
 
   return (
@@ -147,10 +146,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({ dark }) => {
         >
           <div className="space-y-3.5">
             {[
-              { label: "Empleado", value: employeeName,                              icon: <Users    size={14} /> },
-              { label: "Periodo",  value: period,                                    icon: <Clock    size={14} /> },
-              { label: "Tipo",     value: markType.charAt(0).toUpperCase() + markType.slice(1), icon: <Activity size={14} /> },
-              { label: "Hora",     value: new Date().toLocaleTimeString("es-BO"),   icon: <Clock    size={14} /> },
+              { label: "Empleado", value: employeeName, icon: <Users size={14} /> },
+              { label: "Periodo", value: period, icon: <Clock size={14} /> },
+              { label: "Tipo", value: markType.charAt(0).toUpperCase() + markType.slice(1), icon: <Activity size={14} /> },
+              { label: "Hora", value: new Date().toLocaleTimeString("es-BO"), icon: <Clock size={14} /> },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <span className="text-primary">{item.icon}</span>
