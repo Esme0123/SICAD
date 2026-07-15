@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare } from "lucide-react";
+import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
 import { getEmployees, Employee } from "@/services/employees.service";
@@ -11,6 +11,9 @@ import {
   Periodo,
   Schedule,
 } from "@/services/schedules.service";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface PeriodsViewProps {
   dark: boolean;
@@ -192,6 +195,55 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     return matchesSearch && matchesDay;
   });
 
+  const exportExcel = () => {
+    const data = filteredEmployees.flatMap((emp: any) => {
+      const entries: any[] = [];
+      DAYS_OF_WEEK.forEach(day => {
+        emp.days[day]?.forEach((slot: any) => {
+          entries.push({
+            Empleado: emp.employeeName,
+            Código: emp.code,
+            CI: emp.ci,
+            Día: day,
+            Inicio: slot.startTime,
+            Fin: slot.endTime,
+          });
+        });
+      });
+      return entries;
+    });
+    if (data.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Horarios");
+    XLSX.writeFile(wb, `horarios_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  const exportPDF = () => {
+    const body: string[][] = [];
+    filteredEmployees.forEach((emp: any) => {
+      DAYS_OF_WEEK.forEach(day => {
+        emp.days[day]?.forEach((slot: any) => {
+          body.push([emp.employeeName, emp.code, emp.ci || "", day, slot.startTime, slot.endTime]);
+        });
+      });
+    });
+    if (body.length === 0) return;
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(16);
+    doc.text("Asignación de Horarios", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleDateString("es-BO")}`, 14, 28);
+    autoTable(doc, {
+      startY: 34,
+      head: [["Empleado", "Código", "CI", "Día", "Inicio", "Fin"]],
+      body,
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [15, 76, 151] },
+    });
+    doc.save(`horarios_${new Date().toISOString().split("T")[0]}.pdf`);
+  };
+
   if (loading) {
     return <div className={`p-8 text-center ${dark ? "text-white" : "text-slate-800"}`}>Cargando horarios...</div>;
   }
@@ -199,7 +251,19 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   return (
     <div className="space-y-6">
       {/* Botón superior alineado a la derecha */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={exportPDF}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:border-white/10 dark:text-white/70 dark:hover:bg-primary/20 dark:hover:text-white dark:hover:border-primary/50"
+        >
+          <FileText size={13} /> Exportar PDF
+        </button>
+        <button
+          onClick={exportExcel}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:border-white/10 dark:text-white/70 dark:hover:bg-primary/20 dark:hover:text-white dark:hover:border-primary/50"
+        >
+          <FileSpreadsheet size={13} /> Exportar Excel
+        </button>
         <button
           onClick={() => {
             resetModal();

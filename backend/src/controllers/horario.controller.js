@@ -106,7 +106,7 @@ async function asignar(req, res) {
 async function getHorariosEmpleados(req, res) {
   try {
     const empleados = await prisma.usuario.findMany({
-      where: { rol: 'EMPLEADO' },
+      where: { rol: 'EMPLEADO', activo: true },
       select: {
         id: true,
         nombre: true,
