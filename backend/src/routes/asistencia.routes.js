@@ -1,7 +1,7 @@
 // src/routes/asistencia.routes.js
 
 const { Router } = require('express');
-const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, getEstadoHoy } = require('../controllers/asistencia.controller');
+const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, getEstadoHoy, getQrDashboard } = require('../controllers/asistencia.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
@@ -19,6 +19,7 @@ router.post('/marcar',            marcar);
 router.post('/registrar',         registrar);
 
 router.get('/',                   getAll);
+router.get('/qr-dashboard',       getQrDashboard);
 router.get('/estado-hoy',         getEstadoHoy);
 router.get('/:id',                getById);
 

@@ -39,14 +39,8 @@ function toBoliviaDateStr(date = new Date()) {
  * Devuelve el inicio (00:00:00.000) y el fin (23:59:59.999) del día UTC
  * correspondiente a una fecha, para usar en rangos de búsqueda en BD.
  */
-function getBoliviaOffset(date = new Date()) {
-  const BOLIVIA_UTC_OFFSET = -4 * 60; // UTC-4 en minutos
-  const serverOffset = date.getTimezoneOffset(); // en minutos
-  return BOLIVIA_UTC_OFFSET - serverOffset;
-}
-
 function getBoliviaDate(date = new Date()) {
-  return new Date(date.getTime() + getBoliviaOffset(date) * 60000);
+  return new Date(new Date(date).toLocaleString("en-US", { timeZone: "America/La_Paz" }));
 }
 
 function getDayRange(date = new Date()) {
@@ -71,30 +65,44 @@ function getBoliviaTimeMinutes(date = new Date()) {
  * Body: { token: string, usuarioId: number }
  *
  * Flujo:
- *  1. Verifica token QR (HMAC SHA-256) → 401 si inválido
- *  2. Busca asistencia abierta HOY (horaEntrada existe, horaSalida es null)
- *  3. Si NO existe → crea nueva asistencia (horaEntrada = ahora)
- *  4. Si SÍ existe → cierra la asistencia abierta (horaSalida = ahora)
+ *  1. Busca al empleado real en BD (prisma.usuario.findUnique)
+ *  2. Verifica token QR (HMAC SHA-256)
+ *  3. Obtiene hora exacta de Bolivia (America/La_Paz)
+ *  4. Verifica horario asignado para el día actual
+ *  5. Busca asistencia abierta HOY — si existe cierra (SALIDA),
+ *     si no existe crea una nueva (ENTRADA)
  */
 async function registrar(req, res) {
   try {
     const { token, usuarioId } = req.body;
-
     if (!token || !usuarioId) {
       return res.status(400).json({ ok: false, message: 'token y usuarioId son requeridos' });
     }
 
-    // 1. Validar token QR
+    const uid = parseInt(usuarioId);
+    if (isNaN(uid)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
+
+    // 1. Buscar empleado real
+    const empleado = await prisma.usuario.findUnique({ where: { id: uid } });
+    if (!empleado) return res.status(404).json({ ok: false, message: 'Empleado no encontrado' });
+
+    // 2. Validar token QR
     const verificacion = verifyQRToken(token);
     if (!verificacion.valid) {
       return res.status(401).json({ ok: false, message: `Token QR inválido: ${verificacion.reason}` });
     }
 
-    const ahora = new Date();
+    // 3. Hora exacta de Bolivia
+    const ahora = getBoliviaDate();
     const { start, end } = getDayRange(ahora);
-    const uid = parseInt(usuarioId);
+    const diaSemana = getDiaSemanaHoy();
 
-    // 2. Buscar asistencia abierta del día (sin horaSalida)
+    // 4. Verificar horario asignado para hoy (opcional — informativo, no bloqueante)
+    const horarioHoy = await prisma.horarioAsignado.findFirst({
+      where: { usuarioId: uid, diaSemana },
+    });
+
+    // 5. Buscar asistencia abierta del día
     const asistenciaAbierta = await prisma.asistencia.findFirst({
       where: {
         usuarioId: uid,
@@ -109,22 +117,20 @@ async function registrar(req, res) {
     let accion;
 
     if (!asistenciaAbierta) {
-      // 3. No hay asistencia abierta → registrar ENTRADA
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId: uid,
-          fecha: toBoliviaDateStr(ahora),
+          fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
           horaEntrada: ahora,
         },
-        include: { usuario: { select: { nombre: true } } },
+        include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
       });
       accion = 'ENTRADA';
     } else {
-      // 4. Hay asistencia abierta → registrar SALIDA
       resultado = await prisma.asistencia.update({
         where: { id: asistenciaAbierta.id },
         data: { horaSalida: ahora },
-        include: { usuario: { select: { nombre: true } } },
+        include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
       });
       accion = 'SALIDA';
     }
@@ -132,14 +138,14 @@ async function registrar(req, res) {
     res.status(201).json({
       ok: true,
       accion,
-      mensaje: accion === 'ENTRADA'
-        ? `Entrada registrada para ${resultado.usuario.nombre}`
-        : `Salida registrada para ${resultado.usuario.nombre}`,
+      mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}`,
+      empleado: { id: resultado.usuario.id, nombre: resultado.usuario.nombre, codigo: resultado.usuario.codigo },
+      tieneHorario: !!horarioHoy,
       data: resultado,
     });
   } catch (error) {
     console.error('[asistencia.registrar]', error);
-    res.status(500).json({ ok: false, message: 'Error al registrar asistencia' });
+    res.status(500).json({ ok: false, message: `Error al registrar asistencia: ${error.message}` });
   }
 }
 
@@ -311,7 +317,7 @@ async function marcar(req, res) {
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId:         uid,
-          fecha:             toBoliviaDateStr(ahora),
+          fecha:             new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
           horaEntrada:       ahora,
           minutosTolerancia: toleranciaMin,
           observacion:       observacion,
@@ -495,7 +501,7 @@ async function marcarMovil(req, res) {
           resultado = await tx.asistencia.create({
             data: {
               usuarioId:         usuario.id,
-              fecha:             toBoliviaDateStr(ahora),
+              fecha:             new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
               horaEntrada:       ahora,
               minutosTolerancia: toleranciaMin,
               observacion:       observacion,
@@ -543,37 +549,28 @@ async function marcarMovil(req, res) {
  */
 async function getQrDashboard(req, res) {
   try {
-    const ahora = new Date();
+    const ahora = getBoliviaDate();
+    const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
     const { start, end } = getDayRange(ahora);
 
     // 1. Total Asistencias hoy
     const totalAsistencias = await prisma.asistencia.count({
-      where: {
-        fecha: { gte: start, lte: end }
-      }
+      where: { fecha: { gte: start, lte: end } },
     });
 
-    // 2. Atrasos hoy
+    // 2. Atrasos hoy (observacion empieza con 'Llegó')
     const atrasos = await prisma.asistencia.count({
       where: {
         fecha: { gte: start, lte: end },
-        observacion: {
-          startsWith: 'Llegó'
-        }
-      }
+        observacion: { startsWith: 'Llegó' },
+      },
     });
 
     // 3. Último registro hoy
     const ultimo = await prisma.asistencia.findFirst({
-      where: {
-        fecha: { gte: start, lte: end }
-      },
-      include: {
-        usuario: { select: { nombre: true, codigo: true } }
-      },
-      orderBy: {
-        horaEntrada: 'desc'
-      }
+      where: { fecha: { gte: start, lte: end } },
+      include: { usuario: { select: { nombre: true, codigo: true } } },
+      orderBy: { horaEntrada: 'desc' },
     });
 
     let ultimoRegistro = null;
@@ -586,51 +583,63 @@ async function getQrDashboard(req, res) {
       } else if (ultimo.observacion && ultimo.observacion.startsWith('Llegó')) {
         estadoRegistro = 'Atraso';
       }
-
-      const f = (d) => new Date(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
+      const fmt = (d) =>
+        getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       ultimoRegistro = {
         nombre: ultimo.usuario.nombre,
         codigo: ultimo.usuario.codigo || `CC-${String(ultimo.usuarioId).padStart(3, '0')}`,
-        hora: f(horaMarcada),
+        hora: fmt(horaMarcada),
         estado: estadoRegistro,
       };
     }
 
-    // 4. Periodos activos
-    const ahoraMin = getBoliviaTimeMinutes(ahora);
+    // 4. Periodos activos con estado basado en 5 min de tolerancia
     const periodos = await prisma.periodo.findMany({
       where: { activo: true },
-      orderBy: { horaInicio: 'asc' }
+      orderBy: { horaInicio: 'asc' },
     });
+
+    const TOLERANCIA = 5;
 
     const periodosConActivo = periodos.map((p) => {
       const [hI, mI] = p.horaInicio.split(':').map(Number);
       const [hF, mF] = p.horaFin.split(':').map(Number);
       const inicioMin = hI * 60 + mI;
       const finMin = hF * 60 + mF;
-      const isActive = ahoraMin >= inicioMin && ahoraMin <= finMin;
+      const toleranciaFin = inicioMin + TOLERANCIA;
+
+      let estado;
+      if (ahoraMin < inicioMin) {
+        estado = 'PENDIENTE';
+      } else if (ahoraMin <= toleranciaFin) {
+        estado = 'ACTIVO';
+      } else if (ahoraMin <= finMin) {
+        estado = 'RETRASO';
+      } else {
+        estado = 'FINALIZADO';
+      }
+
       return {
         id: p.id,
         nombre: p.nombre,
         horaInicio: p.horaInicio,
         horaFin: p.horaFin,
-        activo: isActive
+        estado,
+        activo: estado === 'ACTIVO' || estado === 'RETRASO',
       };
     });
 
     res.json({
       ok: true,
-      data: {
-        totalAsistencias,
-        atrasos,
-        ultimoRegistro,
-        periodos: periodosConActivo
-      }
+      data: { totalAsistencias, atrasos, ultimoRegistro, periodos: periodosConActivo },
     });
   } catch (error) {
     console.error('[asistencia.getQrDashboard]', error);
-    res.status(500).json({ ok: false, message: 'Error al obtener el dashboard del QR' });
+    res.status(500).json({
+      ok: false,
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 }
 
@@ -646,80 +655,105 @@ async function getQrDashboard(req, res) {
  */
 async function getEstadoHoy(req, res) {
   try {
-    const ahora = new Date();
+    const ahora = getBoliviaDate();
     const diaSemana = getDiaSemanaHoy();
-    const ahoraMin = getBoliviaTimeMinutes(ahora);
+    const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
     const { start, end } = getDayRange(ahora);
 
-    // Periodos activos del catálogo
     const periodos = await prisma.periodo.findMany({
       where: { activo: true },
       orderBy: { horaInicio: 'asc' },
     });
 
-    // Para cada periodo, contar empleados asignados y asistencias registradas hoy
+    // Todas las asistencias de hoy con hora en Bolivia
+    const asistenciasHoy = await prisma.asistencia.findMany({
+      where: { fecha: { gte: start, lte: end } },
+      select: { usuarioId: true, horaEntrada: true },
+    });
+
+    // Índice: usuarioId → conjunto de minutos-Bolivia de entrada
+    const entradaPorUsuario = new Map();
+    for (const a of asistenciasHoy) {
+      const bd = getBoliviaDate(a.horaEntrada);
+      const min = bd.getHours() * 60 + bd.getMinutes();
+      if (!entradaPorUsuario.has(a.usuarioId)) {
+        entradaPorUsuario.set(a.usuarioId, new Set());
+      }
+      entradaPorUsuario.get(a.usuarioId).add(min);
+    }
+
+    const TOLERANCIA = 5;
+    let totalAusentes = 0;
+
     const resultado = await Promise.all(
       periodos.map(async (p) => {
         const [hI, mI] = p.horaInicio.split(':').map(Number);
         const [hF, mF] = p.horaFin.split(':').map(Number);
         const inicioMin = hI * 60 + mI;
         const finMin = hF * 60 + mF;
-        const isActive = ahoraMin >= inicioMin && ahoraMin <= finMin;
+        const toleranciaFin = inicioMin + TOLERANCIA;
 
-        // Empleados activos que tienen este periodo asignado hoy
+        // Estado del periodo basado en hora actual (5 min de tolerancia)
+        let estado;
+        if (ahoraMin < inicioMin) {
+          estado = 'PENDIENTE';
+        } else if (ahoraMin <= toleranciaFin) {
+          estado = 'ACTIVO';
+        } else if (ahoraMin <= finMin) {
+          estado = 'RETRASO';
+        } else {
+          estado = 'FINALIZADO';
+        }
+
+        const isActive = estado === 'ACTIVO' || estado === 'RETRASO';
+
+        // Total de empleados asignados para este periodo hoy
         const totalEmpleados = await prisma.horarioAsignado.count({
-          where: {
-            periodoId: p.id,
-            diaSemana,
-            usuario: { activo: true },
-          },
+          where: { periodoId: p.id, diaSemana, usuario: { activo: true } },
         });
 
-        // Asistencias registradas hoy en este periodo
-        const asistencias = await prisma.asistencia.findMany({
-          where: {
-            fecha: { gte: start, lte: end },
-          },
+        if (totalEmpleados === 0) {
+          return {
+            id: p.id, nombre: p.nombre, horaInicio: p.horaInicio, horaFin: p.horaFin,
+            activo: isActive, estado, totalEmpleados: 0, marcaron: 0, ausentes: 0,
+          };
+        }
+
+        // Asignados de este periodo
+        const asignados = await prisma.horarioAsignado.findMany({
+          where: { periodoId: p.id, diaSemana, usuario: { activo: true } },
           select: { usuarioId: true },
         });
 
-        // Empleados que marcaron (tienen asistencia hoy y este periodo asignado)
-        const userIdsConAsistencia = new Set(asistencias.map((a) => a.usuarioId));
-        const marcaron = await prisma.horarioAsignado.count({
-          where: {
-            periodoId: p.id,
-            diaSemana,
-            usuarioId: { in: [...userIdsConAsistencia] },
-            usuario: { activo: true },
-          },
-        });
+        // Cuántos marcaron dentro del rango del periodo
+        let marcaron = 0;
+        for (const asig of asignados) {
+          const mins = entradaPorUsuario.get(asig.usuarioId);
+          if (mins) {
+            for (const m of mins) {
+              if (m >= inicioMin && m <= finMin) { marcaron++; break; }
+            }
+          }
+        }
 
-        let estado;
-        if (isActive) {
-          estado = "entrada";
-        } else if (ahoraMin > finMin) {
-          estado = marcaron >= totalEmpleados ? "entrada" : "ausente";
-        } else {
-          estado = "pendiente";
+        const ausentes = totalEmpleados - marcaron;
+
+        // Solo contar ausentes si el periodo ya terminó
+        if (estado === 'FINALIZADO') {
+          totalAusentes += ausentes;
         }
 
         return {
-          id: p.id,
-          nombre: p.nombre,
-          horaInicio: p.horaInicio,
-          horaFin: p.horaFin,
-          activo: isActive,
-          totalEmpleados,
-          marcaron,
-          estado,
+          id: p.id, nombre: p.nombre, horaInicio: p.horaInicio, horaFin: p.horaFin,
+          activo: isActive, estado, totalEmpleados, marcaron, ausentes,
         };
       })
     );
 
-    res.json({ ok: true, data: resultado });
+    res.json({ ok: true, data: { periodos: resultado, totalAusentes } });
   } catch (error) {
     console.error('[asistencia.getEstadoHoy]', error);
-    res.status(500).json({ ok: false, message: 'Error al obtener estado del día' });
+    res.status(500).json({ ok: false, message: error.message });
   }
 }
 

@@ -1,94 +1,51 @@
-import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 type RowData = Record<string, string | number | boolean | null | undefined>;
 
 const PRIMARY_RGB: [number, number, number] = [15, 76, 151];
-const PRIMARY_LIGHT = "0F4C97";
 const BO_TIMEZONE = "America/La_Paz";
 
 function boDate() {
   return new Date().toLocaleDateString("es-BO", { timeZone: BO_TIMEZONE });
 }
 
-export async function exportToExcel(
+export function exportToExcel(
   data: RowData[],
   filename: string,
   groupBy?: string
-): Promise<void> {
+): void {
   if (data.length === 0) return;
-
-  const columns = Object.keys(data[0]);
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Datos");
-
-  const headerRow = sheet.addRow(columns);
-  headerRow.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: PRIMARY_LIGHT } };
-    cell.alignment = { vertical: "middle", horizontal: "center" };
-    cell.border = {
-      top: { style: "thin", color: { argb: "CCCCCC" } },
-      bottom: { style: "thin", color: { argb: "CCCCCC" } },
-      left: { style: "thin", color: { argb: "CCCCCC" } },
-      right: { style: "thin", color: { argb: "CCCCCC" } },
-    };
-  });
 
   const sorted = groupBy
     ? [...data].sort((a, b) => String(a[groupBy] ?? "").localeCompare(String(b[groupBy] ?? "")))
     : data;
 
-  let mergeStart: number | null = null;
-  let prevGroupValue: string | null = null;
+  const columns = Object.keys(sorted[0]);
 
-  sorted.forEach((row, idx) => {
-    const values = columns.map((col) => row[col] ?? "");
-    const rowRef = sheet.addRow(values);
-    rowRef.eachCell((cell, colIdx) => {
-      cell.alignment = { vertical: "middle", horizontal: colIdx === 0 ? "left" : "center" };
-      cell.border = {
-        top: { style: "thin", color: { argb: "EEEEEE" } },
-        bottom: { style: "thin", color: { argb: "EEEEEE" } },
-        left: { style: "thin", color: { argb: "EEEEEE" } },
-        right: { style: "thin", color: { argb: "EEEEEE" } },
-      };
+  const flatData = sorted.map((row) => {
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col) => {
+      obj[col] = row[col] ?? "";
     });
-
-    const excelRow = idx + 2; // +1 for header, +1 for 1-indexed
-    if (groupBy) {
-      const currentVal = String(row[groupBy] ?? "");
-      if (currentVal !== prevGroupValue) {
-        if (mergeStart !== null && excelRow - 1 > mergeStart) {
-          sheet.mergeCells(mergeStart, 1, excelRow - 1, 1);
-        }
-        mergeStart = excelRow;
-        prevGroupValue = currentVal;
-      }
-    }
+    return obj;
   });
 
-  if (groupBy && mergeStart !== null && sorted.length + 1 > mergeStart) {
-    sheet.mergeCells(mergeStart, 1, sorted.length + 1, 1);
-  }
+  const ws = XLSX.utils.json_to_sheet(flatData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Datos");
 
-  columns.forEach((_, i) => {
-    const maxLen = sorted.reduce((acc, row) => {
-      const val = String(row[columns[i]] ?? "");
+  ws["!cols"] = columns.map((col) => {
+    const maxLen = flatData.reduce((acc, row) => {
+      const val = String(row[col] ?? "");
       return Math.max(acc, val.length);
-    }, columns[i].length);
-    sheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 12), 40);
+    }, col.length);
+    const width = Math.min(Math.max(maxLen + 3, 12), 40);
+    return { wch: width };
   });
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${filename}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  XLSX.writeFile(wb, `${filename}.xlsx`);
 }
 
 export function exportToPDF(
@@ -112,7 +69,7 @@ export function exportToPDF(
   doc.setTextColor(100);
   doc.text(`Generado: ${boDate()}`, 14, 27);
 
-  const body: (string[] | { content: string; colSpan: number; styles: any })[] = [];
+  const body: (string[] | { content: string; colSpan: number; styles: Record<string, unknown> })[] = [];
   let prevGroup: string | null = null;
 
   sorted.forEach((row) => {

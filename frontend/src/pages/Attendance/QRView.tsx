@@ -6,7 +6,7 @@ import { QRCodeDisplay } from "./components/QRCodeDisplay";
 import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
-import { generateQRToken, getQrDashboard, getEstadoHoy, QrDashboardPeriod, EstadoHoyPeriodo } from "@/services/qr.service";
+import { generateQRToken, getQrDashboard, getEstadoHoy, QrDashboardPeriod, EstadoHoyPeriodo, EstadoHoyResponse } from "@/services/qr.service";
 
 interface QRViewProps {
   dark: boolean;
@@ -35,11 +35,10 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   const [totalAsistencias, setTotalAsistencias] = useState<number>(0);
   const [atrasos, setAtrasos]           = useState<number>(0);
   const [ultimoRegistro, setUltimoRegistro] = useState<{ nombre: string; codigo: string; hora: string; estado: string } | null>(null);
-  const [estadoHoy, setEstadoHoy]       = useState<EstadoHoyPeriodo[]>([]);
+  const [estadoHoy, setEstadoHoy]       = useState<EstadoHoyResponse>({ periodos: [], totalAusentes: 0 });
 
-  const activePeriod = periodos.find(p => p.activo);
-  const pendientes = periodos.filter(p => !p.activo).length;
-  const ausentes = estadoHoy.filter(e => e.estado === "ausente").length;
+  const activePeriod = periodos.find(p => p.estado === "ACTIVO" || p.estado === "RETRASO");
+  const ausentes = estadoHoy.totalAusentes;
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -48,7 +47,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const [dashboard, estado] = await Promise.all([
+      const [dashboard, estadoResponse] = await Promise.all([
         getQrDashboard(),
         getEstadoHoy(),
       ]);
@@ -56,7 +55,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
       setTotalAsistencias(dashboard.totalAsistencias);
       setAtrasos(dashboard.atrasos);
       setUltimoRegistro(dashboard.ultimoRegistro);
-      setEstadoHoy(estado);
+      setEstadoHoy(estadoResponse);
     } catch (err) {
       console.error("Error al obtener dashboard QR:", err);
     }
@@ -88,7 +87,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   // Polling de estado cada 30 segundos
   useEffect(() => {
     const id = setInterval(() => {
-      getEstadoHoy().then(setEstadoHoy).catch(console.error);
+      getEstadoHoy().then((r) => setEstadoHoy(r)).catch(console.error);
     }, 30000);
     return () => clearInterval(id);
   }, []);
@@ -286,20 +285,31 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             Periodos de hoy
           </p>
           <div className="space-y-1">
-            {estadoHoy.length === 0 ? (
+            {estadoHoy.periodos.length === 0 ? (
               <p className={`text-xs ${dark ? "text-white/20" : "text-slate-300"}`}>Cargando...</p>
             ) : (
-              estadoHoy.map((p, i) => {
-                const dotCls =
-                  p.activo ? "bg-yellow-400"
-                  : p.estado === "entrada" ? "bg-green-400"
-                  : p.estado === "ausente" ? "bg-red-400"
-                  : dark ? "bg-white/15" : "bg-slate-200";
+              estadoHoy.periodos.map((p, i) => {
+                const colorMap: Record<string, string> = {
+                  PENDIENTE:  dark ? "bg-white/15" : "bg-slate-200",
+                  ACTIVO:     "bg-green-400",
+                  RETRASO:    "bg-yellow-400",
+                  FINALIZADO: "bg-red-400",
+                };
+                const textColorMap: Record<string, string> = {
+                  PENDIENTE:  dark ? "text-white/40" : "text-slate-500",
+                  ACTIVO:     "text-green-600 font-semibold",
+                  RETRASO:    "text-yellow-600 font-semibold",
+                  FINALIZADO: "text-red-500",
+                };
+                const labelMap: Record<string, string> = {
+                  PENDIENTE:  "Pendiente",
+                  ACTIVO:     "A tiempo",
+                  RETRASO:    "Retraso",
+                  FINALIZADO: "Finalizado",
+                };
 
-                const labelCls =
-                  p.activo ? "text-primary font-semibold"
-                  : p.estado === "ausente" ? "text-red-500"
-                  : dark ? "text-white/40" : "text-slate-500";
+                const dotCls = colorMap[p.estado] || (dark ? "bg-white/15" : "bg-slate-200");
+                const labelCls = textColorMap[p.estado] || (dark ? "text-white/40" : "text-slate-500");
 
                 return (
                   <React.Fragment key={p.id}>
@@ -308,20 +318,15 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
                       <span className={`text-xs font-mono ${labelCls}`}>
                         {p.horaInicio} – {p.horaFin}
                       </span>
-                      <span className="ml-auto text-[10px] font-semibold uppercase"
-                        style={{
-                          color:
-                            p.estado === "entrada" ? "#22c55e"
-                            : p.estado === "ausente" ? "#ef4444"
-                            : p.estado === "pendiente" ? "#eab308"
-                            : undefined,
-                        }}
-                      >
-                        {p.activo ? "Activo" : p.estado}
+                      <span className={`ml-auto text-[10px] font-semibold uppercase ${labelCls}`}>
+                        {labelMap[p.estado] || p.estado}
                       </span>
                     </div>
                     <div className={`ml-[16px] pb-1 flex gap-3 text-[10px] ${dark ? "text-white/25" : "text-slate-400"}`}>
                       <span>{p.marcaron}/{p.totalEmpleados} marcaron</span>
+                      {p.ausentes > 0 && (
+                        <span className="text-red-500">{p.ausentes} ausente{p.ausentes !== 1 ? "s" : ""}</span>
+                      )}
                     </div>
                   </React.Fragment>
                 );

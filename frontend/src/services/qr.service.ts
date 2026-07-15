@@ -62,6 +62,7 @@ export interface QrDashboardPeriod {
   nombre: string;
   horaInicio: string;
   horaFin: string;
+  estado: "PENDIENTE" | "ACTIVO" | "RETRASO" | "FINALIZADO";
   activo: boolean;
 }
 
@@ -91,11 +92,17 @@ export interface EstadoHoyPeriodo {
   activo: boolean;
   totalEmpleados: number;
   marcaron: number;
-  estado: "entrada" | "pendiente" | "ausente";
+  ausentes: number;
+  estado: "PENDIENTE" | "ACTIVO" | "RETRASO" | "FINALIZADO";
 }
 
-export async function getEstadoHoy(): Promise<EstadoHoyPeriodo[]> {
-  const { data } = await api.get<{ ok: boolean; data: EstadoHoyPeriodo[] }>("/asistencia/estado-hoy");
+export interface EstadoHoyResponse {
+  periodos: EstadoHoyPeriodo[];
+  totalAusentes: number;
+}
+
+export async function getEstadoHoy(): Promise<EstadoHoyResponse> {
+  const { data } = await api.get<{ ok: boolean; data: EstadoHoyResponse }>("/asistencia/estado-hoy");
   if (!data.ok) throw new Error("Error al obtener estado del día");
   return data.data;
 }
