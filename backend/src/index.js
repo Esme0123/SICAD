@@ -15,6 +15,7 @@ const permisoRoutes = require('./routes/permiso.routes');
 const asistenciaRoutes = require('./routes/asistencia.routes');
 const authRoutes = require('./routes/auth.routes');
 const horarioRoutes = require('./routes/horario.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.get('/', (req, res) => {
       permisos: '/api/permisos',
       asistencia: '/api/asistencia',
       asistencias: '/api/asistencias',
+      dashboard: '/api/dashboard',
     },
   });
 });
@@ -57,6 +59,8 @@ app.use('/api/permisos', permisoRoutes);
 // Asistencia (núcleo de escaneo QR) — montada en ambos paths (con y sin 's')
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/asistencias', asistenciaRoutes);
+// Dashboard — métricas
+app.use('/api/dashboard', dashboardRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {
