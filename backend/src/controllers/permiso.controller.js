@@ -25,6 +25,7 @@ async function getAll(req, res) {
 async function getById(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     const permiso = await prisma.permiso.findUnique({
       where: { id },
       include: {
@@ -119,6 +120,7 @@ async function create(req, res) {
 async function cambiarEstado(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     const { estado, revisadoPor } = req.body;
 
     const estadosValidos = ['APROBADO', 'RECHAZADO'];

@@ -6,20 +6,13 @@ import { QRCodeDisplay } from "./components/QRCodeDisplay";
 import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
-import { generateQRToken } from "@/services/qr.service";
+import { generateQRToken, getQrDashboard, getEstadoHoy, QrDashboardPeriod, EstadoHoyPeriodo } from "@/services/qr.service";
 
 interface QRViewProps {
   dark: boolean;
 }
 
 type MarkType = "entrada" | "atraso" | "permiso" | "salida" | "ausente";
-
-interface PeriodSlot {
-  label: string;
-  done: boolean;
-  active: boolean;
-  markType?: MarkType;
-}
 
 const markColors: Record<MarkType, string> = {
   entrada:  "bg-green-400",
@@ -28,14 +21,6 @@ const markColors: Record<MarkType, string> = {
   salida:   "bg-green-400",
   ausente:  "bg-destructive",
 };
-
-const PERIODS: PeriodSlot[] = [
-  { label: "07:00–08:15", done: true,  active: false, markType: "entrada" },
-  { label: "08:15–09:15", done: true,  active: false, markType: "entrada" },
-  { label: "09:15–10:15", done: true,  active: false, markType: "atraso"  },
-  { label: "10:15–11:15", done: false, active: true               },
-  { label: "11:15–12:15", done: false, active: false              },
-];
 
 export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   const navigate = useNavigate();
@@ -46,11 +31,35 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   const [flash, setFlash]               = useState(false);
   const [now, setNow]                   = useState(new Date());
   const [loadError, setLoadError]       = useState(false);
+  const [periodos, setPeriodos]         = useState<QrDashboardPeriod[]>([]);
+  const [totalAsistencias, setTotalAsistencias] = useState<number>(0);
+  const [atrasos, setAtrasos]           = useState<number>(0);
+  const [ultimoRegistro, setUltimoRegistro] = useState<{ nombre: string; codigo: string; hora: string; estado: string } | null>(null);
+  const [estadoHoy, setEstadoHoy]       = useState<EstadoHoyPeriodo[]>([]);
 
-  // Reloj en tiempo real
+  const activePeriod = periodos.find(p => p.activo);
+  const pendientes = periodos.filter(p => !p.activo).length;
+  const ausentes = estadoHoy.filter(e => e.estado === "ausente").length;
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const [dashboard, estado] = await Promise.all([
+        getQrDashboard(),
+        getEstadoHoy(),
+      ]);
+      setPeriodos(dashboard.periodos);
+      setTotalAsistencias(dashboard.totalAsistencias);
+      setAtrasos(dashboard.atrasos);
+      setUltimoRegistro(dashboard.ultimoRegistro);
+      setEstadoHoy(estado);
+    } catch (err) {
+      console.error("Error al obtener dashboard QR:", err);
+    }
   }, []);
 
   const fetchToken = useCallback(async () => {
@@ -58,29 +67,32 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
       setLoadError(false);
       const res = await generateQRToken();
       setToken(res.token);
-
-      // Calcular tiempo restante desde la expiración del servidor
       const remaining = Math.floor(res.expiresAt - Date.now() / 1000);
       const duration  = remaining > 0 ? remaining : 30;
       setTotalDuration(duration);
       setCountdown(duration);
-
-      // Flash visual al renovar
       setFlash(true);
       setTimeout(() => setFlash(false), 1200);
+      await fetchDashboard();
     } catch {
       setLoadError(true);
       setToken("ERROR");
       setCountdown(10);
     }
-  }, []);
+  }, [fetchDashboard]);
 
-  // Carga inicial
   useEffect(() => {
     fetchToken();
   }, [fetchToken]);
 
-  // Intervalo de cuenta regresiva
+  // Polling de estado cada 30 segundos
+  useEffect(() => {
+    const id = setInterval(() => {
+      getEstadoHoy().then(setEstadoHoy).catch(console.error);
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (countdown <= 0) {
       fetchToken();
@@ -91,8 +103,6 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   }, [countdown, fetchToken]);
 
   const sideCard = card(dark, "p-5");
-
-  // Color de accento QR — usa variable CSS del tema
   const qrColor = dark ? "var(--primary)" : "var(--primary)";
 
   return (
@@ -128,7 +138,11 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             Periodo actual
           </p>
           <h3 className={`text-3xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>
-            10:15 – 11:15
+            {activePeriod
+              ? `${activePeriod.horaInicio} – ${activePeriod.horaFin}`
+              : periodos.length > 0
+              ? "Sin periodo activo"
+              : "Cargando..."}
           </h3>
           <p className={`text-sm mt-1.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
             {now.toLocaleTimeString("es-BO")} &nbsp;·&nbsp;
@@ -136,7 +150,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </p>
         </div>
 
-        {/* QR Code — URL completa que el celular puede abrir al escanear */}
+        {/* QR Code */}
         <motion.div
           key={token}
           initial={{ scale: 0.93, opacity: 0 }}
@@ -162,7 +176,6 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             />
           )}
 
-          {/* Corner accents — color institucional */}
           {(["tl", "tr", "bl", "br"] as const).map((k) => (
             <div
               key={k}
@@ -189,7 +202,6 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           Toca el QR para simular un escaneo exitoso
         </p>
 
-        {/* Temporizador circular sincronizado con el servidor */}
         <div className="mt-6">
           <CircularTimer seconds={countdown} total={totalDuration} dark={dark} />
         </div>
@@ -230,17 +242,23 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? "text-white/30" : "text-slate-400"}`}>
             Última asistencia
           </p>
-          <div className={`p-3.5 rounded-xl flex items-center gap-3 ${
-            dark ? "bg-green-900/20 border border-green-800/25" : "bg-green-50 border border-green-100"
-          }`}>
-            <Avatar name="Ana Flores" size={36} bg="var(--primary)" />
-            <div>
-              <p className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-800"}`}>
-                Ana Flores Mendoza
-              </p>
-              <p className="text-xs text-green-600 font-medium">✓ Hace 2 min — 10:15–11:15</p>
+          {ultimoRegistro ? (
+            <div className={`p-3.5 rounded-xl flex items-center gap-3 ${
+              dark ? "bg-green-900/20 border border-green-800/25" : "bg-green-50 border border-green-100"
+            }`}>
+              <Avatar name={ultimoRegistro.nombre} size={36} bg="var(--primary)" />
+              <div className="min-w-0">
+                <p className={`text-sm font-semibold truncate ${dark ? "text-white" : "text-slate-800"}`}>
+                  {ultimoRegistro.nombre}
+                </p>
+                <p className="text-xs text-green-600 font-medium">✓ {ultimoRegistro.hora}</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className={`text-xs ${dark ? "text-white/30" : "text-slate-400"}`}>
+              Sin registros hoy
+            </p>
+          )}
         </div>
 
         {/* Resumen del día */}
@@ -250,9 +268,9 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </p>
           <div className="space-y-3">
             {[
-              { label: "Total registradas", value: "47", cls: "text-primary"     },
-              { label: "Pendientes",         value: "5",  cls: "text-yellow-500"  },
-              { label: "Ausencias",          value: "2",  cls: "text-destructive" },
+              { label: "Total registradas", value: String(totalAsistencias), cls: "text-primary" },
+              { label: "Atrasos",           value: String(atrasos),          cls: "text-yellow-500" },
+              { label: "Ausentes",           value: String(ausentes),         cls: "text-destructive" },
             ].map((s, i) => (
               <div key={i} className="flex items-center justify-between">
                 <span className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>{s.label}</span>
@@ -262,62 +280,53 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </div>
         </div>
 
-        {/* Periodos del día — agrupados y con estado de marcación */}
+        {/* Periodos del día — con estado real */}
         <div className={sideCard}>
           <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${dark ? "text-white/30" : "text-slate-400"}`}>
             Periodos de hoy
           </p>
           <div className="space-y-1">
-            {PERIODS.map((p, i) => {
-              const dotCls = p.done && p.markType
-                ? markColors[p.markType]
-                : p.active
-                ? "bg-yellow-400"
-                : dark ? "bg-white/15" : "bg-slate-200";
+            {estadoHoy.length === 0 ? (
+              <p className={`text-xs ${dark ? "text-white/20" : "text-slate-300"}`}>Cargando...</p>
+            ) : (
+              estadoHoy.map((p, i) => {
+                const dotCls =
+                  p.activo ? "bg-yellow-400"
+                  : p.estado === "entrada" ? "bg-green-400"
+                  : p.estado === "ausente" ? "bg-red-400"
+                  : dark ? "bg-white/15" : "bg-slate-200";
 
-              const isConnectedToPrev =
-                i > 0 && PERIODS[i - 1].done && p.done && !p.active;
+                const labelCls =
+                  p.activo ? "text-primary font-semibold"
+                  : p.estado === "ausente" ? "text-red-500"
+                  : dark ? "text-white/40" : "text-slate-500";
 
-              return (
-                <React.Fragment key={i}>
-                  {/* Conector visual entre periodos continuos completados */}
-                  {isConnectedToPrev && (
-                    <div className="flex ml-[5px] my-[-2px]">
-                      <div className={`w-[2px] h-2 rounded-full ${dark ? "bg-white/10" : "bg-slate-200"}`} />
-                    </div>
-                  )}
-                  <div
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${
-                      p.active
-                        ? "bg-primary/10"
-                        : ""
-                    }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotCls}`} />
-                    <span
-                      className={`text-xs font-mono ${
-                        p.active
-                          ? "text-primary font-semibold"
-                          : dark ? "text-white/40" : "text-slate-500"
-                      }`}
-                    >
-                      {p.label}
-                    </span>
-                    {p.active && (
-                      <span className="ml-auto text-xs font-semibold text-yellow-500">Activo</span>
-                    )}
-                    {p.done && p.markType && (
-                      <span className={`ml-auto text-[10px] font-semibold capitalize ${
-                        p.markType === "atraso"  ? "text-yellow-500" :
-                        p.markType === "permiso" ? "text-primary"    : "text-green-500"
-                      }`}>
-                        {p.markType}
+                return (
+                  <React.Fragment key={p.id}>
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotCls}`} />
+                      <span className={`text-xs font-mono ${labelCls}`}>
+                        {p.horaInicio} – {p.horaFin}
                       </span>
-                    )}
-                  </div>
-                </React.Fragment>
-              );
-            })}
+                      <span className="ml-auto text-[10px] font-semibold uppercase"
+                        style={{
+                          color:
+                            p.estado === "entrada" ? "#22c55e"
+                            : p.estado === "ausente" ? "#ef4444"
+                            : p.estado === "pendiente" ? "#eab308"
+                            : undefined,
+                        }}
+                      >
+                        {p.activo ? "Activo" : p.estado}
+                      </span>
+                    </div>
+                    <div className={`ml-[16px] pb-1 flex gap-3 text-[10px] ${dark ? "text-white/25" : "text-slate-400"}`}>
+                      <span>{p.marcaron}/{p.totalEmpleados} marcaron</span>
+                    </div>
+                  </React.Fragment>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

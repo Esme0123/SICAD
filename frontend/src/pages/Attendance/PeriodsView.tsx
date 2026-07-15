@@ -11,9 +11,7 @@ import {
   Periodo,
   Schedule,
 } from "@/services/schedules.service";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 
 interface PeriodsViewProps {
   dark: boolean;
@@ -213,13 +211,11 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       return entries;
     });
     if (data.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Horarios");
-    XLSX.writeFile(wb, `horarios_${new Date().toISOString().split("T")[0]}.xlsx`);
+    exportToExcel(data, `horarios_${new Date().toISOString().split("T")[0]}`, "Empleado");
   };
 
   const exportPDF = () => {
+    const columns = ["Empleado", "Código", "CI", "Día", "Inicio", "Fin"];
     const body: string[][] = [];
     filteredEmployees.forEach((emp: any) => {
       DAYS_OF_WEEK.forEach(day => {
@@ -229,19 +225,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       });
     });
     if (body.length === 0) return;
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(16);
-    doc.text("Asignación de Horarios", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleDateString("es-BO")}`, 14, 28);
-    autoTable(doc, {
-      startY: 34,
-      head: [["Empleado", "Código", "CI", "Día", "Inicio", "Fin"]],
-      body,
-      styles: { fontSize: 7 },
-      headStyles: { fillColor: [15, 76, 151] },
-    });
-    doc.save(`horarios_${new Date().toISOString().split("T")[0]}.pdf`);
+    exportToPDF(body, columns, `horarios_${new Date().toISOString().split("T")[0]}`, "Asignación de Horarios", 0);
   };
 
   if (loading) {

@@ -7,6 +7,7 @@ export interface AttendanceRecord {
   employeeId: string;
   name: string;
   code: string;
+  ci: string;
   date: string;
   period: string;
   time: string;
@@ -43,7 +44,7 @@ interface AsistenciaBackend {
   horaEntrada: string;
   horaSalida?: string | null;
   observacion?: string | null;
-  usuario?: { id: number; nombre: string; codigo?: string };
+  usuario?: { id: number; nombre: string; codigo?: string; ci?: string };
 }
 
 export async function getAttendanceHistory(filters?: AttendanceFilters): Promise<AttendanceRecord[]> {
@@ -77,6 +78,7 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       employeeId: String(a.usuarioId),
       name: a.usuario?.nombre || "",
       code: a.usuario?.codigo || `CC-${String(a.usuarioId).padStart(3, "0")}`,
+      ci: a.usuario?.ci || "",
       date: dateStr,
       period: entradaStr + (salidaStr ? `–${salidaStr}` : ""),
       time: entradaStr,

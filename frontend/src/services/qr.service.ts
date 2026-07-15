@@ -57,4 +57,47 @@ export async function marcarAsistenciaMovil(
   return data;
 }
 
-export default { generateQRToken, marcarAsistencia, marcarAsistenciaMovil };
+export interface QrDashboardPeriod {
+  id: number;
+  nombre: string;
+  horaInicio: string;
+  horaFin: string;
+  activo: boolean;
+}
+
+export interface QrDashboardData {
+  totalAsistencias: number;
+  atrasos: number;
+  ultimoRegistro: {
+    nombre: string;
+    codigo: string;
+    hora: string;
+    estado: string;
+  } | null;
+  periodos: QrDashboardPeriod[];
+}
+
+export async function getQrDashboard(): Promise<QrDashboardData> {
+  const { data } = await api.get<{ ok: boolean; data: QrDashboardData }>("/asistencias/qr-dashboard");
+  if (!data.ok) throw new Error("Error al obtener dashboard QR");
+  return data.data;
+}
+
+export interface EstadoHoyPeriodo {
+  id: number;
+  nombre: string;
+  horaInicio: string;
+  horaFin: string;
+  activo: boolean;
+  totalEmpleados: number;
+  marcaron: number;
+  estado: "entrada" | "pendiente" | "ausente";
+}
+
+export async function getEstadoHoy(): Promise<EstadoHoyPeriodo[]> {
+  const { data } = await api.get<{ ok: boolean; data: EstadoHoyPeriodo[] }>("/asistencia/estado-hoy");
+  if (!data.ok) throw new Error("Error al obtener estado del día");
+  return data.data;
+}
+
+export default { generateQRToken, marcarAsistencia, marcarAsistenciaMovil, getQrDashboard, getEstadoHoy };

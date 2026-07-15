@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Filter, Download, Search, FileText, FileSpreadsheet } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, FileText, FileSpreadsheet } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import { getAttendanceHistory, AttendanceRecord } from "@/services/attendance.service";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 
 interface HistoryViewProps {
   dark: boolean;
@@ -53,7 +51,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     ? uniqueEmployees.filter(
         emp =>
           emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          emp.code.toLowerCase().includes(searchQuery.toLowerCase())
+          emp.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          emp.ci.includes(searchQuery)
       ).slice(0, 5)
     : [];
 
@@ -64,7 +63,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       const matchStatus = filterStatus === "" || row.status === filterStatus;
       const matchEmployee = searchQuery === "" ||
         row.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        row.code.toLowerCase().includes(searchQuery.toLowerCase());
+        row.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        row.ci.includes(searchQuery);
       return matchDate && matchPeriod && matchStatus && matchEmployee;
     });
   }, [rows, filterDate, filterPeriod, filterStatus, searchQuery]);
@@ -100,32 +100,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     const data = filteredRows.map(r => ({
       Empleado: r.name,
       Código: r.code,
+      CI: r.ci,
       Fecha: r.date,
       Periodo: r.period,
       Estado: r.status,
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-    XLSX.writeFile(wb, `asistencia_${new Date().toISOString().split("T")[0]}.xlsx`);
+    exportToExcel(data, `asistencia_${new Date().toISOString().split("T")[0]}`, "Empleado");
   };
 
   const exportPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Historial de Asistencia", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleDateString("es-BO")}`, 14, 28);
-
-    autoTable(doc, {
-      startY: 34,
-      head: [["Empleado", "Código", "Fecha", "Periodo", "Estado"]],
-      body: filteredRows.map(r => [r.name, r.code, r.date, r.period, r.status]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [15, 76, 151] },
-    });
-
-    doc.save(`asistencia_${new Date().toISOString().split("T")[0]}.pdf`);
+    const columns = ["Empleado", "Código", "CI", "Fecha", "Periodo", "Estado"];
+    const body = filteredRows.map(r => [r.name, r.code, r.ci, r.date, r.period, r.status]);
+    exportToPDF(body, columns, `asistencia_${new Date().toISOString().split("T")[0]}`, "Historial de Asistencia", 0);
   };
 
   return (
@@ -159,6 +145,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <div className="font-medium">{emp.name}</div>
                     <div className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
                       <span className="font-mono text-primary">{emp.code}</span>
+                      {emp.ci && <span className="ml-2">CI: {emp.ci}</span>}
                     </div>
                   </div>
                 ))}
@@ -234,7 +221,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Código", "Fecha", "Periodo", "Hora", "Estado"].map(c => (
+                {["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora", "Estado"].map(c => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
                   </th>
@@ -244,7 +231,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     Cargando historial...
                   </td>
                 </tr>
@@ -260,6 +247,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <td className="px-5 py-3.5">
                       <span className={`text-xs font-mono font-bold ${dark ? "text-primary" : "text-primary"}`}>{r.code}</span>
                     </td>
+                    <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{r.ci}</td>
                     <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{r.date}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/60" : "text-slate-500"}`}>{r.period}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${dark ? "text-white/80" : "text-slate-700"}`}>{r.time}</td>
@@ -268,7 +256,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     No se encontraron registros con los filtros seleccionados.
                   </td>
                 </tr>

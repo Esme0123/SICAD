@@ -23,6 +23,7 @@ async function getPeriodos(req, res) {
 async function getHorarioUsuario(req, res) {
   try {
     const usuarioId = parseInt(req.params.usuarioId);
+    if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
     const horarios = await prisma.horarioAsignado.findMany({
       where: { usuarioId },
       include: { periodo: true },
@@ -136,6 +137,7 @@ async function getHorariosEmpleados(req, res) {
 async function eliminarAsignacion(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     const asignacion = await prisma.horarioAsignado.findUnique({ where: { id } });
     if (!asignacion) {
       return res.status(404).json({ ok: false, message: 'Asignación no encontrada' });

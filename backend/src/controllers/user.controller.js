@@ -36,6 +36,7 @@ async function getAll(req, res) {
 async function getById(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -129,6 +130,7 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     const { nombre, email, password, rol, horasBase, horasProgramadas, activo } = req.body;
 
     // Validar unicidad del email antes de actualizar
@@ -170,6 +172,7 @@ async function update(req, res) {
 async function remove(req, res) {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
     await prisma.usuario.delete({ where: { id } });
     res.json({ ok: true, message: 'Usuario eliminado correctamente' });
   } catch (error) {
