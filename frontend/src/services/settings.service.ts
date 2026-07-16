@@ -9,23 +9,6 @@ export interface SystemSettings {
   institutionName: string;
 }
 
-export type UserRole = "Administrador" | "Coordinador" | "Auxiliar";
-
-export interface SystemUser {
-  id:     string;
-  name:   string;
-  email:  string;
-  role:   UserRole;
-  active: boolean;
-}
-
-export interface CreateUserPayload {
-  name:     string;
-  email:    string;
-  password: string;
-  role:     UserRole;
-}
-
 export interface RoleDefinition {
   id:          string;
   name:        UserRole;
@@ -80,24 +63,6 @@ export async function updateSystemSettings(settings: Partial<SystemSettings>): P
   return getSystemSettings();
 }
 
-// ── Placeholder for users, roles, backups (no backend yet) ─────
-
-export async function getSystemUsers(): Promise<SystemUser[]> {
-  return [
-    { id: "1", name: "Admin UCB", email: "admin@ucb.edu.bo", role: "Administrador", active: true },
-    { id: "2", name: "Aux. Sistemas", email: "aux@ucb.edu.bo", role: "Auxiliar", active: true },
-    { id: "3", name: "Coord. Cómputo", email: "coord@ucb.edu.bo", role: "Coordinador", active: false },
-  ];
-}
-
-export async function createSystemUser(_payload: CreateUserPayload): Promise<SystemUser> {
-  return { id: Math.random().toString(), ..._payload, active: true };
-}
-
-export async function deleteSystemUser(_id: string): Promise<void> {
-  return;
-}
-
 export async function getRoles(): Promise<RoleDefinition[]> {
   return [
     { id: "1", name: "Administrador", permissions: ["Ver todo", "Crear usuarios", "Editar configuración", "Exportar informes"] },
@@ -108,33 +73,65 @@ export async function getRoles(): Promise<RoleDefinition[]> {
 
 // ── Auditoria API ─────────────────────────────────────────────
 
-export async function getAuditLogs(_page = 1): Promise<AuditLog[]> {
-  return [
-    { id: "1", action: "Login exitoso", userId: "1", userEmail: "admin@ucb.edu.bo", timestamp: "07/07/2026 10:32", ip: "192.168.1.5" },
-    { id: "2", action: "Empleado creado", userId: "1", userEmail: "admin@ucb.edu.bo", timestamp: "07/07/2026 09:15", ip: "192.168.1.5" },
-    { id: "3", action: "QR generado", userId: "System", userEmail: "Sistema", timestamp: "07/07/2026 10:15", ip: "localhost" },
-    { id: "4", action: "Reporte exportado", userId: "3", userEmail: "coord@ucb.edu.bo", timestamp: "06/07/2026 16:45", ip: "192.168.1.8" },
-    { id: "5", action: "Configuración", userId: "1", userEmail: "admin@ucb.edu.bo", timestamp: "06/07/2026 09:00", ip: "192.168.1.5" },
-  ];
+export async function getAuditLogs(): Promise<AuditLog[]> {
+  const { data } = await api.get<{ ok: boolean; data: any[] }>("/auditoria");
+  if (!data.ok) throw new Error("Error al obtener registros de auditoría");
+  return data.data.map((r: any) => ({
+    id: String(r.id),
+    action: r.accion,
+    userId: String(r.id),
+    userEmail: r.usuarioEmail,
+    timestamp: new Date(r.fechaHora).toLocaleString("es-BO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    ip: r.direccionIP,
+  }));
 }
 
 export async function getBackups(): Promise<BackupInfo[]> {
-  return [
-    { id: "1", createdAt: "07/07/2026 02:00", scheduledAt: "07/07/2026 02:00", status: "success", sizeKb: 2048 },
-    { id: "2", createdAt: "—", scheduledAt: "08/07/2026 02:00", status: "pending", sizeKb: 0 },
-  ];
+  const { data } = await api.get<{ ok: boolean; data: any[] }>("/respaldos");
+  if (!data.ok) throw new Error("Error al obtener respaldos");
+  return data.data.map((r: any) => ({
+    id: r.id,
+    createdAt: new Date(r.createdAt).toLocaleString("es-BO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    scheduledAt: "",
+    status: r.status,
+    sizeKb: r.sizeKb,
+  }));
 }
 
 export async function createBackup(): Promise<BackupInfo> {
-  return { id: Math.random().toString(), createdAt: new Date().toLocaleString(), scheduledAt: "", status: "success", sizeKb: 1024 };
+  const { data } = await api.post<{ ok: boolean; data: any }>("/respaldos");
+  if (!data.ok) throw new Error("Error al crear respaldo");
+  const r = data.data;
+  return {
+    id: r.id,
+    createdAt: new Date(r.createdAt).toLocaleString("es-BO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    scheduledAt: "",
+    status: r.status,
+    sizeKb: r.sizeKb,
+  };
 }
 
 export default {
   getSystemSettings,
   updateSystemSettings,
-  getSystemUsers,
-  createSystemUser,
-  deleteSystemUser,
   getRoles,
   getAuditLogs,
   getBackups,

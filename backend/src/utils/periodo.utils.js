@@ -25,4 +25,33 @@ function obtenerPeriodoActual(fecha) {
   return `2-${year}`;
 }
 
-module.exports = { obtenerPeriodoActual };
+const PERIOD_VALUES = {
+  0: (y) => `Verano ${y}`,
+  1: (y) => `1-${y}`,
+  2: (y) => `Invierno ${y}`,
+  3: (y) => `2-${y}`,
+};
+
+function parsePeriod(value) {
+  let m = value.match(/^(Verano|Invierno)\s(\d{4})$/);
+  if (m) {
+    const idx = m[1] === 'Verano' ? 0 : 2;
+    return { idx, year: parseInt(m[2]) };
+  }
+  m = value.match(/^1-(\d{4})$/);
+  if (m) return { idx: 1, year: parseInt(m[1]) };
+  m = value.match(/^2-(\d{4})$/);
+  if (m) return { idx: 3, year: parseInt(m[2]) };
+  return null;
+}
+
+function getPreviousPeriod(value) {
+  const parsed = parsePeriod(value);
+  if (!parsed) return null;
+  let { idx, year } = parsed;
+  idx--;
+  if (idx < 0) { idx = 3; year--; }
+  return PERIOD_VALUES[idx](year);
+}
+
+module.exports = { obtenerPeriodoActual, parsePeriod, getPreviousPeriod };

@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
 const { JWT_SECRET } = require('../config/env');
+const { registrarAuditoria } = require('./auditoria.controller');
 
 async function login(req, res) {
   try {
@@ -26,6 +27,10 @@ async function login(req, res) {
 
     const payload = { id: usuario.id, rol: usuario.rol };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+
+    // Registrar en auditoría
+    const direccionIP = req.ip || req.connection?.remoteAddress || 'unknown';
+    await registrarAuditoria('Login exitoso', usuario.email, direccionIP);
 
     res.json({
       ok: true,

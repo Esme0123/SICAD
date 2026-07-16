@@ -8,6 +8,7 @@ import {
   createSchedule,
   deleteSchedule,
   getPeriods,
+  copySchedules,
   Periodo,
   Schedule,
 } from "@/services/schedules.service";
@@ -496,26 +497,29 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                   <button
                     type="button"
                     onClick={async () => {
-                      const prev = getPreviousPeriod(selectedPeriod);
-                      if (!prev) return;
+                      const emp = employees.find(e => e.code === modalEmployee);
+                      if (!emp?.id) {
+                        alert("No se pudo identificar al empleado.");
+                        return;
+                      }
+                      setPeriodLoading(true);
                       try {
-                        setPeriodLoading(true);
-                        const prevSchedules = await getSchedules(prev);
-                        const emp = employees.find(e => e.code === modalEmployee);
-                        if (!emp) return;
+                        const { schedules: copied, periodoAnterior } = await copySchedules(emp.id, selectedPeriod);
+                        if (copied.length === 0) {
+                          alert(`No se encontraron horarios en el periodo anterior (${periodoAnterior}).`);
+                          return;
+                        }
                         const initial: Record<DayOfWeek, number[]> = {
                           Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
                         };
-                        prevSchedules
-                          .filter(s => s.employeeCode === modalEmployee)
-                          .forEach(s => {
-                            if (s.periodId !== undefined && initial[s.day]) {
-                              initial[s.day].push(s.periodId);
-                            }
-                          });
+                        copied.forEach(s => {
+                          if (s.periodId !== undefined && initial[s.day]) {
+                            initial[s.day].push(s.periodId);
+                          }
+                        });
                         setDraftSchedules(initial);
-                      } catch (err) {
-                        console.error("Error al copiar horarios del periodo anterior:", err);
+                      } catch (err: any) {
+                        alert(err?.response?.data?.message || err.message || "Error al copiar horarios del periodo anterior");
                       } finally {
                         setPeriodLoading(false);
                       }

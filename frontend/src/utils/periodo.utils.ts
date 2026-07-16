@@ -22,9 +22,9 @@ export interface PeriodOption {
 
 const PERIOD_LABELS: Record<number, (y: number) => string> = {
   0: (y) => `Verano ${y}`,
-  1: (y) => `Semestre 1-${y} (Feb - Jun)`,
+  1: (y) => `1-${y}`,
   2: (y) => `Invierno ${y}`,
-  3: (y) => `Semestre 2-${y} (Ago - Dic)`,
+  3: (y) => `2-${y}`,
 };
 
 const PERIOD_VALUES: Record<number, (y: number) => string> = {

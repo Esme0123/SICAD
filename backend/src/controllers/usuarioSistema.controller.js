@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { generarPasswordPorDefecto } = require('../utils/password.utils');
+const { registrarAuditoria } = require('./auditoria.controller');
 
 async function getAll(req, res) {
   try {
@@ -67,6 +68,9 @@ async function create(req, res) {
       },
       select: { id: true, nombre: true, email: true, rol: true, activo: true, codigo: true, ci: true, celular: true },
     });
+
+    const direccionIP = req.ip || req.connection?.remoteAddress || 'unknown';
+    await registrarAuditoria(`Usuario del sistema creado: ${email} (${rol})`, req.usuario?.email || 'sistema', direccionIP);
 
     res.status(201).json({
       ok: true,
@@ -149,7 +153,12 @@ async function remove(req, res) {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
 
+    const usuario = await prisma.usuarioSistema.findUnique({ where: { id }, select: { email: true } });
     await prisma.usuarioSistema.delete({ where: { id } });
+
+    const direccionIP = req.ip || req.connection?.remoteAddress || 'unknown';
+    await registrarAuditoria(`Usuario del sistema eliminado: ${usuario?.email}`, req.usuario?.email || 'sistema', direccionIP);
+
     res.json({ ok: true, message: 'Usuario eliminado correctamente' });
   } catch (error) {
     if (error.code === 'P2025') {

@@ -13,7 +13,6 @@ import { COLORS } from "@/theme/colors";
 import {
   getSystemSettings,
   updateSystemSettings,
-  getSystemUsers,
   getRoles,
   getAuditLogs,
   getBackups,
