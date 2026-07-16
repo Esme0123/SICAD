@@ -2,6 +2,7 @@
 // Gestión del catálogo de Periodos y asignación de horarios a empleados
 
 const prisma = require('../config/db');
+const { obtenerPeriodoActual } = require('../utils/periodo.utils');
 
 // ── GET /api/horarios/periodos ────────────────────────────────
 // Devuelve todos los periodos activos del catálogo
@@ -38,10 +39,10 @@ async function getHorarioUsuario(req, res) {
 
 // ── POST /api/horarios/asignar ────────────────────────────────
 // Reemplaza los horarios de un día para un usuario y recalcula horasProgramadas
-// Body: { usuarioId: number, diaSemana: string, periodosIds: number[] }
+// Body: { usuarioId: number, diaSemana: string, periodosIds: number[], periodoAcademico?: string }
 async function asignar(req, res) {
   try {
-    const { usuarioId, diaSemana, periodosIds } = req.body;
+    const { usuarioId, diaSemana, periodosIds, periodoAcademico } = req.body;
 
     if (!usuarioId || !diaSemana || !Array.isArray(periodosIds)) {
       return res.status(400).json({
@@ -51,6 +52,7 @@ async function asignar(req, res) {
     }
 
     const uid = parseInt(usuarioId);
+    const periodo = periodoAcademico || obtenerPeriodoActual();
 
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Eliminar horarios previos de ese usuario en ese día
@@ -65,6 +67,7 @@ async function asignar(req, res) {
             usuarioId: uid,
             periodoId: parseInt(periodoId),
             diaSemana,
+            periodoAcademico: periodo,
           })),
           skipDuplicates: true,
         });

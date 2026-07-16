@@ -1,5 +1,6 @@
 const os = require('os');
 const prisma = require('../config/db');
+const { obtenerPeriodoActual } = require('../utils/periodo.utils');
 
 function getBoliviaDate(date = new Date()) {
   return new Date(new Date(date).toLocaleString("en-US", { timeZone: "America/La_Paz" }));
@@ -150,7 +151,7 @@ async function getResumen(req, res) {
     let ausentes = 0;
     if (rango === 'hoy') {
       const horariosHoy = await prisma.horarioAsignado.findMany({
-        where: { diaSemana, usuario: { activo: true, rol: 'EMPLEADO' } },
+        where: { diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true, rol: 'EMPLEADO' } },
         include: { periodo: true },
       });
       const asistioHoy = new Set(asistenciasRange.map(a => a.usuarioId));

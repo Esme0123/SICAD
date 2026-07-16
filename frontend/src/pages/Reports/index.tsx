@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
-import { TrendingUp, Download, Filter, FileText, Search, ChevronDown, File, FileSpreadsheet } from "lucide-react";
+import { TrendingUp, Download, FileText, Search, ChevronDown, File, FileSpreadsheet } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -16,31 +16,92 @@ import {
 } from "recharts";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
+import { getAnalisis, AnalisisResponse } from "@/services/report.service";
+import { getEmployees, Employee } from "@/services/employees.service";
+import { generatePeriodOptions } from "@/utils/periodo.utils";
+import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
+const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F97316", "#06B6D4"];
+
+const PIE_COLORS: Record<string, string> = {
+  Puntual: "#2E7D32",
+  Tardanza: "#F9A825",
+  Ausente: "#C62828",
+};
+
+
+
+function mapPeriodToDates(period: string): { startDate: string; endDate: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+
+  switch (period) {
+    case "Diario": {
+      const d = now.toISOString().split("T")[0];
+      return { startDate: d, endDate: d };
+    }
+    case "Semanal": {
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return {
+        startDate: monday.toISOString().split("T")[0],
+        endDate: sunday.toISOString().split("T")[0],
+      };
+    }
+    case "Mensual":
+      return {
+        startDate: `${y}-${String(now.getMonth() + 1).padStart(2, "0")}-01`,
+        endDate: now.toISOString().split("T")[0],
+      };
+    default: {
+      const matchVerano = period.match(/^Verano (\d{4})$/);
+      if (matchVerano) {
+        return { startDate: `${matchVerano[1]}-01-01`, endDate: `${matchVerano[1]}-01-31` };
+      }
+      const matchInvierno = period.match(/^Invierno (\d{4})$/);
+      if (matchInvierno) {
+        return { startDate: `${matchInvierno[1]}-07-01`, endDate: `${matchInvierno[1]}-07-31` };
+      }
+      const match1 = period.match(/^1-(\d{4})$/);
+      if (match1) {
+        return { startDate: `${match1[1]}-02-01`, endDate: `${match1[1]}-06-30` };
+      }
+      const match2 = period.match(/^2-(\d{4})$/);
+      if (match2) {
+        return { startDate: `${match2[1]}-08-01`, endDate: `${match2[1]}-12-31` };
+      }
+      return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+    }
+  }
+}
 
 interface ReportsProps {
   dark: boolean;
 }
 
-// Base de datos simulada para las sugerencias de búsqueda
-const MOCK_EMPLOYEES = [
-  { name: "Carlos Mamani Quispe", code: "CC-001", ci: "12345678" },
-  { name: "Ana Flores Mendoza", code: "CC-002", ci: "87654321" },
-  { name: "Luis Vargas Silva", code: "CC-003", ci: "55443322" },
-  { name: "María Rojas Choque", code: "CC-004", ci: "99887766" },
-  { name: "Jorge Condori Paco", code: "CC-005", ci: "11223344" },
-];
-
 export const Reports: React.FC<ReportsProps> = ({ dark }) => {
   // Estados de Filtros
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState("Semestre 1-2026");
-  const [selectedRole, setSelectedRole] = useState("Todos");
+  const periodOptions = useMemo(() => generatePeriodOptions(10), []);
+  const [selectedPeriod, setSelectedPeriod] = useState(periodOptions[0]?.value ?? "1-2026");
+
+  // Estado para API
+  const [analisisData, setAnalisisData] = useState<AnalisisResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
 
   // Estado para exportación
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   // Cerrar menús al hacer clic afuera
   useEffect(() => {
@@ -56,105 +117,171 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleExport = (format: "PDF" | "Excel" | "CSV") => {
-    alert(`Generando reporte del periodo "${selectedPeriod}" en formato ${format}...`);
-    setShowExportMenu(false);
-  };
+  // ── Cargar empleados reales para las sugerencias ──
+  useEffect(() => {
+    getEmployees().then(setAllEmployees).catch(() => {});
+  }, []);
 
-  // Lógica de Sugerencias de Búsqueda
-  const suggestions = searchQuery.trim()
-    ? MOCK_EMPLOYEES.filter(
-      (emp) =>
-        emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        emp.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        emp.ci.includes(searchQuery)
-    ).slice(0, 5)
-    : [];
+  // ── Fetch real data cuando cambian los filtros ──
+  useEffect(() => {
+    const { startDate, endDate } = mapPeriodToDates(selectedPeriod);
+    setLoading(true);
+    getAnalisis({
+      startDate,
+      endDate,
+      search: searchQuery.trim() || undefined,
+    })
+      .then((data) => setAnalisisData(data))
+      .catch((err) => {
+        console.error("[Reports] Error fetching analytics:", err);
+        setAnalisisData(null);
+      })
+      .finally(() => setLoading(false));
+  }, [searchQuery, selectedPeriod]);
 
-  // ==========================================
-  // MOTOR DE DATOS DINÁMICOS (Simula el backend)
-  // ==========================================
+  // ── Preparar datos para los componentes visuales ──
   const reportData = useMemo(() => {
-    // 1. Determinar el multiplicador de volumen según el periodo
-    let volMultiplier = 1;
-    if (selectedPeriod === "Diario") volMultiplier = 0.05;
-    else if (selectedPeriod === "Semanal") volMultiplier = 0.25;
-    else if (selectedPeriod === "Mensual" || selectedPeriod === "Julio 2026" || selectedPeriod === "Enero 2026") volMultiplier = 1;
-    else volMultiplier = 5; // Semestres
-
-    // 2. Ajustar por cargo
-    let roleMod = 1;
-    let punctualRate = 68;
-    let tardyRate = 22;
-    let absentRate = 10;
-
-    if (selectedRole === "Auxiliar") { roleMod = 0.4; punctualRate = 60; tardyRate = 25; absentRate = 15; }
-    if (selectedRole === "Técnico") { roleMod = 0.5; punctualRate = 75; tardyRate = 18; absentRate = 7; }
-    if (selectedRole === "Coordinador") { roleMod = 0.1; punctualRate = 92; tardyRate = 6; absentRate = 2; }
-
-    // 3. Si hay un empleado buscado, el volumen es mínimo (solo 1 persona) y la puntualidad es aleatoria pero fija para el ejemplo
-    const isSingleUser = searchQuery.trim().length > 0;
-    if (isSingleUser) {
-      volMultiplier = 0.05;
-      punctualRate = 85;
-      tardyRate = 10;
-      absentRate = 5;
+    if (!analisisData) {
+      return {
+        chartDaily: [] as { d: string; p: number; a: number }[],
+        chartPie: [] as { name: string; value: number; col: string }[],
+        chartPeriod: [] as { p: string; pct: number }[],
+        chartAbsences: [] as { type: string; count: number; pct: number; col: string }[],
+        totalAttendances: 0,
+        avgDaily: "0",
+        punctualRate: 0,
+        totalAbsences: 0,
+      };
     }
 
-    // Generar Datos de Barras (Diario)
-    const baseDaily = [
-      { d: "Lun 30", p: 10, a: 2 }, { d: "Mar 1", p: 9, a: 3 }, { d: "Mié 2", p: 11, a: 1 },
-      { d: "Jue 3", p: 8, a: 4 }, { d: "Vie 4", p: 12, a: 0 }, { d: "Lun 7", p: 6, a: 2 }
-    ];
+    const { kpis, graficoBarras, graficoDona, franjaHoraria, motivosPermiso } = analisisData;
 
-    const chartDaily = baseDaily.map(item => ({
-      d: item.d,
-      p: Math.max(1, Math.round(item.p * volMultiplier * roleMod * (isSingleUser ? 0.3 : 1))),
-      a: Math.max(0, Math.round(item.a * volMultiplier * roleMod * (isSingleUser ? 0 : 1)))
+    const chartDaily = graficoBarras.map((b) => ({
+      d: b.fecha,
+      p: b.presentes,
+      a: b.ausentes,
     }));
 
-    // Generar Torta de Cumplimiento
     const chartPie = [
-      { name: "Puntual", value: punctualRate, col: "#2E7D32" },
-      { name: "Tardanza", value: tardyRate, col: "#F9A825" },
-      { name: "Ausente", value: absentRate, col: "#C62828" },
+      { name: "Puntual", value: graficoDona.puntual, col: PIE_COLORS.Puntual },
+      { name: "Tardanza", value: graficoDona.tardanza, col: PIE_COLORS.Tardanza },
+      { name: "Ausente", value: graficoDona.ausente, col: PIE_COLORS.Ausente },
     ];
 
-    // Generar Asistencia por Periodo Horario
-    const chartPeriod = [
-      { p: "07:15", pct: Math.min(100, punctualRate + 15) },
-      { p: "08:15", pct: Math.min(100, punctualRate + 5) },
-      { p: "09:15", pct: Math.min(100, punctualRate + 18) },
-      { p: "10:15", pct: Math.max(30, punctualRate - 10) },
-      { p: "11:15", pct: Math.min(100, punctualRate + 8) },
-      { p: "12:15", pct: Math.max(20, punctualRate - 15) },
-      { p: "13:15", pct: Math.max(20, punctualRate - 20) },
-    ];
+    const chartPeriod = franjaHoraria.map((f) => ({
+      p: f.hora,
+      pct: f.puntualidad,
+    }));
 
-    // Generar Ausencias Justificadas
-    const totalAbsences = Math.round(45 * volMultiplier * roleMod);
-    const chartAbsences = [
-      { type: "Motivos de Salud", count: Math.round(totalAbsences * 0.45), pct: 45, col: "#0EA5E9" },
-      { type: "Asuntos Personales", count: Math.round(totalAbsences * 0.25), pct: 25, col: "#8B5CF6" },
-      { type: "Trámite Académico", count: Math.round(totalAbsences * 0.20), pct: 20, col: "#F59E0B" },
-      { type: "Calamidad Doméstica", count: Math.round(totalAbsences * 0.10), pct: 10, col: "#EF4444" },
-    ].filter(a => a.count > 0);
+    const chartAbsences = motivosPermiso.map((m, i) => ({
+      type: m.tipo,
+      count: m.cantidad,
+      pct: m.porcentaje,
+      col: CHART_COLORS[i % CHART_COLORS.length],
+    }));
 
-    // Totales para tarjetas
-    const totalAttendances = chartDaily.reduce((acc, curr) => acc + curr.p, 0) * (selectedPeriod.includes("Semestre") ? 20 : 1);
-    const avgDaily = (totalAttendances / (selectedPeriod.includes("Semestre") ? 120 : selectedPeriod === "Semanal" ? 5 : 22)).toFixed(1);
+    const totalAbsences = motivosPermiso.reduce((acc, m) => acc + m.cantidad, 0);
 
     return {
       chartDaily,
       chartPie,
       chartPeriod,
       chartAbsences,
-      totalAttendances,
-      avgDaily,
-      punctualRate,
-      totalAbsences: chartAbsences.reduce((acc, curr) => acc + curr.count, 0)
+      totalAttendances: kpis.totalAsistencias,
+      avgDaily: String(kpis.promedioDiario),
+      punctualRate: kpis.cumplimientoGeneral,
+      totalAbsences,
     };
-  }, [searchQuery, selectedPeriod, selectedRole]);
+  }, [analisisData]);
+
+  // ── Exportar ──
+  const handleExport = async (format: "PDF" | "Excel" | "CSV") => {
+    setShowExportMenu(false);
+    if (!analisisData) return;
+
+    const filename = `Reporte_Asistencia_${selectedPeriod.replace(/\s/g, "_")}`;
+
+    if (format === "CSV") {
+      const data = analisisData.graficoBarras.map((b) => ({
+        Fecha: b.fecha,
+        Presentes: b.presentes,
+        Ausentes: b.ausentes,
+      }));
+      exportToCSV(data, filename);
+      return;
+    }
+
+    if (format === "Excel") {
+      setExporting(true);
+      try {
+        const wb = XLSX.utils.book_new();
+        const rows: any[][] = [
+          ["Reporte de Asistencia", selectedPeriod],
+          [],
+          ["Indicadores"],
+          ["Cumplimiento General", `${analisisData.kpis.cumplimientoGeneral}%`],
+          ["Total Asistencias", analisisData.kpis.totalAsistencias],
+          ["Promedio Diario", analisisData.kpis.promedioDiario],
+          ["Ausencias Justificadas", `${analisisData.kpis.permisosAprobados}`],
+          [],
+          ["Franja Horaria"],
+          ["Hora", "Puntualidad (%)"],
+        ];
+        analisisData.franjaHoraria.forEach((f) => {
+          rows.push([f.hora, f.puntualidad]);
+        });
+        rows.push([]);
+        rows.push(["Fecha", "Presentes", "Ausentes"]);
+        analisisData.graficoBarras.forEach((b) => {
+          rows.push([b.fecha, b.presentes, b.ausentes]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws["!cols"] = [{ wch: 30 }, { wch: 15 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, ws, "Resumen");
+        XLSX.writeFile(wb, `${filename}.xlsx`);
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
+
+    if (format === "PDF") {
+      if (!reportRef.current) return;
+      setExporting(true);
+      try {
+        const canvas = await html2canvas(reportRef.current, {
+          scale: 2,
+          backgroundColor: dark ? "#0B0F19" : "#F8FAFC",
+          useCORS: true,
+        });
+        const imgData = canvas.toDataURL("image/png");
+        const imgWidth = 190;
+        const pageHeight = 295;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const doc = new jsPDF("p", "mm", "a4");
+        const totalPages = Math.ceil(imgHeight / pageHeight);
+        for (let i = 0; i < totalPages; i++) {
+          if (i > 0) doc.addPage();
+          const srcY = (pageHeight * i * canvas.width) / imgWidth;
+          const srcH = (canvas.height * imgWidth) / canvas.width;
+          doc.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight, undefined, "FAST");
+        }
+        doc.save(`${filename}.pdf`);
+      } finally {
+        setExporting(false);
+      }
+    }
+  };
+
+  // Lógica de Sugerencias de Búsqueda desde empleados reales
+  const suggestions = searchQuery.trim()
+    ? allEmployees.filter(
+      (emp) =>
+        emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.ci.includes(searchQuery)
+    ).slice(0, 5)
+    : [];
 
   const ttStyle = {
     background: dark ? "#1E293B" : "#fff",
@@ -221,9 +348,6 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
 
         {/* Filtros Dropdowns y Exportación */}
         <div className="flex flex-wrap items-center w-full md:w-auto gap-3">
-          <div className="flex items-center gap-2 mr-2">
-            <Filter size={16} className={dark ? "text-white/40" : "text-slate-400"} />
-          </div>
 
           <select
             value={selectedPeriod}
@@ -238,26 +362,11 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
               <option value="Semanal">Semanal</option>
               <option value="Mensual">Mensual (Mes Actual)</option>
             </optgroup>
-            <optgroup label="Gestión 2026">
-              <option value="Enero 2026">Enero 2026</option>
-              <option value="Semestre 1-2026">Semestre 1-2026 (Feb - Jun)</option>
-              <option value="Julio 2026">Julio 2026</option>
-              <option value="Semestre 2-2026">Semestre 2-2026 (Ago - Dic)</option>
+            <optgroup label="Periodos Académicos">
+              {periodOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </optgroup>
-          </select>
-
-          <select
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-            className={`px-3 py-2 rounded-xl border text-sm font-medium outline-none transition-all cursor-pointer ${dark
-                ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-              }`}
-          >
-            <option value="Todos">Todos los cargos</option>
-            <option value="Auxiliar">Auxiliares</option>
-            <option value="Técnico">Técnicos</option>
-            <option value="Coordinador">Coordinadores</option>
           </select>
 
           <div className="relative" ref={exportMenuRef}>
@@ -289,6 +398,17 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
         </div>
       </div>
 
+      <div ref={reportRef}>
+      {/* Loading overlay */}
+      {loading && (
+        <div className="flex justify-center py-4">
+          <div className="flex items-center gap-2 text-sm text-blue-600">
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            Cargando datos...
+          </div>
+        </div>
+      )}
+
       {/* Tarjetas de Resumen Dinámicas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -306,7 +426,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
             </div>
             <div>
               <motion.p
-                key={s.value} // Animar cuando cambia el valor
+                key={s.value}
                 initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
                 className="text-2xl font-bold leading-none mb-1"
                 style={{ color: s.col }}
@@ -406,7 +526,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
                 </span>
                 <div className={`flex-1 h-2 rounded-full overflow-hidden ${dark ? "bg-white/8" : "bg-slate-100"}`}>
                   <motion.div
-                    key={`${p.p}-${p.pct}`} // Obliga a re-animar al cambiar
+                    key={`${p.p}-${p.pct}`}
                     initial={{ width: 0 }}
                     animate={{ width: `${p.pct}%` }}
                     transition={{ duration: 0.7 }}
@@ -473,6 +593,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
             </span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

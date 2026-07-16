@@ -1,85 +1,66 @@
-/**
- * SICAD — Report Service
- * Placeholder para integración con Express + Prisma backend
- *
- * TODO: Reemplazar las funciones stub con llamadas reales a `api`
- */
+import api from "./api";
 
-// ── Interfaces ────────────────────────────────────────────
-
-export interface DailyReportParams {
+export interface AnalisisParams {
   startDate: string;
-  endDate:   string;
+  endDate: string;
+  search?: string;
+  cargo?: string;
 }
 
-export interface DailyReportData {
-  date:     string;
-  present:  number;
-  absent:   number;
-  late:     number;
+export interface Kpis {
+  cumplimientoGeneral: number;
+  totalAsistencias: number;
+  promedioDiario: number;
+  permisosAprobados: number;
 }
 
-export interface ComplianceByPeriod {
-  periodLabel: string;
-  percentage:  number;
+export interface BarraItem {
+  fecha: string;
+  presentes: number;
+  ausentes: number;
 }
 
-export interface ReportSummary {
-  generalCompliance: number; // porcentaje
-  totalAttendances:  number;
-  dailyAverage:      number;
-  month:             string;
+export interface DonaData {
+  puntual: number;
+  tardanza: number;
+  ausente: number;
 }
 
-export interface ExportFormat {
-  format: "pdf" | "excel" | "csv";
+export interface FranjaItem {
+  hora: string;
+  puntualidad: number;
 }
 
-// ── Service functions ──────────────────────────────────────
-
-/**
- * Obtiene el reporte de asistencia diaria por rango de fechas.
- * TODO: GET /api/reports/daily?startDate=...&endDate=...
- */
-export async function getDailyReport(
-  _params: DailyReportParams
-): Promise<DailyReportData[]> {
-  return Promise.reject(new Error("Report service not connected to backend yet"));
+export interface MotivoPermiso {
+  tipo: string;
+  cantidad: number;
+  porcentaje: number;
 }
 
-/**
- * Obtiene el cumplimiento de asistencia por periodo horario.
- * TODO: GET /api/reports/by-period?month=...
- */
-export async function getComplianceByPeriod(
-  _month?: string
-): Promise<ComplianceByPeriod[]> {
-  return Promise.reject(new Error("Report service not connected to backend yet"));
+export interface AnalisisResponse {
+  kpis: Kpis;
+  graficoBarras: BarraItem[];
+  graficoDona: DonaData;
+  franjaHoraria: FranjaItem[];
+  motivosPermiso: MotivoPermiso[];
 }
 
-/**
- * Obtiene el resumen general del mes.
- * TODO: GET /api/reports/summary?month=...
- */
-export async function getReportSummary(
-  _month?: string
-): Promise<ReportSummary> {
-  return Promise.reject(new Error("Report service not connected to backend yet"));
+export async function getAnalisis(params: AnalisisParams): Promise<AnalisisResponse> {
+  const queryParams: Record<string, string> = {
+    startDate: params.startDate,
+    endDate: params.endDate,
+  };
+  if (params.search) queryParams.search = params.search;
+  if (params.cargo && params.cargo !== "Todos") queryParams.cargo = params.cargo;
+
+  const res = await api.get("/reportes/analisis", { params: queryParams });
+  return res.data.data;
 }
 
-/**
- * Exporta el reporte en el formato indicado.
- * TODO: POST /api/reports/export
- */
 export async function exportReport(
-  _params: DailyReportParams & ExportFormat
+  _params: AnalisisParams & { format: "pdf" | "excel" | "csv" }
 ): Promise<Blob> {
-  return Promise.reject(new Error("Report service not connected to backend yet"));
+  return Promise.reject(new Error("Server-side export not implemented. Use client-side export utils."));
 }
 
-export default {
-  getDailyReport,
-  getComplianceByPeriod,
-  getReportSummary,
-  exportReport,
-};
+export default { getAnalisis, exportReport };

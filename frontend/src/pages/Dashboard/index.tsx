@@ -25,8 +25,7 @@ import {
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
-import { getEmployees } from "@/services/employees.service";
-import { Employee } from "@/mocks/employees";
+import { getEmployees, Employee } from "@/services/employees.service";
 import { getResumen, DashboardResumen } from "@/services/dashboard.service";
 
 interface DashboardProps {

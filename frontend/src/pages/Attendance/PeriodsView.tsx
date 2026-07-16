@@ -12,6 +12,7 @@ import {
   Schedule,
 } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
+import { obtenerPeriodoActual, generatePeriodOptions } from "@/utils/periodo.utils";
 
 interface PeriodsViewProps {
   dark: boolean;
@@ -41,6 +42,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [draftSchedules, setDraftSchedules] = useState<Record<DayOfWeek, number[]>>({
     Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
   });
+  const [selectedPeriod, setSelectedPeriod] = useState(obtenerPeriodoActual());
+  const periodOptions = generatePeriodOptions(10);
 
   const totalSelectedSlots = Object.values(draftSchedules).flat().length;
 
@@ -90,6 +93,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
         usuarioId: emp.id!,
         diaSemana: day,
         periodosIds: draftSchedules[day],
+        periodoAcademico: selectedPeriod,
       }));
 
       await Promise.all(payloads.map(p => createSchedule(p)));
@@ -146,6 +150,13 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
 
     setDraftSchedules(initial);
   }, [formModalOpen, modalEmployee]);
+
+  // ── RESETEA LOS BLOQUES AL CAMBIAR DE PERIODO ──
+  useEffect(() => {
+    setDraftSchedules({
+      Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
+    });
+  }, [selectedPeriod]);
 
   // ── LÓGICA DE AGRUPACIÓN (MATRIZ SEMANAL) ──
   const aggregatedSchedules = Array.from(
@@ -410,7 +421,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       {/* Modal - Asignación Múltiple (Multidía) */}
       {formModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl p-6 ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-bold flex items-center gap-2 ${dark ? "text-white" : "text-slate-800"}`}>
                 <CheckSquare className="text-primary" size={24} />
@@ -460,10 +471,26 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 )}
               </div>
 
+              {/* Selector de Periodo Académico */}
+              <div className="space-y-2">
+                <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
+                  <Calendar size={14} className="inline mr-1" /> Periodo Académico
+                </label>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-black/20 border-white/10 text-white" : "bg-slate-50 border-slate-200"}`}
+                >
+                  {periodOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Selector de Días (Botones) */}
               <div className="space-y-2">
                 <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
-                  <Calendar size={14} className="inline mr-1" /> 1. Navega por los días
+                  <Calendar size={14} className="inline mr-1" /> 2. Navega por los días
                 </label>
                 <div className="flex flex-wrap gap-3">
                   {DAYS_OF_WEEK.map(day => {
@@ -495,7 +522,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
               {/* Cuadrícula de Checkboxes */}
               <div className={`space-y-3 p-4 rounded-xl border ${dark ? "bg-black/10 border-white/5" : "bg-slate-50/50 border-slate-100"}`}>
                 <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
-                  <Clock size={14} className="inline mr-1" /> 2. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
+                  <Clock size={14} className="inline mr-1" /> 3. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[25vh] overflow-y-auto p-1">
                   {periods.map((slot) => {

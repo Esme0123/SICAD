@@ -63,6 +63,29 @@ model Usuario {
 }
 
 // ============================================================
+// GESTIÓN ACADÉMICA (Periodo Contrato)
+// Permite escalar el sistema a través de múltiples gestiones
+// sin perder el histórico de horarios y asistencias.
+// Ej: "1-2026", "Invierno 2026", "2-2026"
+// ============================================================
+
+model GestionAcademica {
+  id          Int                @id @default(autoincrement())
+  nombre      String
+  fechaInicio DateTime           @db.Date
+  fechaFin    DateTime           @db.Date
+  activo      Boolean            @default(false)
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  /// Solo una gestión puede estar activa a la vez (validar en la app)
+  horariosAsignados HorarioAsignado[]
+
+  @@map("gestiones_academicas")
+}
+
+// ============================================================
 // CATÁLOGO DE PERIODOS
 // Bloques de tiempo de la universidad
 // Ej: { horaInicio: "07:15", horaFin: "08:15", nombre: "Bloque 1" }
@@ -93,21 +116,27 @@ model Periodo {
 // ============================================================
 
 model HorarioAsignado {
-  id          Int      @id @default(autoincrement())
+  id          Int               @id @default(autoincrement())
 
   usuarioId   Int
-  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario     Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   periodoId   Int
-  periodo     Periodo  @relation(fields: [periodoId], references: [id], onDelete: Restrict)
+  periodo     Periodo           @relation(fields: [periodoId], references: [id], onDelete: Restrict)
+
+  gestionId   Int
+  gestion     GestionAcademica  @relation(fields: [gestionId], references: [id], onDelete: Restrict)
 
   /// "Lunes" | "Martes" | "Miercoles" | "Jueves" | "Viernes" | "Sabado"
   diaSemana   String
 
-  createdAt   DateTime @default(now())
+  /// Ej: "1-2026", "Invierno 2026", "Verano 2026"
+  periodoAcademico String
 
-  // Un usuario no puede tener el mismo periodo asignado dos veces el mismo día
-  @@unique([usuarioId, periodoId, diaSemana])
+  createdAt   DateTime          @default(now())
+
+  // Un usuario no puede tener el mismo periodo asignado dos veces el mismo día en la misma gestión
+  @@unique([usuarioId, periodoId, diaSemana, gestionId])
   @@map("horarios_asignados")
 }
 

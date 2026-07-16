@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { verifyQRToken } = require('../utils/qrGenerator');
+const { obtenerPeriodoActual } = require('../utils/periodo.utils');
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -97,9 +98,9 @@ async function registrar(req, res) {
     const { start, end } = getDayRange(ahora);
     const diaSemana = getDiaSemanaHoy();
 
-    // 4. Verificar horario asignado para hoy (opcional — informativo, no bloqueante)
+    // 4. Verificar horario asignado para hoy en el periodo académico actual
     const horarioHoy = await prisma.horarioAsignado.findFirst({
-      where: { usuarioId: uid, diaSemana },
+      where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
     });
 
     // 5. Buscar asistencia abierta del día
@@ -264,9 +265,9 @@ async function marcar(req, res) {
     const config = await prisma.configuracion.findUnique({ where: { id: 1 } });
     const toleranciaMin = config?.tiempoToleranciaMinutos ?? 10;
 
-    // 3. Buscar horarios del empleado para hoy
+    // 3. Buscar horarios del empleado para hoy en el periodo académico actual
     const horarios = await prisma.horarioAsignado.findMany({
-      where: { usuarioId: uid, diaSemana },
+      where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
       include: { periodo: true },
       orderBy: { periodo: { horaInicio: 'asc' } },
     });
@@ -485,9 +486,9 @@ async function marcarMovil(req, res) {
         const config = await tx.configuracion.findUnique({ where: { id: 1 } });
         const toleranciaMin = config?.tiempoToleranciaMinutos ?? 10;
 
-        // Horarios de hoy
+        // Horarios de hoy en el periodo académico actual
         const horarios = await tx.horarioAsignado.findMany({
-          where: { usuarioId: usuario.id, diaSemana },
+          where: { usuarioId: usuario.id, diaSemana, periodoAcademico: obtenerPeriodoActual() },
           include: { periodo: true },
           orderBy: { periodo: { horaInicio: 'asc' } },
         });
@@ -777,9 +778,9 @@ async function getEstadoHoy(req, res) {
 
         const isActive = estado === 'ACTIVO' || estado === 'RETRASO';
 
-        // Total de empleados asignados para este periodo hoy
+        // Total de empleados asignados para este periodo hoy (solo gestión activa)
         const totalEmpleados = await prisma.horarioAsignado.count({
-          where: { periodoId: p.id, diaSemana, usuario: { activo: true } },
+          where: { periodoId: p.id, diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
         });
 
         if (totalEmpleados === 0) {
@@ -789,9 +790,9 @@ async function getEstadoHoy(req, res) {
           };
         }
 
-        // Asignados de este periodo
+        // Asignados de este periodo (solo gestión activa)
         const asignados = await prisma.horarioAsignado.findMany({
-          where: { periodoId: p.id, diaSemana, usuario: { activo: true } },
+          where: { periodoId: p.id, diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
           select: { usuarioId: true },
         });
 

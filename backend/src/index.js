@@ -16,6 +16,7 @@ const asistenciaRoutes = require('./routes/asistencia.routes');
 const authRoutes = require('./routes/auth.routes');
 const horarioRoutes = require('./routes/horario.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
+const reportesRoutes = require('./routes/reportes.routes');
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.get('/', (req, res) => {
       asistencia: '/api/asistencia',
       asistencias: '/api/asistencias',
       dashboard: '/api/dashboard',
+      reportes: '/api/reportes',
     },
   });
 });
@@ -61,6 +63,8 @@ app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/asistencias', asistenciaRoutes);
 // Dashboard — métricas
 app.use('/api/dashboard', dashboardRoutes);
+// Reportes — análisis y exportación
+app.use('/api/reportes', reportesRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {

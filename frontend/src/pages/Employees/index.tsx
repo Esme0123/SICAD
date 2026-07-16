@@ -9,8 +9,8 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  Employee,
 } from "@/services/employees.service";
-import { Employee } from "@/mocks/employees";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
 
 interface EmployeesProps {
@@ -549,12 +549,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   </span>
                   <span className="font-mono mt-0.5 block">{selectedEmployee.ci}</span>
                 </div>
-                <div>
-                  <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
-                    Cargo
-                  </span>
-                  <span className="mt-0.5 block">{selectedEmployee.role}</span>
-                </div>
                 <div className="col-span-2">
                   <span className={`block text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
                     Correo Electrónico
@@ -751,26 +745,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
-                        }`}
-                    >
-                      Cargo
-                    </label>
-                    <select
-                      value={formValues.role}
-                      onChange={(e) => setFormValues({ ...formValues, role: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
-                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                        }`}
-                    >
-                      <option value="Auxiliar">Auxiliar</option>
-                      <option value="Técnico">Técnico</option>
-                      <option value="Coordinador">Coordinador</option>
-                    </select>
-                  </div>
                   <div>
                     <label
                       className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"

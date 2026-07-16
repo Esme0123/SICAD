@@ -16,6 +16,7 @@ export interface CreateSchedulePayload {
   usuarioId: number;
   diaSemana: string;
   periodosIds: number[];
+  periodoAcademico?: string;
 }
 
 export interface Periodo {
@@ -71,6 +72,7 @@ export async function createSchedule(payload: CreateSchedulePayload): Promise<an
     usuarioId: payload.usuarioId,
     diaSemana: mapDayToBackend(payload.diaSemana),
     periodosIds: payload.periodosIds,
+    periodoAcademico: payload.periodoAcademico,
   });
   if (!data.ok) {
     throw new Error("Error al asignar horarios");
