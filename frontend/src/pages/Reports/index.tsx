@@ -19,10 +19,7 @@ import { COLORS } from "@/theme/colors";
 import { getAnalisis, AnalisisResponse } from "@/services/report.service";
 import { getEmployees, Employee } from "@/services/employees.service";
 import { generatePeriodOptions } from "@/utils/periodo.utils";
-import { exportToCSV } from "@/utils/export.utils";
-import * as XLSX from "xlsx";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { exportToCSV, exportAnalyticsPDF, exportAnalyticsExcel } from "@/utils/export.utils";
 
 const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F97316", "#06B6D4"];
 
@@ -215,31 +212,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     if (format === "Excel") {
       setExporting(true);
       try {
-        const wb = XLSX.utils.book_new();
-        const rows: any[][] = [
-          ["Reporte de Asistencia", selectedPeriod],
-          [],
-          ["Indicadores"],
-          ["Cumplimiento General", `${analisisData.kpis.cumplimientoGeneral}%`],
-          ["Total Asistencias", analisisData.kpis.totalAsistencias],
-          ["Promedio Diario", analisisData.kpis.promedioDiario],
-          ["Ausencias Justificadas", `${analisisData.kpis.permisosAprobados}`],
-          [],
-          ["Franja Horaria"],
-          ["Hora", "Puntualidad (%)"],
-        ];
-        analisisData.franjaHoraria.forEach((f) => {
-          rows.push([f.hora, f.puntualidad]);
-        });
-        rows.push([]);
-        rows.push(["Fecha", "Presentes", "Ausentes"]);
-        analisisData.graficoBarras.forEach((b) => {
-          rows.push([b.fecha, b.presentes, b.ausentes]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(rows);
-        ws["!cols"] = [{ wch: 30 }, { wch: 15 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, ws, "Resumen");
-        XLSX.writeFile(wb, `${filename}.xlsx`);
+        await exportAnalyticsExcel(analisisData, selectedPeriod, searchQuery);
       } finally {
         setExporting(false);
       }
@@ -247,28 +220,9 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     }
 
     if (format === "PDF") {
-      if (!reportRef.current) return;
       setExporting(true);
       try {
-        const canvas = await html2canvas(reportRef.current, {
-          scale: 2,
-          backgroundColor: dark ? "#0B0F19" : "#F8FAFC",
-          useCORS: true,
-        });
-        const imgData = canvas.toDataURL("image/png");
-        const doc = new jsPDF("p", "mm", "a4");
-        const pdfW = doc.internal.pageSize.getWidth();
-        const pdfH = doc.internal.pageSize.getHeight();
-        const margin = 10;
-        const maxW = pdfW - 2 * margin;
-        const maxH = pdfH - 2 * margin;
-        const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
-        const imgW = canvas.width * ratio;
-        const imgH = canvas.height * ratio;
-        const x = (pdfW - imgW) / 2;
-        const y = (pdfH - imgH) / 2;
-        doc.addImage(imgData, "PNG", x, y, imgW, imgH);
-        doc.save(`${filename}.pdf`);
+        await exportAnalyticsPDF(analisisData, selectedPeriod, searchQuery);
       } finally {
         setExporting(false);
       }

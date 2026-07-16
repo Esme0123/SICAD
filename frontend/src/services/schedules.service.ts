@@ -92,28 +92,6 @@ export async function deleteSchedule(id: string): Promise<void> {
   }
 }
 
-export async function copySchedules(empleadoId: number, periodoAcademico: string): Promise<{ schedules: Schedule[], periodoAnterior: string }> {
-  const { data } = await api.get<{ ok: boolean; data: any[]; periodoAnterior: string }>("/horarios/copiar", {
-    params: { empleadoId, periodoAcademico },
-  });
-  if (!data.ok) throw new Error("Error al copiar horarios");
-
-  const schedules: Schedule[] = data.data.map((h: any) => ({
-    id: String(h.id),
-    employeeCode: "",
-    employeeName: "",
-    day: mapDayToFrontend(h.diaSemana),
-    startTime: h.periodo?.horaInicio || "",
-    endTime: h.periodo?.horaFin || "",
-    period: h.periodo?.nombre || "",
-    periodId: h.periodo?.id,
-    periodoAcademico: h.periodoAcademico || "",
-    status: "Activo",
-  }));
-
-  return { schedules, periodoAnterior: data.periodoAnterior };
-}
-
 export async function getPeriods(): Promise<Periodo[]> {
   const { data } = await api.get<{ ok: boolean; data: Periodo[] }>("/horarios/periodos");
   if (!data.ok) {

@@ -2,7 +2,7 @@
 // Gestión del catálogo de Periodos y asignación de horarios a empleados
 
 const prisma = require('../config/db');
-const { obtenerPeriodoActual, getPreviousPeriod } = require('../utils/periodo.utils');
+const { obtenerPeriodoActual } = require('../utils/periodo.utils');
 
 // ── GET /api/horarios/periodos ────────────────────────────────
 // Devuelve todos los periodos activos del catálogo
@@ -181,41 +181,5 @@ async function eliminarAsignacion(req, res) {
   }
 }
 
-// ── GET /api/horarios/copiar ──────────────────────────────────
-// Copia los horarios de un empleado desde el periodo anterior
-// Query: ?empleadoId=X&periodoAcademico=1-2026
-async function copiarHorarios(req, res) {
-  try {
-    const empleadoId = parseInt(req.query.empleadoId);
-    const periodoAcademico = req.query.periodoAcademico;
-
-    if (!empleadoId || !periodoAcademico) {
-      return res.status(400).json({ ok: false, message: 'empleadoId y periodoAcademico son requeridos' });
-    }
-
-    const periodoAnterior = getPreviousPeriod(periodoAcademico);
-    if (!periodoAnterior) {
-      return res.status(400).json({ ok: false, message: 'No se pudo determinar el periodo anterior' });
-    }
-
-    const horariosAnteriores = await prisma.horarioAsignado.findMany({
-      where: {
-        usuarioId: empleadoId,
-        periodoAcademico: periodoAnterior,
-      },
-      include: { periodo: true },
-    });
-
-    res.json({
-      ok: true,
-      data: horariosAnteriores,
-      periodoAnterior,
-    });
-  } catch (error) {
-    console.error('[horario.copiarHorarios]', error);
-    res.status(500).json({ ok: false, message: 'Error al copiar horarios del periodo anterior' });
-  }
-}
-
-module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion, copiarHorarios };
+module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion };
 

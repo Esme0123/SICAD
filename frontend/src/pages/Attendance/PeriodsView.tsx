@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet, Copy } from "lucide-react";
+import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
 import { getEmployees, Employee } from "@/services/employees.service";
@@ -8,7 +8,6 @@ import {
   createSchedule,
   deleteSchedule,
   getPeriods,
-  copySchedules,
   Periodo,
   Schedule,
 } from "@/services/schedules.service";
@@ -44,7 +43,6 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
   });
   const [selectedPeriod, setSelectedPeriod] = useState(obtenerPeriodoActual());
-  const [periodLoading, setPeriodLoading] = useState(false);
   const periodOptions = generatePeriodOptions(10);
 
   const totalSelectedSlots = Object.values(draftSchedules).flat().length;
@@ -152,11 +150,6 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
 
     setDraftSchedules(initial);
   }, [formModalOpen, modalEmployee, selectedPeriod, schedules]);
-
-  // ── CIERRA EL ESTADO DE CARGA CUANDO LLEGAN LOS DATOS ──
-  useEffect(() => {
-    if (formModalOpen) setPeriodLoading(false);
-  }, [schedules]);
 
   // ── RESETEA LOS BLOQUES AL CAMBIAR DE PERIODO ──
   useEffect(() => {
@@ -485,7 +478,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 </label>
                 <select
                   value={selectedPeriod}
-                  onChange={(e) => { setSelectedPeriod(e.target.value); setPeriodLoading(true); }}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
                   className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-black/20 border-white/10 text-white" : "bg-slate-50 border-slate-200"}`}
                 >
                   {periodOptions.map(opt => (
@@ -493,42 +486,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                   ))}
                 </select>
 
-                {modalEmployee && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const emp = employees.find(e => e.code === modalEmployee);
-                      if (!emp?.id) {
-                        alert("No se pudo identificar al empleado.");
-                        return;
-                      }
-                      setPeriodLoading(true);
-                      try {
-                        const { schedules: copied, periodoAnterior } = await copySchedules(emp.id, selectedPeriod);
-                        if (copied.length === 0) {
-                          alert(`No se encontraron horarios en el periodo anterior (${periodoAnterior}).`);
-                          return;
-                        }
-                        const initial: Record<DayOfWeek, number[]> = {
-                          Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
-                        };
-                        copied.forEach(s => {
-                          if (s.periodId !== undefined && initial[s.day]) {
-                            initial[s.day].push(s.periodId);
-                          }
-                        });
-                        setDraftSchedules(initial);
-                      } catch (err: any) {
-                        alert(err?.response?.data?.message || err.message || "Error al copiar horarios del periodo anterior");
-                      } finally {
-                        setPeriodLoading(false);
-                      }
-                    }}
-                    className={`mt-2 w-full px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${dark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
-                  >
-                    <Copy size={13} className="inline mr-1" /> {periodLoading ? "Copiando..." : "Copiar horarios del periodo anterior"}
-                  </button>
-                )}
+
               </div>
 
               {/* Selector de Días (Botones) */}
@@ -568,14 +526,6 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 <label className={`text-sm font-semibold block ${dark ? "text-white/70" : "text-slate-600"}`}>
                   <Clock size={14} className="inline mr-1" /> 3. Selecciona periodos para el <span className="text-primary">{modalDay}</span>
                 </label>
-                {periodLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      Cargando horarios...
-                    </div>
-                  </div>
-                ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[25vh] overflow-y-auto p-1">
                   {periods.map((slot) => {
                     const isSelected = draftSchedules[modalDay].includes(slot.id);
@@ -596,7 +546,6 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                     );
                   })}
                 </div>
-                )}
               </div>
             </div>
 
