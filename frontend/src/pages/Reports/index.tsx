@@ -19,6 +19,7 @@ import { COLORS } from "@/theme/colors";
 import { getAnalisis, AnalisisResponse } from "@/services/report.service";
 import { getEmployees, Employee } from "@/services/employees.service";
 import { generatePeriodOptions } from "@/utils/periodo.utils";
+import { exportToCSV } from "@/utils/export.utils";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -255,17 +256,18 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
           useCORS: true,
         });
         const imgData = canvas.toDataURL("image/png");
-        const imgWidth = 190;
-        const pageHeight = 295;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
         const doc = new jsPDF("p", "mm", "a4");
-        const totalPages = Math.ceil(imgHeight / pageHeight);
-        for (let i = 0; i < totalPages; i++) {
-          if (i > 0) doc.addPage();
-          const srcY = (pageHeight * i * canvas.width) / imgWidth;
-          const srcH = (canvas.height * imgWidth) / canvas.width;
-          doc.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight, undefined, "FAST");
-        }
+        const pdfW = doc.internal.pageSize.getWidth();
+        const pdfH = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const maxW = pdfW - 2 * margin;
+        const maxH = pdfH - 2 * margin;
+        const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+        const imgW = canvas.width * ratio;
+        const imgH = canvas.height * ratio;
+        const x = (pdfW - imgW) / 2;
+        const y = (pdfH - imgH) / 2;
+        doc.addImage(imgData, "PNG", x, y, imgW, imgH);
         doc.save(`${filename}.pdf`);
       } finally {
         setExporting(false);
