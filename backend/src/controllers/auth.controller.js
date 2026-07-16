@@ -1,15 +1,8 @@
-// src/controllers/auth.controller.js
-// Autenticación: login con bcrypt + JWT
-
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
 const { JWT_SECRET } = require('../config/env');
 
-/**
- * POST /api/auth/login
- * Body: { email, password }
- */
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -18,33 +11,32 @@ async function login(req, res) {
       return res.status(400).json({ ok: false, message: 'email y password son requeridos' });
     }
 
-    // 1. Buscar usuario por email
-    const usuario = await prisma.usuario.findUnique({
+    const usuario = await prisma.usuarioSistema.findUnique({
       where: { email },
-      select: { id: true, nombre: true, email: true, rol: true, password: true, horasBase: true },
     });
 
     if (!usuario) {
       return res.status(401).json({ ok: false, message: 'Credenciales incorrectas' });
     }
 
-    // 2. Verificar contraseña con bcrypt
-    const passwordValido = await bcrypt.compare(password, usuario.password);
+    const passwordValido = await bcrypt.compare(password, usuario.passwordHash);
     if (!passwordValido) {
       return res.status(401).json({ ok: false, message: 'Credenciales incorrectas' });
     }
 
-    // 3. Generar token JWT (8 horas de validez)
     const payload = { id: usuario.id, rol: usuario.rol };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
-
-    // No retornar el hash del password
-    const { password: _pwd, ...usuarioPublico } = usuario;
 
     res.json({
       ok: true,
       token,
-      usuario: usuarioPublico,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol,
+        activo: usuario.activo,
+      },
     });
   } catch (error) {
     console.error('[auth.login]', error);

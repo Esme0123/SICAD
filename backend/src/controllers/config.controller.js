@@ -1,13 +1,8 @@
-// src/controllers/config.controller.js
-// Gestión de la configuración global del sistema (singleton id=1)
-
 const prisma = require('../config/db');
 
-// GET /api/configuracion
 async function getConfig(req, res) {
   try {
-    // Obtiene la única fila; si no existe, la crea con defaults
-    const config = await prisma.configuracion.upsert({
+    const config = await prisma.configuracionSistema.upsert({
       where: { id: 1 },
       update: {},
       create: { id: 1 },
@@ -19,36 +14,35 @@ async function getConfig(req, res) {
   }
 }
 
-// PATCH /api/configuracion
 async function updateConfig(req, res) {
   try {
     const {
       nombreInstitucion,
       formatoExportacion,
-      tiempoToleranciaMinutos,
-      duracionQrSegundos,
-      horaAperturaControl,
-      horaCierreControl,
+      tiempoTolerancia,
+      duracionQR,
+      horaApertura,
+      horaCierre,
     } = req.body;
 
-    const config = await prisma.configuracion.upsert({
+    const config = await prisma.configuracionSistema.upsert({
       where: { id: 1 },
       update: {
         nombreInstitucion,
         formatoExportacion,
-        tiempoToleranciaMinutos,
-        duracionQrSegundos,
-        horaAperturaControl,
-        horaCierreControl,
+        tiempoTolerancia,
+        duracionQR,
+        horaApertura,
+        horaCierre,
       },
       create: {
         id: 1,
         nombreInstitucion,
         formatoExportacion,
-        tiempoToleranciaMinutos,
-        duracionQrSegundos,
-        horaAperturaControl,
-        horaCierreControl,
+        tiempoTolerancia,
+        duracionQR,
+        horaApertura,
+        horaCierre,
       },
     });
     res.json({ ok: true, data: config });

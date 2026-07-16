@@ -107,8 +107,12 @@ async function asignar(req, res) {
 
 // ── GET /api/horarios/empleados ──────────────────────────────
 // Devuelve todos los empleados con sus horarios asignados
+// Query params: ?periodoAcademico=Invierno%202026
 async function getHorariosEmpleados(req, res) {
   try {
+    const { periodoAcademico } = req.query;
+    const horariosWhere = periodoAcademico ? { periodoAcademico } : {};
+
     const empleados = await prisma.usuario.findMany({
       where: { rol: 'EMPLEADO', activo: true },
       select: {
@@ -123,6 +127,7 @@ async function getHorariosEmpleados(req, res) {
         activo: true,
         rol: true,
         horariosAsignados: {
+          where: horariosWhere,
           include: { periodo: true },
         },
       },

@@ -9,6 +9,7 @@ export interface Schedule {
   endTime: string;
   period: string;
   periodId?: number;
+  periodoAcademico: string;
   status: "Activo" | "Inactivo";
 }
 
@@ -40,8 +41,11 @@ const mapDayToBackend = (day: string): string => {
   return day;
 };
 
-export async function getSchedules(): Promise<Schedule[]> {
-  const { data } = await api.get<{ ok: boolean; data: any[] }>("/horarios/empleados");
+export async function getSchedules(periodoAcademico?: string): Promise<Schedule[]> {
+  const params: Record<string, string> = {};
+  if (periodoAcademico) params.periodoAcademico = periodoAcademico;
+
+  const { data } = await api.get<{ ok: boolean; data: any[] }>("/horarios/empleados", { params });
   if (!data.ok) {
     throw new Error("Error al obtener la lista de horarios");
   }
@@ -59,6 +63,7 @@ export async function getSchedules(): Promise<Schedule[]> {
           endTime: h.periodo?.horaFin || "",
           period: h.periodo?.nombre || "",
           periodId: h.periodo?.id,
+          periodoAcademico: h.periodoAcademico || "",
           status: emp.activo ? "Activo" : "Inactivo",
         });
       });

@@ -13,8 +13,8 @@ async function generateQR(req, res) {
     const nonce = crypto.randomBytes(16).toString('hex');
 
     // Obtener configuración para la duración del QR (default 30 segundos)
-    const config = await prisma.configuracion.findUnique({ where: { id: 1 } });
-    const duracion = config?.duracionQrSegundos ?? 30;
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const duracion = config?.duracionQR ?? 30;
 
     const exp = Date.now() + (duracion * 1000);
     const payload = JSON.stringify({ nonce, exp, terminal: 'main', version: '1' });

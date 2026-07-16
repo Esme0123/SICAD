@@ -262,8 +262,8 @@ async function marcar(req, res) {
     const uid        = parseInt(usuarioId);
 
     // 2. Leer configuración de tolerancia
-    const config = await prisma.configuracion.findUnique({ where: { id: 1 } });
-    const toleranciaMin = config?.tiempoToleranciaMinutos ?? 10;
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const toleranciaMin = config?.tiempoTolerancia ?? 10;
 
     // 3. Buscar horarios del empleado para hoy en el periodo académico actual
     const horarios = await prisma.horarioAsignado.findMany({

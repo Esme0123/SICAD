@@ -1,39 +1,13 @@
-import { SystemSettings, MOCK_SYSTEM_SETTINGS } from "@/mocks/settings";
+import api from "./api";
 
-const STORAGE_KEY = "sicad_system_settings";
-
-function getStoredSettings(): SystemSettings {
-  if (typeof window === "undefined") return MOCK_SYSTEM_SETTINGS;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_SYSTEM_SETTINGS));
-    return MOCK_SYSTEM_SETTINGS;
-  }
-  try {
-    return JSON.parse(stored);
-  } catch (e) {
-    return MOCK_SYSTEM_SETTINGS;
-  }
+export interface SystemSettings {
+  toleranceTime: number;
+  qrDuration: number;
+  openingHour: string;
+  closingHour: string;
+  exportFormat: "PDF" | "Excel" | "CSV";
+  institutionName: string;
 }
-
-function saveSettings(settings: SystemSettings) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }
-}
-
-export async function getSystemSettings(): Promise<SystemSettings> {
-  return getStoredSettings();
-}
-
-export async function updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
-  const current = getStoredSettings();
-  const updated = { ...current, ...settings };
-  saveSettings(updated);
-  return updated;
-}
-
-// ── Interfaces ────────────────────────────────────────────
 
 export type UserRole = "Administrador" | "Coordinador" | "Auxiliar";
 
@@ -75,7 +49,38 @@ export interface BackupInfo {
   sizeKb:      number;
 }
 
-// ── Placeholder mocks for other functions (for compatibility) ──────────────────────
+// ── Configuracion API ──────────────────────────────────────────
+
+export async function getSystemSettings(): Promise<SystemSettings> {
+  const { data } = await api.get<{ ok: boolean; data: any }>("/configuracion");
+  if (!data.ok) throw new Error("Error al obtener configuración");
+  const c = data.data;
+  return {
+    institutionName: c.nombreInstitucion ?? "SICAD",
+    exportFormat: (c.formatoExportacion ?? "xlsx").toUpperCase() === "XLSX" ? "Excel" : (c.formatoExportacion ?? "pdf").toUpperCase() === "PDF" ? "PDF" : "CSV",
+    toleranceTime: c.tiempoTolerancia ?? 10,
+    qrDuration: c.duracionQR ?? 30,
+    openingHour: c.horaApertura ?? "06:00",
+    closingHour: c.horaCierre ?? "22:00",
+  } as SystemSettings;
+}
+
+export async function updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
+  const body: Record<string, any> = {};
+  if (settings.institutionName !== undefined) body.nombreInstitucion = settings.institutionName;
+  if (settings.exportFormat !== undefined) body.formatoExportacion = settings.exportFormat.toLowerCase();
+  if (settings.toleranceTime !== undefined) body.tiempoTolerancia = settings.toleranceTime;
+  if (settings.qrDuration !== undefined) body.duracionQR = settings.qrDuration;
+  if (settings.openingHour !== undefined) body.horaApertura = settings.openingHour;
+  if (settings.closingHour !== undefined) body.horaCierre = settings.closingHour;
+
+  const { data } = await api.patch<{ ok: boolean; data: any }>("/configuracion", body);
+  if (!data.ok) throw new Error("Error al actualizar configuración");
+
+  return getSystemSettings();
+}
+
+// ── Placeholder for users, roles, backups (no backend yet) ─────
 
 export async function getSystemUsers(): Promise<SystemUser[]> {
   return [
@@ -100,6 +105,8 @@ export async function getRoles(): Promise<RoleDefinition[]> {
     { id: "3", name: "Auxiliar", permissions: ["Ver historial", "Registrar asistencia"] },
   ];
 }
+
+// ── Auditoria API ─────────────────────────────────────────────
 
 export async function getAuditLogs(_page = 1): Promise<AuditLog[]> {
   return [

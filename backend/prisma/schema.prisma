@@ -124,8 +124,8 @@ model HorarioAsignado {
   periodoId   Int
   periodo     Periodo           @relation(fields: [periodoId], references: [id], onDelete: Restrict)
 
-  gestionId   Int
-  gestion     GestionAcademica  @relation(fields: [gestionId], references: [id], onDelete: Restrict)
+  gestionId   Int?
+  gestion     GestionAcademica? @relation(fields: [gestionId], references: [id], onDelete: Restrict)
 
   /// "Lunes" | "Martes" | "Miercoles" | "Jueves" | "Viernes" | "Sabado"
   diaSemana   String
@@ -135,8 +135,7 @@ model HorarioAsignado {
 
   createdAt   DateTime          @default(now())
 
-  // Un usuario no puede tener el mismo periodo asignado dos veces el mismo día en la misma gestión
-  @@unique([usuarioId, periodoId, diaSemana, gestionId])
+  @@unique([usuarioId, periodoId, diaSemana, periodoAcademico])
   @@map("horarios_asignados")
 }
 
@@ -254,30 +253,73 @@ model PermisoPeriodo {
 // Campos extraídos directamente de la UI de configuración.
 // ============================================================
 
-model Configuracion {
-  id                      Int      @id @default(1)
+model ConfiguracionSistema {
+  id                Int      @id @default(1)
 
-  nombreInstitucion       String   @default("SICAD")
+  nombreInstitucion String   @default("SICAD")
 
   /// "xlsx" | "csv" | "pdf"
-  formatoExportacion      String   @default("xlsx")
+  formatoExportacion String  @default("xlsx")
 
   /// Minutos de gracia antes de marcar tardanza
-  tiempoToleranciaMinutos Int      @default(10)
+  tiempoTolerancia   Int     @default(10)
 
   /// Tiempo de vida del código QR en segundos
-  duracionQrSegundos      Int      @default(30)
+  duracionQR         Int     @default(30)
 
   /// Hora de inicio del control de asistencia (formato "HH:mm")
-  horaAperturaControl     String   @default("06:00")
+  horaApertura       String  @default("06:00")
 
   /// Hora de cierre del control de asistencia (formato "HH:mm")
-  horaCierreControl       String   @default("22:00")
+  horaCierre         String  @default("22:00")
 
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  @@map("configuracion")
+  @@map("configuracion_sistema")
+}
+
+// ============================================================
+// USUARIO DEL SISTEMA (Login Dashboard)
+// Exclusivo para quienes acceden al panel web.
+// Separado del modelo Empleado (asistencia por QR).
+// ============================================================
+
+enum RolSistema {
+  ADMIN
+  COORDINADOR
+}
+
+model UsuarioSistema {
+  id           Int        @id @default(autoincrement())
+  nombre       String
+  email        String     @unique
+  passwordHash String
+  rol          RolSistema @default(ADMIN)
+  activo       Boolean    @default(true)
+  codigo       String?    @unique
+  ci           String?
+  celular      String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("usuarios_sistema")
+}
+
+// ============================================================
+// AUDITORÍA DEL SISTEMA
+// Registro cronológico de acciones importantes.
+// ============================================================
+
+model Auditoria {
+  id           Int      @id @default(autoincrement())
+  accion       String
+  usuarioEmail String
+  fechaHora    DateTime @default(now())
+  direccionIP  String
+
+  @@map("auditoria")
 }
 
 model QrNonce {

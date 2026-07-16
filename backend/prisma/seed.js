@@ -1,19 +1,13 @@
-// prisma/seed.js
-// Script de datos semilla para SICAD
-// Ejecutar: npx prisma db seed
-
 require('dotenv').config();
 const { Pool } = require('pg');
 const { PrismaClient } = require('../generated/prisma');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const bcrypt = require('bcryptjs');
 
-// Prisma v7 usa engine "client" que requiere driver adapter explícito
 const pool    = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma  = new PrismaClient({ adapter });
 
-// Calcula la duración en minutos entre dos strings "HH:mm"
 function calcularDuracion(inicio, fin) {
   const [hI, mI] = inicio.split(':').map(Number);
   const [hF, mF] = fin.split(':').map(Number);
@@ -21,41 +15,40 @@ function calcularDuracion(inicio, fin) {
 }
 
 async function main() {
-  console.log('🌱 Iniciando seed de SICAD...\n');
+  console.log('Iniciando seed de SICAD...\n');
 
-  // ── 1. Usuario Administrador ─────────────────────────────────
+  // 1. Usuario Sistema (Admin Dashboard)
   const passwordHash = await bcrypt.hash('admin123', 10);
 
-  const admin = await prisma.usuario.upsert({
+  const admin = await prisma.usuarioSistema.upsert({
     where:  { email: 'admin@sicad.com' },
     update: {},
     create: {
-      nombre:    'Administrador',
-      email:     'admin@sicad.com',
-      password:  passwordHash,
-      rol:       'ADMIN',
-      horasBase: 40,
+      nombre:       'Administrador',
+      email:        'admin@sicad.com',
+      passwordHash: passwordHash,
+      rol:          'ADMIN',
     },
   });
-  console.log(`✅ Usuario admin creado/verificado: ${admin.email}`);
+  console.log(`Usuario sistema creado/verificado: ${admin.email}`);
 
-  // ── 2. Configuración por defecto (id = 1) ────────────────────
-  const config = await prisma.configuracion.upsert({
+  // 2. Configuracion por defecto (id = 1)
+  const config = await prisma.configuracionSistema.upsert({
     where:  { id: 1 },
     update: {},
     create: {
-      id:                      1,
-      nombreInstitucion:       'SICAD',
-      formatoExportacion:      'xlsx',
-      tiempoToleranciaMinutos: 10,
-      duracionQrSegundos:      30,
-      horaAperturaControl:     '06:00',
-      horaCierreControl:       '22:00',
+      id:                1,
+      nombreInstitucion: 'SICAD',
+      formatoExportacion: 'xlsx',
+      tiempoTolerancia:  10,
+      duracionQR:        30,
+      horaApertura:      '06:00',
+      horaCierre:        '22:00',
     },
   });
-  console.log(`✅ Configuración por defecto creada/verificada (id: ${config.id})`);
+  console.log(`Configuracion por defecto creada/verificada (id: ${config.id})`);
 
-  // ── 3. Catálogo de Periodos Reales ─────────────────────────
+  // 3. Catalogo de Periodos Reales
   const periodosData = [
     { nombre: 'Bloque 1', horaInicio: '07:00', horaFin: '08:15' },
     { nombre: 'Bloque 2', horaInicio: '08:15', horaFin: '09:15' },
@@ -76,8 +69,6 @@ async function main() {
 
   for (const p of periodosData) {
     const duracion = calcularDuracion(p.horaInicio, p.horaFin);
-
-    // Buscar por nombre o por rango de horas para evitar duplicados
     const existing = await prisma.periodo.findFirst({
       where: {
         OR: [
@@ -91,23 +82,22 @@ async function main() {
       await prisma.periodo.create({
         data: { ...p, duracion },
       });
-      console.log(`✅ Periodo creado: ${p.nombre} (${p.horaInicio} - ${p.horaFin}, ${duracion} min)`);
+      console.log(`Periodo creado: ${p.nombre} (${p.horaInicio} - ${p.horaFin}, ${duracion} min)`);
     } else {
-      // Actualizar si existe para asegurarnos de que tiene el nombre y duración correctos
       await prisma.periodo.update({
         where: { id: existing.id },
         data: { nombre: p.nombre, duracion }
       });
-      console.log(`⏩ Periodo actualizado/verificado: ${p.nombre} (${p.horaInicio} - ${p.horaFin})`);
+      console.log(`Periodo actualizado/verificado: ${p.nombre} (${p.horaInicio} - ${p.horaFin})`);
     }
   }
 
-  console.log('\n🎉 Seed completado exitosamente.');
+  console.log('\nSeed completado exitosamente.');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error en seed:', e);
+    console.error('Error en seed:', e);
     process.exit(1);
   })
   .finally(async () => {

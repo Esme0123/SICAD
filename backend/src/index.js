@@ -17,6 +17,7 @@ const authRoutes = require('./routes/auth.routes');
 const horarioRoutes = require('./routes/horario.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const reportesRoutes = require('./routes/reportes.routes');
+const usuarioSistemaRoutes = require('./routes/usuarioSistema.routes');
 
 const app = express();
 
@@ -65,6 +66,8 @@ app.use('/api/asistencias', asistenciaRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 // Reportes — análisis y exportación
 app.use('/api/reportes', reportesRoutes);
+// Usuarios del sistema (Admin Dashboard)
+app.use('/api/usuarios-sistema', usuarioSistemaRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {

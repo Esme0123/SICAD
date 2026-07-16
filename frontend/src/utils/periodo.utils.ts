@@ -41,6 +41,32 @@ function monthToPeriodIndex(mes: number): number {
   return 3;                       // 2-YYYY
 }
 
+const PERIOD_VALUE_REGEX = /^(Verano|Invierno)\s(\d{4})$/;
+const PERIOD_1_REGEX = /^1-(\d{4})$/;
+const PERIOD_2_REGEX = /^2-(\d{4})$/;
+
+function parsePeriod(value: string): { idx: number; year: number } | null {
+  let m = value.match(PERIOD_VALUE_REGEX);
+  if (m) {
+    const idx = m[1] === "Verano" ? 0 : 2;
+    return { idx, year: parseInt(m[2]) };
+  }
+  m = value.match(PERIOD_1_REGEX);
+  if (m) return { idx: 1, year: parseInt(m[1]) };
+  m = value.match(PERIOD_2_REGEX);
+  if (m) return { idx: 3, year: parseInt(m[2]) };
+  return null;
+}
+
+export function getPreviousPeriod(value: string): string | null {
+  const parsed = parsePeriod(value);
+  if (!parsed) return null;
+  let { idx, year } = parsed;
+  idx--;
+  if (idx < 0) { idx = 3; year--; }
+  return PERIOD_VALUES[idx](year);
+}
+
 export function generatePeriodOptions(count: number = 8): PeriodOption[] {
   const now = boNow();
   const results: PeriodOption[] = [];

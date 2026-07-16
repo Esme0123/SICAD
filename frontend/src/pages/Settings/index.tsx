@@ -4,15 +4,11 @@ import {
   Shield,
   Database,
   Activity,
-  Plus,
-  Edit2,
-  Trash2,
   Check,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
-import { SystemSettings } from "@/mocks/settings";
 import { COLORS } from "@/theme/colors";
 import {
   getSystemSettings,
@@ -22,11 +18,12 @@ import {
   getAuditLogs,
   getBackups,
   createBackup,
-  SystemUser,
+  SystemSettings,
   RoleDefinition,
   AuditLog,
   BackupInfo,
 } from "@/services/settings.service";
+import { AdminUsersPanel } from "./AdminUsersPanel";
 
 interface SettingsProps {
   dark: boolean;
@@ -42,7 +39,6 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     exportFormat: "PDF",
     institutionName: "Universidad Católica Boliviana San Pablo",
   });
-  const [users, setUsers] = useState<SystemUser[]>([]);
   const [roles, setRoles] = useState<RoleDefinition[]>([]);
   const [audits, setAudits] = useState<AuditLog[]>([]);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
@@ -51,15 +47,13 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
   const loadSettingsData = async () => {
     setLoading(true);
     try {
-      const [settings, userList, roleList, auditList, backupList] = await Promise.all([
+      const [settings, roleList, auditList, backupList] = await Promise.all([
         getSystemSettings(),
-        getSystemUsers(),
         getRoles(),
         getAuditLogs(),
         getBackups(),
       ]);
       setSystemSettings(settings);
-      setUsers(userList);
       setRoles(roleList);
       setAudits(auditList);
       setBackups(backupList);
@@ -328,67 +322,7 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
 
           {/* TAB: USUARIOS */}
           {tab === "usuarios" && (
-            <div>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className={`font-semibold ${dark ? "text-white" : "text-slate-800"}`}>
-                    Gestión de usuarios
-                  </h3>
-                  <p className={`text-xs mt-0.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
-                    {users.length} usuarios registrados
-                  </p>
-                </div>
-                <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold cursor-pointer transition-all hover:opacity-90"
-                  style={{ background: COLORS.primary }}
-                >
-                  <Plus size={14} /> Nuevo usuario
-                </button>
-              </div>
-              <div className="space-y-3">
-                {users.map((u, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-4 p-4 rounded-2xl border ${dark ? "border-white/8 bg-white/3" : "border-slate-100 bg-slate-50"
-                      }`}
-                  >
-                    <Avatar name={u.name} size={40} bg={COLORS.primary} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-800"}`}>
-                        {u.name}
-                      </p>
-                      <p className={`text-xs ${dark ? "text-white/35" : "text-slate-400"}`}>
-                        {u.email}
-                      </p>
-                    </div>
-                    <span
-                      className="text-xs px-2.5 py-1 rounded-full font-medium"
-                      style={{ background: `${COLORS.primary}12`, color: COLORS.primary }}
-                    >
-                      {u.role}
-                    </span>
-                    <div
-                      className={`flex items-center gap-1.5 text-xs font-semibold ${u.active ? "text-green-500" : "text-red-400"
-                        }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${u.active ? "bg-green-400" : "bg-red-400"}`} />
-                      {u.active ? "Activo" : "Inactivo"}
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        className={`p-1.5 rounded-lg cursor-pointer ${dark ? "hover:bg-white/8 text-white/35" : "hover:bg-white text-slate-400"
-                          }`}
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 cursor-pointer">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AdminUsersPanel dark={dark} currentUserEmail="admin@sicad.com" />
           )}
 
           {/* TAB: ROLES */}
