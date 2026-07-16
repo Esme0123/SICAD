@@ -24,7 +24,7 @@ const respaldosRoutes = require('./routes/respaldos.routes');
 const app = express();
 
 // ── Middlewares globales ─────────────────────────────────────
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // ── Health check ─────────────────────────────────────────────
@@ -81,10 +81,8 @@ app.use((req, res) => {
 });
 
 // ── Arranque del servidor ────────────────────────────────────
-// Agregamos '0.0.0.0' para obligar a Express a escuchar a tu celular en la red WiFi
 app.listen(env.PORT, '0.0.0.0', () => {
-  console.log(`[SICAD] Servidor corriendo localmente en: http://localhost:${env.PORT}`);
-  console.log(`[SICAD] Accesible en tu red WiFi en: http://192.168.1.8:${env.PORT}`);
+  console.log(`[SICAD] Servidor iniciado en puerto ${env.PORT}`);
   console.log(`[SICAD] Entorno: ${env.NODE_ENV}`);
 });
 
