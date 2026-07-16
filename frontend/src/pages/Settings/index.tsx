@@ -1,28 +1,23 @@
 import React, { useState, useEffect } from "react";
 import {
   Users,
-  Shield,
   Database,
   Activity,
-  Check,
   Settings as SettingsIcon,
 } from "lucide-react";
-import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import {
   getSystemSettings,
   updateSystemSettings,
-  getRoles,
   getAuditLogs,
   getBackups,
   createBackup,
   SystemSettings,
-  RoleDefinition,
   AuditLog,
   BackupInfo,
 } from "@/services/settings.service";
-import { AdminUsersPanel } from "./AdminUsersPanel";
+import { UsersView } from "@/pages/Users";
 
 interface SettingsProps {
   dark: boolean;
@@ -38,7 +33,6 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     exportFormat: "PDF",
     institutionName: "Universidad Católica Boliviana San Pablo",
   });
-  const [roles, setRoles] = useState<RoleDefinition[]>([]);
   const [audits, setAudits] = useState<AuditLog[]>([]);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,14 +40,12 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
   const loadSettingsData = async () => {
     setLoading(true);
     try {
-      const [settings, roleList, auditList, backupList] = await Promise.all([
+      const [settings, auditList, backupList] = await Promise.all([
         getSystemSettings(),
-        getRoles(),
         getAuditLogs(),
         getBackups(),
       ]);
       setSystemSettings(settings);
-      setRoles(roleList);
       setAudits(auditList);
       setBackups(backupList);
     } catch (err) {
@@ -71,6 +63,8 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     e.preventDefault();
     try {
       await updateSystemSettings(systemSettings);
+      const updated = await getSystemSettings();
+      setSystemSettings(updated);
       alert("Configuración del sistema guardada exitosamente");
     } catch (err) {
       console.error(err);
@@ -92,12 +86,9 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
   const tabs = [
     { id: "sistema", label: "Sistema", icon: <SettingsIcon size={14} /> },
     { id: "usuarios", label: "Usuarios", icon: <Users size={14} /> },
-    { id: "roles", label: "Roles", icon: <Shield size={14} /> },
-    { id: "respaldos", label: "Respaldos", icon: <Database size={14} /> },
     { id: "auditoria", label: "Auditoría", icon: <Activity size={14} /> },
+    { id: "respaldos", label: "Respaldos", icon: <Database size={14} /> },
   ];
-
-  const roleColors = ["#0F4C97", "#64B5F6", "#2E7D32"];
 
   return (
     <div
@@ -321,48 +312,58 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
 
           {/* TAB: USUARIOS */}
           {tab === "usuarios" && (
-            <AdminUsersPanel dark={dark} currentUserEmail="admin@sicad.com" />
+            <UsersView dark={dark} />
           )}
 
-          {/* TAB: ROLES */}
-          {tab === "roles" && (
+          {/* TAB: AUDITORIA */}
+          {tab === "auditoria" && (
             <div>
               <h3 className={`font-semibold mb-5 ${dark ? "text-white" : "text-slate-800"}`}>
-                Roles y permisos del sistema
+                Registro de auditoría del sistema
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {roles.map((r, i) => {
-                  const col = roleColors[i] || COLORS.primary;
-                  return (
-                    <div
-                      key={i}
-                      className={`p-5 rounded-2xl border ${dark ? "border-white/8 bg-white/3" : "border-slate-100 bg-slate-50"
-                        }`}
-                    >
-                      <div className="flex items-center gap-2 mb-4">
-                        <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center"
-                          style={{ background: `${col}15` }}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className={dark ? "bg-white/3" : "bg-slate-50"}>
+                      {["Acción", "Usuario", "Fecha y hora", "Dirección IP"].map((c) => (
+                        <th
+                          key={c}
+                          className={`px-4 py-3 text-left text-xs font-semibold ${dark ? "text-white/30" : "text-slate-400"
+                            }`}
                         >
-                          <Shield size={15} style={{ color: col }} />
-                        </div>
-                        <span className="font-bold text-sm" style={{ color: col }}>
-                          {r.name}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {r.permissions.map((p, j) => (
-                          <div key={j} className="flex items-center gap-2">
-                            <Check size={11} className="text-green-500 flex-shrink-0" strokeWidth={3} />
-                            <span className={`text-xs ${dark ? "text-white/50" : "text-slate-600"}`}>
-                              {p}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audits.map((a, i) => (
+                      <tr key={i} className={`border-t ${dark ? "border-white/6" : "border-slate-100"}`}>
+                        <td
+                          className={`px-4 py-3 text-sm font-medium ${dark ? "text-white" : "text-slate-800"
+                            }`}
+                        >
+                          {a.action}
+                        </td>
+                        <td className={`px-4 py-3 text-sm ${dark ? "text-white/50" : "text-slate-500"}`}>
+                          {a.userEmail}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-xs font-mono ${dark ? "text-white/35" : "text-slate-400"
+                            }`}
+                        >
+                          {a.timestamp}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-xs font-mono ${dark ? "text-white/25" : "text-slate-400"
+                            }`}
+                        >
+                          {a.ip}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -416,59 +417,6 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
               >
                 <Database size={15} /> Crear respaldo ahora
               </button>
-            </div>
-          )}
-
-          {/* TAB: AUDITORIA */}
-          {tab === "auditoria" && (
-            <div>
-              <h3 className={`font-semibold mb-5 ${dark ? "text-white" : "text-slate-800"}`}>
-                Registro de auditoría del sistema
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className={dark ? "bg-white/3" : "bg-slate-50"}>
-                      {["Acción", "Usuario", "Fecha y hora", "Dirección IP"].map((c) => (
-                        <th
-                          key={c}
-                          className={`px-4 py-3 text-left text-xs font-semibold ${dark ? "text-white/30" : "text-slate-400"
-                            }`}
-                        >
-                          {c}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {audits.map((a, i) => (
-                      <tr key={i} className={`border-t ${dark ? "border-white/6" : "border-slate-100"}`}>
-                        <td
-                          className={`px-4 py-3 text-sm font-medium ${dark ? "text-white" : "text-slate-800"
-                            }`}
-                        >
-                          {a.action}
-                        </td>
-                        <td className={`px-4 py-3 text-sm ${dark ? "text-white/50" : "text-slate-500"}`}>
-                          {a.userEmail}
-                        </td>
-                        <td
-                          className={`px-4 py-3 text-xs font-mono ${dark ? "text-white/35" : "text-slate-400"
-                            }`}
-                        >
-                          {a.timestamp}
-                        </td>
-                        <td
-                          className={`px-4 py-3 text-xs font-mono ${dark ? "text-white/25" : "text-slate-400"
-                            }`}
-                        >
-                          {a.ip}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
         </div>

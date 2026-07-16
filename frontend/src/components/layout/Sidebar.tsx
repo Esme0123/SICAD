@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -15,6 +15,7 @@ import {
 import { UCBLogo } from "../common/UCBLogo";
 import { useAuth } from "@/context/AuthContext";
 import { COLORS } from "@/theme/colors";
+import api from "@/services/api";
 
 type NavId =
   | "dashboard"
@@ -44,6 +45,17 @@ const navItems: { id: NavId; label: string; path: string; icon: React.ReactNode 
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout } = useAuth();
+  const [institutionName, setInstitutionName] = useState("SICAD");
+
+  useEffect(() => {
+    api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
+      .then((res) => {
+        if (res.data.ok && res.data.data?.nombreInstitucion) {
+          setInstitutionName(res.data.data.nombreInstitucion);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <motion.aside
@@ -71,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
             >
               <UCBLogo size={30} />
               <div className="leading-none">
-                <p className="text-white font-bold text-sm">SICAD</p>
+                <p className="text-white font-bold text-sm">{institutionName}</p>
                 <p className="text-white/35 text-[10px] mt-0.5">Centro de Cómputo</p>
               </div>
             </motion.div>
