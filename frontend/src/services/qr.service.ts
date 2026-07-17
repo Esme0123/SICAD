@@ -1,4 +1,12 @@
 import api from "./api";
+import axios from "axios";
+
+// Instancia pública SIN el interceptor de JWT — para el formulario móvil
+// donde el empleado NO está logueado en el sistema.
+const publicApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: { "Content-Type": "application/json" },
+});
 
 export interface QRTokenResponse {
   ok: boolean;
@@ -49,7 +57,7 @@ export async function marcarAsistenciaMovil(
   codigo: string,
   password: string
 ): Promise<MarcarResponse> {
-  const { data } = await api.post<MarcarResponse>("/asistencias/marcar-movil", {
+  const { data } = await publicApi.post<MarcarResponse>("/asistencias/marcar-movil", {
     qrToken,
     codigo,
     password,

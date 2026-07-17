@@ -15,16 +15,16 @@ interface ScanState {
 export const ScanProcessor: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate        = useNavigate();
-  const token           = searchParams.get("token") || "";
+  const qrToken         = searchParams.get("qrToken") || searchParams.get("token") || "";
 
   const [showPassword, setShowPassword] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [password, setPassword] = useState("");
 
   const [state, setState] = useState<ScanState>({
-    phase:    token ? "input" : "error",
+    phase:    qrToken ? "input" : "error",
     response: null,
-    errorMsg: token ? "" : "Token QR no proporcionado. Por favor, escanee el código QR nuevamente.",
+    errorMsg: qrToken ? "" : "Token QR no proporcionado. Por favor, escanee el código QR nuevamente.",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,7 +38,7 @@ export const ScanProcessor: React.FC = () => {
     setState({ phase: "submitting", response: null, errorMsg: "" });
 
     try {
-      const res = await marcarAsistenciaMovil(decodeURIComponent(token), finalCode, password);
+      const res = await marcarAsistenciaMovil(decodeURIComponent(qrToken), finalCode, password);
       if (res.ok) {
         setState({ phase: "success", response: res, errorMsg: "" });
 
@@ -204,7 +204,7 @@ export const ScanProcessor: React.FC = () => {
               <h2 className="text-xl font-bold text-slate-800 dark:text-white">Error al registrar</h2>
               <p className="text-sm text-slate-500 dark:text-white/40 mt-1.5">{state.errorMsg}</p>
             </div>
-            {token && (
+            {qrToken && (
               <button
                 onClick={() => setState({ phase: "input", response: null, errorMsg: "" })}
                 className="mt-4 px-6 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-white text-xs font-semibold transition-colors cursor-pointer"
