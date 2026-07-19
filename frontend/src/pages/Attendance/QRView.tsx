@@ -169,7 +169,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             </div>
           ) : (
             <QRCodeDisplay
-              value={`${import.meta.env.VITE_API_URL}/asistencias/marcar-movil?qrToken=${encodeURIComponent(token)}`}
+              value={`${window.location.origin}/marcar?qrToken=${encodeURIComponent(token)}`}
               size={230}
               color={qrColor}
             />

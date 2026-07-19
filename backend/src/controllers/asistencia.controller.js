@@ -400,6 +400,7 @@ async function marcar(req, res) {
  */
 async function marcarMovil(req, res) {
   try {
+    console.log("[QR MÓVIL] ¡Entrando a la ruta correcta sin restricciones!");
     const { qrToken, codigo, password } = req.body;
 
     if (!qrToken || !codigo || !password) {
