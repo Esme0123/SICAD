@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Calendar as CalendarIcon, Clock, Filter, CheckCircle2, AlertCircle, XCircle, X } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, Filter, CheckCircle2, AlertCircle, XCircle, X } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { COLORS } from "@/theme/colors";
 import { card } from "@/utils/card";
 import { getEmployees, Employee } from "@/services/employees.service";
 import { getSchedules, Schedule } from "@/services/schedules.service";
-import { getPermisos, createPermiso, getTipoPermisos, PermisoBackend } from "@/services/permisos.service";
-import api from "@/services/api";
+import { getPermisos, createPermiso, cambiarEstadoPermiso, PermisoBackend } from "@/services/permisos.service";
+import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
+import { useAuthStore } from "@/hooks/useAuthStore";
 
 interface LeavesViewProps {
   dark: boolean;
@@ -56,6 +57,8 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [leaves, setLeaves] = useState<PermisoBackend[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<number | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
 
   const [filterDate, setFilterDate] = useState("");
   const [filterEmp, setFilterEmp] = useState("");
@@ -80,16 +83,6 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
       setLeaves(permisoList);
     }).catch(console.error);
   }, []);
-
-  const searchedEmployees = useMemo(() => {
-    if (modalSearchQuery.length === 0) return [];
-    const q = modalSearchQuery.toLowerCase();
-    return employees.filter(emp =>
-      emp.name.toLowerCase().includes(q) ||
-      emp.code.toLowerCase().includes(q) ||
-      emp.ci.toLowerCase().includes(q)
-    );
-  }, [modalSearchQuery, employees]);
 
   const availablePeriods = useMemo(() => {
     if (!selectedEmp || !formDate) return [];
@@ -144,6 +137,23 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
     }
   };
 
+  const handleCambiarEstado = async (id: number, estado: "APROBADO" | "RECHAZADO") => {
+    setLoadingAction(id);
+    try {
+      await cambiarEstadoPermiso(id, {
+        estado,
+        revisadoPor: currentUser?.id ? parseInt(currentUser.id) : undefined,
+      });
+      const updated = await getPermisos();
+      setLeaves(updated);
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+      alert("Ocurrió un error al cambiar el estado del permiso.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   const resetForm = () => {
     setSelectedEmp(null);
     setFormDate("");
@@ -185,14 +195,14 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
       <div className={card(dark, "overflow-hidden")}>
         <div className={`flex flex-wrap items-center justify-between gap-4 p-5 border-b ${dark ? "border-white/8" : "border-slate-100"}`}>
           <div className="flex flex-wrap items-center gap-3 flex-1">
-            <div className="relative w-full sm:max-w-xs">
-              <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/40" : "text-slate-400"}`} />
-              <input
-                type="text"
-                placeholder="Buscar empleado (Nombre, CI o Código)..."
+            <div className="w-full sm:max-w-xs">
+              <SearchAutocomplete
+                items={employees}
                 value={filterEmp}
-                onChange={(e) => setFilterEmp(e.target.value)}
-                className={`w-full pl-9 pr-4 py-2 rounded-xl text-sm border outline-none transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-800 focus:border-primary/50 focus:bg-white"}`}
+                onChange={setFilterEmp}
+                onSelect={(item) => setFilterEmp(item.name)}
+                placeholder="Buscar empleado (Nombre, CI o Código)..."
+                dark={dark}
               />
             </div>
             <div className="relative">
@@ -240,7 +250,7 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Código", "CI", "Fecha", "Periodos Afectados", "Motivo", "Estado"].map(c => (
+                {["Empleado", "Código", "CI", "Fecha", "Periodos Afectados", "Motivo", "Estado", "Acciones"].map(c => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
                   </th>
@@ -280,12 +290,34 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                       <td className="px-5 py-4">
                         {renderStatus(statusDisplay)}
                       </td>
+                      <td className="px-5 py-4">
+                        {leave.estado === "PENDIENTE" ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCambiarEstado(leave.id, "APROBADO")}
+                              disabled={loadingAction === leave.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              {loadingAction === leave.id ? "..." : "Aprobar"}
+                            </button>
+                            <button
+                              onClick={() => handleCambiarEstado(leave.id, "RECHAZADO")}
+                              disabled={loadingAction === leave.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              {loadingAction === leave.id ? "..." : "Rechazar"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className={`px-5 py-12 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={8} className={`px-5 py-12 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     No se encontraron permisos registrados.
                   </td>
                 </tr>
@@ -309,34 +341,17 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
               <div>
                 <label className={`block text-xs font-medium mb-1.5 ${dark ? "text-white/60" : "text-slate-500"}`}>Empleado</label>
                 {!selectedEmp ? (
-                  <div className="relative">
-                    <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/40" : "text-slate-400"}`} />
-                    <input
-                      type="text"
-                      placeholder="Buscar por Nombre, CI o Código..."
-                      value={modalSearchQuery}
-                      onChange={(e) => setModalSearchQuery(e.target.value)}
-                      className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm border outline-none ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary" : "bg-white border-slate-200 text-slate-800 focus:border-primary"}`}
-                    />
-                    {modalSearchQuery.length > 0 && (
-                      <div className={`absolute z-10 w-full mt-1 rounded-xl shadow-lg border overflow-hidden ${dark ? "bg-[#0B0F19] border-white/10" : "bg-white border-slate-200"}`}>
-                        {searchedEmployees.length > 0 ? searchedEmployees.map(emp => (
-                          <div
-                            key={emp.code}
-                            onClick={() => { setSelectedEmp(emp); setModalSearchQuery(""); }}
-                            className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-primary/10 ${dark ? "text-white" : "text-slate-800"}`}
-                          >
-                            <div className="font-medium">{emp.name}</div>
-                            <div className="text-xs text-primary mt-0.5">{emp.code} • CI: {emp.ci}</div>
-                          </div>
-                        )) : (
-                          <div className={`px-4 py-3 text-xs text-center ${dark ? "text-white/50" : "text-slate-500"}`}>
-                            No se encontraron resultados
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <SearchAutocomplete
+                    items={employees}
+                    value={modalSearchQuery}
+                    onChange={setModalSearchQuery}
+                    onSelect={(item) => {
+                      setSelectedEmp(item);
+                      setModalSearchQuery("");
+                    }}
+                    placeholder="Buscar por Nombre, CI o Código..."
+                    dark={dark}
+                  />
                 ) : (
                   <div className={`flex items-center justify-between p-3 rounded-xl border ${dark ? "bg-white/5 border-white/10" : "bg-white border-slate-200"}`}>
                     <div className="flex items-center gap-3">

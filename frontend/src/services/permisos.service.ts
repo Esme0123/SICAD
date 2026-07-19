@@ -37,8 +37,25 @@ export async function createPermiso(payload: CreatePermisoPayload): Promise<Perm
   return data.data;
 }
 
+export interface CambiarEstadoPayload {
+  estado: "APROBADO" | "RECHAZADO";
+  revisadoPor?: number;
+}
+
 export async function getTipoPermisos(): Promise<{ id: number; nombre: string }[]> {
   const { data } = await api.get<{ ok: boolean; data: { id: number; nombre: string }[] }>("/permisos/tipos");
   if (!data.ok) throw new Error("Error al obtener tipos de permiso");
+  return data.data;
+}
+
+export async function cambiarEstadoPermiso(
+  id: number,
+  payload: CambiarEstadoPayload
+): Promise<PermisoBackend> {
+  const { data } = await api.patch<{ ok: boolean; data: PermisoBackend }>(
+    `/permisos/${id}/estado`,
+    payload
+  );
+  if (!data.ok) throw new Error("Error al cambiar estado del permiso");
   return data.data;
 }
