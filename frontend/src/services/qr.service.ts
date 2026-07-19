@@ -57,7 +57,7 @@ export async function marcarAsistenciaMovil(
   codigo: string,
   password: string
 ): Promise<MarcarResponse> {
-  const { data } = await publicApi.post<MarcarResponse>("/asistencias/marcar-movil", {
+  const { data } = await publicApi.post<MarcarResponse>("/asistencia/marcar-movil", {
     qrToken,
     codigo,
     password,
