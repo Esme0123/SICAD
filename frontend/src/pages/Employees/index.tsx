@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, Filter, Plus, Edit2, Trash2, Eye, X, Mail, Phone } from "lucide-react";
+import { Filter, Plus, Edit2, Trash2, Eye, X, Mail, Phone } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import {
@@ -217,23 +218,14 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
             }`}
         >
           <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <Search
-                size={15}
-                className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"
-                  }`}
-              />
-              <input
+            <div className="w-72">
+              <SearchAutocomplete
+                items={employees}
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(v) => { setSearch(v); setCurrentPage(1); }}
+                onSelect={(item) => { setSearch(item.name); setCurrentPage(1); }}
                 placeholder="Buscar por nombre, CI o código..."
-                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none w-72 transition-all ${dark
-                    ? "bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-blue-500/60"
-                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                  }`}
+                dark={dark}
               />
             </div>
             <button

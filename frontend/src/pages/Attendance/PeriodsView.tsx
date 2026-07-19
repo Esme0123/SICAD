@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
+import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
 import { getEmployees, Employee } from "@/services/employees.service";
 import {
   getSchedules,
@@ -274,14 +275,14 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       {/* Controles y Filtros */}
       <div className={`p-4 rounded-xl border flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
         {/* Buscador de Texto */}
-        <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-transparent w-full xl:w-80">
-          <Search size={16} className={dark ? "text-white/40" : "text-slate-400"} />
-          <input
-            type="text"
-            placeholder="Buscar por Nombre, Código o CI..."
+        <div className="w-full xl:w-80">
+          <SearchAutocomplete
+            items={employees}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className={`bg-transparent outline-none text-sm font-medium w-full ${dark ? "text-white placeholder-white/40" : "text-slate-700 placeholder-slate-400"}`}
+            onChange={setSearchTerm}
+            onSelect={(item) => setSearchTerm(item.name)}
+            placeholder="Buscar por Nombre, Código o CI..."
+            dark={dark}
           />
         </div>
 

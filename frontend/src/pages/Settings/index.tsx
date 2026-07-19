@@ -4,6 +4,7 @@ import {
   Database,
   Activity,
   Settings as SettingsIcon,
+  Shield,
 } from "lucide-react";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
@@ -86,6 +87,7 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
   const tabs = [
     { id: "sistema", label: "Sistema", icon: <SettingsIcon size={14} /> },
     { id: "usuarios", label: "Usuarios", icon: <Users size={14} /> },
+    { id: "roles", label: "Roles", icon: <Shield size={14} /> },
     { id: "auditoria", label: "Auditoría", icon: <Activity size={14} /> },
     { id: "respaldos", label: "Respaldos", icon: <Database size={14} /> },
   ];
@@ -313,6 +315,120 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
           {/* TAB: USUARIOS */}
           {tab === "usuarios" && (
             <UsersView dark={dark} />
+          )}
+
+          {/* TAB: ROLES */}
+          {tab === "roles" && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className={`font-semibold text-base ${dark ? "text-white" : "text-slate-800"}`}>
+                    Gestión de Roles del Sistema
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
+                    Descripción de los roles y sus permisos asociados en la plataforma
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* ADMIN (Sistema) */}
+                <div className={`rounded-2xl border overflow-hidden ${dark ? "border-white/10 bg-white/3" : "border-slate-200 bg-white"}`}>
+                  <div className={`px-5 py-4 border-b flex items-center gap-3 ${dark ? "border-white/10" : "border-slate-100"}`}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: "#DC2626" }}>
+                      A
+                    </div>
+                    <div>
+                      <h4 className={`font-bold text-sm ${dark ? "text-white" : "text-slate-800"}`}>Administrador</h4>
+                      <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Rol: ADMIN</p>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <p className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>Permisos</p>
+                    <ul className="space-y-2">
+                      {[
+                        "Gestión completa de empleados (CRUD)",
+                        "Configuración del sistema",
+                        "Gestión de horarios y periodos",
+                        "Aprobación y rechazo de permisos",
+                        "Acceso a reportes y dashboard",
+                        "Gestión de usuarios del sistema",
+                        "Visualización de auditoría",
+                        "Gestión de respaldos",
+                      ].map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm">
+                          <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                          <span className={dark ? "text-white/70" : "text-slate-600"}>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* COORDINADOR */}
+                <div className={`rounded-2xl border overflow-hidden ${dark ? "border-white/10 bg-white/3" : "border-slate-200 bg-white"}`}>
+                  <div className={`px-5 py-4 border-b flex items-center gap-3 ${dark ? "border-white/10" : "border-slate-100"}`}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: "#2563EB" }}>
+                      C
+                    </div>
+                    <div>
+                      <h4 className={`font-bold text-sm ${dark ? "text-white" : "text-slate-800"}`}>Coordinador</h4>
+                      <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Rol: COORDINADOR</p>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <p className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>Permisos</p>
+                    <ul className="space-y-2">
+                      {[
+                        "Visualización de empleados",
+                        "Gestión de horarios asignados",
+                        "Aprobación de permisos",
+                        "Acceso a reportes",
+                        "Visualización del dashboard",
+                        "No puede modificar configuración del sistema",
+                        "No puede gestionar usuarios del sistema",
+                      ].map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm">
+                          <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                          <span className={dark ? "text-white/70" : "text-slate-600"}>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* EMPLEADO */}
+                <div className={`rounded-2xl border overflow-hidden ${dark ? "border-white/10 bg-white/3" : "border-slate-200 bg-white"}`}>
+                  <div className={`px-5 py-4 border-b flex items-center gap-3 ${dark ? "border-white/10" : "border-slate-100"}`}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: "#059669" }}>
+                      E
+                    </div>
+                    <div>
+                      <h4 className={`font-bold text-sm ${dark ? "text-white" : "text-slate-800"}`}>Empleado</h4>
+                      <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Rol: EMPLEADO</p>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <p className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-white/40" : "text-slate-400"}`}>Permisos</p>
+                    <ul className="space-y-2">
+                      {[
+                        "Marcado de asistencia por QR (móvil)",
+                        "Visualización de su propio historial",
+                        "Solicitud de permisos",
+                        "No puede acceder al panel administrativo",
+                        "No puede modificar horarios",
+                        "No puede gestionar empleados",
+                      ].map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm">
+                          <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                          <span className={dark ? "text-white/70" : "text-slate-600"}>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* TAB: AUDITORIA */}
