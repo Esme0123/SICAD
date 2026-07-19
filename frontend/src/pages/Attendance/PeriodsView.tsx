@@ -43,6 +43,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [draftSchedules, setDraftSchedules] = useState<Record<DayOfWeek, number[]>>({
     Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
   });
+  const [filterPeriod, setFilterPeriod] = useState(obtenerPeriodoActual());
   const [selectedPeriod, setSelectedPeriod] = useState(obtenerPeriodoActual());
   const periodOptions = generatePeriodOptions(10);
 
@@ -72,8 +73,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   };
 
   useEffect(() => {
-    loadData(selectedPeriod);
-  }, [selectedPeriod]);
+    loadData(filterPeriod);
+  }, [filterPeriod]);
 
   const resetModal = () => {
     setModalEmployee("");
@@ -284,6 +285,27 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
             placeholder="Buscar por Nombre, Código o CI..."
             dark={dark}
           />
+        </div>
+
+        {/* Filtro por Periodo Académico */}
+        <div className="flex items-center gap-2">
+          <Calendar size={14} className={dark ? "text-white/40" : "text-slate-400"} />
+          <select
+            value={filterPeriod}
+            onChange={(e) => setFilterPeriod(e.target.value)}
+            className={`px-3 py-2 rounded-xl text-sm border outline-none cursor-pointer ${
+              dark
+                ? "bg-white/5 border-white/10 text-white focus:border-primary/60"
+                : "bg-slate-50 border-slate-200 text-slate-700 focus:border-primary/50"
+            }`}
+          >
+            <option value="">Todos los periodos</option>
+            {periodOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Filtro Múltiple de Días */}
