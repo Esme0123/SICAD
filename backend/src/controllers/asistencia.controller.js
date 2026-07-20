@@ -180,7 +180,6 @@ async function getAll(req, res) {
         horaEntrada: true,
         horaSalida: true,
         observacion: true,
-        periodo: true,
         usuario: { select: { id: true, nombre: true, codigo: true, ci: true } },
       },
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],

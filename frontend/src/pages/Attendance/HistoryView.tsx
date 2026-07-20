@@ -91,8 +91,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         : { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
     } else if (status === "Atraso" || status === "Tardanza") {
       style = dark
-        ? { bg: "bg-orange-500/10", text: "text-orange-400", dot: "bg-orange-400" }
-        : { bg: "bg-orange-100", text: "text-orange-700", dot: "bg-orange-500" };
+        ? { bg: "bg-yellow-500/15", text: "text-yellow-400", dot: "bg-yellow-400" }
+        : { bg: "bg-yellow-100", text: "text-yellow-700", dot: "bg-yellow-500" };
     } else if (status === "Sin registro" || status === "Ausente") {
       style = dark
         ? { bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-400" }
@@ -119,13 +119,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       Periodo: r.period,
       Estado: r.status,
     }));
-    exportToExcel(data, `asistencia_${new Date().toISOString().split("T")[0]}`, "Empleado");
+    const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
+    exportToExcel(data, `asistencia_${hoyLocal}`, "Empleado");
   };
 
   const exportPDF = () => {
     const columns = ["Empleado", "Código", "CI", "Fecha", "Periodo", "Estado"];
     const body = filteredRows.map(r => [r.name, r.code, r.ci, r.date, r.period, r.status]);
-    exportToPDF(body, columns, `asistencia_${new Date().toISOString().split("T")[0]}`, "Historial de Asistencia", 0);
+    const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
+    exportToPDF(body, columns, `asistencia_${hoyLocal}`, "Historial de Asistencia", 0);
   };
 
   return (

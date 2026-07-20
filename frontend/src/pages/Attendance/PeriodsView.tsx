@@ -237,7 +237,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       return entries;
     });
     if (data.length === 0) return;
-    exportToExcel(data, `horarios_${new Date().toISOString().split("T")[0]}`, "Empleado");
+    const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
+    exportToExcel(data, `horarios_${hoyLocal}`, "Empleado");
   };
 
   const exportPDF = () => {
@@ -251,7 +252,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       });
     });
     if (body.length === 0) return;
-    exportToPDF(body, columns, `horarios_${new Date().toISOString().split("T")[0]}`, "Asignación de Horarios", 0);
+    exportToPDF(body, columns, `horarios_${hoyLocal}`, "Asignación de Horarios", 0);
   };
 
   if (loading) {
@@ -336,8 +337,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
           {/* Botón de TODOS */}
           <button
             onClick={() => setSelectedDaysFilter([...DAYS_OF_WEEK])}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${selectedDaysFilter.length === DAYS_OF_WEEK.length
-                ? "bg-primary border-primary text-white shadow-sm"
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${selectedDaysFilter.length === DAYS_OF_WEEK.length
+                ? "bg-yellow-500 border-yellow-500 text-white shadow-sm"
                 : dark
                   ? "bg-transparent border-white/20 text-white/60 hover:bg-white/5"
                   : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -355,7 +356,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 key={day}
                 onClick={() => toggleDayFilter(day)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${isSelected
-                    ? "bg-primary/10 border-primary text-primary"
+                    ? "bg-yellow-500/15 border-yellow-500 text-yellow-600 dark:text-yellow-400"
                     : dark
                       ? "bg-transparent border-white/20 text-white/60 hover:bg-white/5"
                       : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -430,7 +431,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                               <div
                                 key={slot.id}
                                 className={`group relative w-full flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${dark
-                                    ? "bg-purple-900/20 border-purple-800/40 text-purple-200 hover:border-purple-500/80"
+                                    ? "bg-slate-800 border-slate-700/60 text-slate-200 hover:border-yellow-500/80"
                                     : "bg-blue-50 border-blue-100 text-blue-700 hover:border-blue-300"
                                   }`}
                               >
@@ -498,7 +499,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                       ? "text-red-500 border-red-500 bg-red-500/10"
                       : totalActual === maxPeriodos
                       ? "text-green-600 border-green-500 bg-green-500/10"
-                      : "text-blue-600 border-blue-500 bg-blue-500/10"
+                      : "text-yellow-600 border-yellow-500 bg-yellow-500/10"
                   }`}>
                     <span className="text-sm font-semibold">
                       Periodos asignados: <strong>{totalActual}</strong> / {maxPeriodos}
@@ -545,7 +546,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                         key={day}
                         onClick={() => setModalDay(day)}
                         className={`relative px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${modalDay === day
-                            ? "bg-primary border-primary text-white shadow-md"
+                            ? "bg-yellow-500 border-yellow-500 text-white shadow-md"
                             : dark
                               ? "bg-transparent border-white/20 text-white/60 hover:bg-white/10"
                               : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -554,7 +555,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                         {day}
                         {/* Burbuja indicadora si ese día ya tiene periodos marcados */}
                         {count > 0 && (
-                          <span className="absolute -top-2.5 -right-2 bg-secondary text-primary text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black shadow-sm border-2 border-white dark:border-[#1E293B]">
+                          <span className="absolute -top-2.5 -right-2 bg-yellow-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black shadow-sm border-2 border-white dark:border-[#1E293B]">
                             {count}
                           </span>
                         )}
@@ -577,10 +578,10 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                         key={slot.id}
                         onClick={() => toggleSlotSelection(slot.id)}
                         className={`cursor-pointer border-2 rounded-xl p-3 flex flex-col items-center justify-center transition-all select-none ${isSelected
-                            ? "border-primary bg-primary/10 text-primary shadow-sm"
+                            ? "border-yellow-500 bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 shadow-sm"
                             : dark
-                              ? "border-white/10 hover:border-white/30 text-white/60 bg-black/20"
-                              : "border-slate-200 hover:border-primary/40 text-slate-600 bg-white"
+                              ? "border-white/10 hover:border-yellow-500/50 text-white/60 bg-slate-800/50"
+                              : "border-slate-200 hover:border-yellow-500/50 text-slate-600 bg-white"
                           }`}
                       >
                         <span className="font-bold text-sm">{slot.horaInicio} - {slot.horaFin}</span>

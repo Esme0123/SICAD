@@ -98,12 +98,12 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     >
       <div className={card(dark, "overflow-hidden")}>
         {/* Tabs */}
-        <div className={`flex border-b ${dark ? "border-white/8" : "border-slate-100"}`}>
+        <div className={`flex overflow-x-auto border-b ${dark ? "border-white/8" : "border-slate-100"}`}>
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 cursor-pointer ${tab === t.id
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 cursor-pointer whitespace-nowrap ${tab === t.id
                   ? "text-blue-600 font-semibold"
                   : dark
                     ? "border-transparent text-white/35 hover:text-white/60"
