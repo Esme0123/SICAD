@@ -252,6 +252,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       });
     });
     if (body.length === 0) return;
+    const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
     exportToPDF(body, columns, `horarios_${hoyLocal}`, "Asignación de Horarios", 0);
   };
 
@@ -316,13 +317,13 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
             onChange={(e) => setFilterPeriod(e.target.value)}
             className={`px-3 py-2 rounded-xl text-sm border outline-none cursor-pointer ${
               dark
-                ? "bg-white/5 border-white/10 text-white focus:border-primary/60"
-                : "bg-slate-50 border-slate-200 text-slate-700 focus:border-primary/50"
+                ? "bg-slate-800 border-slate-700 text-gray-100 focus:border-yellow-500/60"
+                : "bg-white border-gray-300 text-gray-900 focus:border-primary/50"
             }`}
           >
-            <option value="">Todos los periodos</option>
+            <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los periodos</option>
             {periodOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
+              <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
                 {opt.label}
               </option>
             ))}
@@ -485,11 +486,11 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 <select
                   value={modalEmployee}
                   onChange={(e) => setModalEmployee(e.target.value)}
-                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-black/20 border-white/10 text-white" : "bg-slate-50 border-slate-200"}`}
+                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
                 >
-                  <option value="" disabled>Seleccione un empleado...</option>
+                  <option value="" disabled className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Seleccione un empleado...</option>
                   {employees.map(emp => (
-                    <option key={emp.code} value={emp.code}>{emp.name}</option>
+                    <option key={emp.code} value={emp.code} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{emp.name}</option>
                   ))}
                 </select>
 
@@ -523,10 +524,10 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 <select
                   value={selectedPeriod}
                   onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-black/20 border-white/10 text-white" : "bg-slate-50 border-slate-200"}`}
+                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
                 >
                   {periodOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{opt.label}</option>
                   ))}
                 </select>
 

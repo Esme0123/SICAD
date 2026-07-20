@@ -205,11 +205,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
               <select
                 value={filterPeriod}
                 onChange={(e) => setFilterPeriod(e.target.value)}
-                className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
+                className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
               >
-                <option value="">Todos los Periodos</option>
+                <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los Periodos</option>
                 {periodOptions.map(p => (
-                  <option key={p.id} value={`${p.horaInicio}–${p.horaFin}`}>
+                  <option key={p.id} value={`${p.horaInicio}–${p.horaFin}`} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
                     {p.horaInicio} – {p.horaFin}
                   </option>
                 ))}
@@ -222,10 +222,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
+                className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
               >
-                <option value="">Todos los Estados</option>
-                {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los Estados</option>
+                {uniqueStatuses.map(s => <option key={s} value={s} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{s}</option>)}
               </select>
             </div>
           </div>

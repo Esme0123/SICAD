@@ -219,10 +219,10 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className={`pl-9 pr-8 py-2 rounded-xl text-sm border outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white/70 focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
+                className={`pl-9 pr-8 py-2 rounded-xl text-sm border outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
               >
-                <option value="">Todos los motivos</option>
-                {LEAVE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los motivos</option>
+                {LEAVE_TYPES.map(t => <option key={t.id} value={t.id} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{t.label}</option>)}
               </select>
             </div>
             <div className="relative">
@@ -230,10 +230,10 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className={`pl-9 pr-8 py-2 rounded-xl text-sm border outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white/70 focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
+                className={`pl-9 pr-8 py-2 rounded-xl text-sm border outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
               >
-                <option value="">Todos los estados</option>
-                {LEAVE_STATUSES.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+                <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los estados</option>
+                {LEAVE_STATUSES.map(s => <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{s.id}</option>)}
               </select>
             </div>
           </div>
