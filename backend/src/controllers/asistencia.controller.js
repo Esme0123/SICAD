@@ -101,6 +101,7 @@ async function registrar(req, res) {
     // 4. Verificar horario asignado para hoy en el periodo académico actual
     const horarioHoy = await prisma.horarioAsignado.findFirst({
       where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
+      include: { periodo: true },
     });
 
     // 5. Buscar asistencia abierta del día
@@ -117,12 +118,18 @@ async function registrar(req, res) {
     let resultado;
     let accion;
 
+    let periodoLabel = null;
+    if (horarioHoy?.periodo) {
+      periodoLabel = `${horarioHoy.periodo.horaInicio}–${horarioHoy.periodo.horaFin}`;
+    }
+
     if (!asistenciaAbierta) {
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId: uid,
           fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
           horaEntrada: ahora,
+          periodo: periodoLabel,
         },
         include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
       });
@@ -166,7 +173,16 @@ async function getAll(req, res) {
 
     const asistencias = await prisma.asistencia.findMany({
       where,
-      include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } },
+      select: {
+        id: true,
+        usuarioId: true,
+        fecha: true,
+        horaEntrada: true,
+        horaSalida: true,
+        observacion: true,
+        periodo: true,
+        usuario: { select: { id: true, nombre: true, codigo: true, ci: true } },
+      },
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],
     });
 
@@ -356,6 +372,7 @@ async function marcar(req, res) {
           horaEntrada:       ahora,
           minutosTolerancia: toleranciaMin,
           observacion:       observacion,
+          periodo:           periodoLabel,
         },
         include: { usuario: { select: { id: true, nombre: true } } },
       });
@@ -577,6 +594,7 @@ async function marcarMovil(req, res) {
               horaEntrada:       ahora,
               minutosTolerancia: toleranciaMin,
               observacion:       observacion,
+              periodo:           periodoLabel,
             },
           });
           accion = 'ENTRADA';

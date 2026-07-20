@@ -169,6 +169,9 @@ model Asistencia {
   /// Observaciones opcionales (tardanza, permiso parcial, etc.)
   observacion String?
 
+  /// Bloque de periodo oficial asignado (ej. "07:15–08:15")
+  periodo String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

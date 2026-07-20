@@ -1,10 +1,14 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import { getAttendanceHistory, AttendanceRecord } from "@/services/attendance.service";
+import { getPeriods, Periodo } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface HistoryViewProps {
   dark: boolean;
@@ -13,12 +17,13 @@ interface HistoryViewProps {
 export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState("");
+  const [filterDate, setFilterDate] = useState<Date | undefined>(undefined);
   const [filterPeriod, setFilterPeriod] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [periodOptions, setPeriodOptions] = useState<Periodo[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -37,14 +42,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
 
   useEffect(() => {
     setLoading(true);
-    getAttendanceHistory()
-      .then(setRows)
+    Promise.all([
+      getAttendanceHistory(),
+      getPeriods(),
+    ])
+      .then(([attendanceData, periodsData]) => {
+        setRows(attendanceData);
+        setPeriodOptions(periodsData);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const uniqueDates = useMemo(() => Array.from(new Set(rows.map(r => r.date))), [rows]);
-  const uniquePeriods = useMemo(() => Array.from(new Set(rows.map(r => r.period))), [rows]);
   const uniqueStatuses = useMemo(() => Array.from(new Set(rows.map(r => r.status))), [rows]);
 
   const uniqueEmployees = useMemo(
@@ -63,7 +72,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
 
   const filteredRows = useMemo(() => {
     return rows.filter(row => {
-      const matchDate = filterDate === "" || row.date === filterDate;
+      const matchDate = !filterDate || row.date === format(filterDate, "dd/MM/yyyy");
       const matchPeriod = filterPeriod === "" || row.period === filterPeriod;
       const matchStatus = filterStatus === "" || row.status === filterStatus;
       const matchEmployee = searchQuery === "" ||
@@ -159,19 +168,34 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           </div>
 
           <div className="flex flex-wrap gap-2 flex-1">
-            <div className="relative">
-              <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"}`}>
-                <CalendarIcon size={12} />
-              </span>
-              <select
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
-              >
-                <option value="">Todas las Fechas</option>
-                {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${dark ? "bg-white/5 border-white/10 text-white hover:bg-white/10" : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white hover:border-primary/30"}`}
+                >
+                  <CalendarIcon size={12} />
+                  {filterDate ? format(filterDate, "dd/MM/yyyy") : "Todas las Fechas"}
+                  <ChevronDown size={10} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={filterDate}
+                  onSelect={(date) => setFilterDate(date ?? undefined)}
+                />
+                {filterDate && (
+                  <div className="border-t p-2">
+                    <button
+                      onClick={() => setFilterDate(undefined)}
+                      className="w-full text-center text-xs font-medium text-red-500 hover:text-red-600 py-1 cursor-pointer"
+                    >
+                      Limpiar filtro
+                    </button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
             <div className="relative">
               <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"}`}>
                 <Clock size={12} />
@@ -182,7 +206,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                 className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
               >
                 <option value="">Todos los Periodos</option>
-                {uniquePeriods.map(p => <option key={p} value={p}>{p}</option>)}
+                {periodOptions.map(p => (
+                  <option key={p.id} value={`${p.horaInicio}–${p.horaFin}`}>
+                    {p.horaInicio} – {p.horaFin}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="relative">

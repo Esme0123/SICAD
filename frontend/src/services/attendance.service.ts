@@ -44,6 +44,7 @@ interface AsistenciaBackend {
   horaEntrada: string;
   horaSalida?: string | null;
   observacion?: string | null;
+  periodo?: string | null;
   usuario?: { id: number; nombre: string; codigo?: string; ci?: string };
 }
 
@@ -80,7 +81,7 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       code: a.usuario?.codigo || `CC-${String(a.usuarioId).padStart(3, "0")}`,
       ci: a.usuario?.ci || "",
       date: dateStr,
-      period: entradaStr + (salidaStr ? `–${salidaStr}` : ""),
+      period: a.periodo || entradaStr + (salidaStr ? `–${salidaStr}` : ""),
       time: entradaStr,
       status,
     };
