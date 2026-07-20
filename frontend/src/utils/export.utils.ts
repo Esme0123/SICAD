@@ -514,33 +514,4 @@ export async function exportAnalyticsExcel(
   saveAs(blob, `${filename}.xlsx`);
 }
 
-// ==============================================================
-// CSV EXPORT (unchanged)
-// ==============================================================
 
-export function exportToCSV(
-  data: Record<string, string | number | boolean | null | undefined>[],
-  filename: string
-): void {
-  if (data.length === 0) return;
-
-  const columns = Object.keys(data[0]);
-  const bom = "\uFEFF";
-  const header = columns.join(",");
-  const rows = data.map((row) =>
-    columns
-      .map((col) => {
-        const val = row[col] ?? "";
-        const str = String(val).replace(/"/g, '""');
-        return /[",\n]/.test(str) ? `"${str}"` : str;
-      })
-      .join(",")
-  );
-  const csv = bom + [header, ...rows].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${filename}.csv`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}

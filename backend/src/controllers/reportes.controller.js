@@ -186,12 +186,18 @@ async function getAnalisis(req, res) {
       }
     }
 
-    const franjaHoraria = Object.entries(franjaMap)
-      .map(([hora, data]) => ({
-        hora,
+    const allPeriodos = await prisma.periodo.findMany({
+      where: { activo: true },
+      orderBy: { horaInicio: 'asc' },
+    });
+
+    const franjaHoraria = allPeriodos.map((p) => {
+      const data = franjaMap[p.horaInicio] || { total: 0, puntual: 0 };
+      return {
+        hora: p.horaInicio,
         puntualidad: data.total > 0 ? Math.round((data.puntual / data.total) * 100) : 0,
-      }))
-      .sort((a, b) => a.hora.localeCompare(b.hora));
+      };
+    });
 
     // ════════════════════════════════════════════════════════════════
     // 5. motivosPermiso — conteo por tipo de permiso

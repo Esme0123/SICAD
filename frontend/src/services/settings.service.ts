@@ -5,7 +5,6 @@ export interface SystemSettings {
   qrDuration: number;
   openingHour: string;
   closingHour: string;
-  exportFormat: "PDF" | "Excel" | "CSV";
   institutionName: string;
 }
 
@@ -40,7 +39,6 @@ export async function getSystemSettings(): Promise<SystemSettings> {
   const c = data.data;
   return {
     institutionName: c.nombreInstitucion ?? "SICAD",
-    exportFormat: (c.formatoExportacion ?? "xlsx").toUpperCase() === "XLSX" ? "Excel" : (c.formatoExportacion ?? "pdf").toUpperCase() === "PDF" ? "PDF" : "CSV",
     toleranceTime: c.tiempoTolerancia ?? 10,
     qrDuration: c.duracionQR ?? 30,
     openingHour: c.horaApertura ?? "06:00",
@@ -51,7 +49,6 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 export async function updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
   const body: Record<string, any> = {};
   if (settings.institutionName !== undefined) body.nombreInstitucion = settings.institutionName;
-  if (settings.exportFormat !== undefined) body.formatoExportacion = settings.exportFormat.toLowerCase();
   if (settings.toleranceTime !== undefined) body.tiempoTolerancia = settings.toleranceTime;
   if (settings.qrDuration !== undefined) body.duracionQR = settings.qrDuration;
   if (settings.openingHour !== undefined) body.horaApertura = settings.openingHour;

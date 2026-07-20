@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Filter, Search, FileText, FileSpreadsheet } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
@@ -18,12 +18,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [filterStatus, setFilterStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -195,25 +200,24 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="relative" ref={exportMenuRef}>
             <button
-              onClick={exportPDF}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${dark
-                  ? "border-white/10 text-white/70 hover:bg-primary/20 hover:text-white hover:border-primary/50"
-                  : "border-slate-200 text-slate-600 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                }`}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer shadow-md"
+              style={{ background: COLORS.primary }}
             >
-              <FileText size={13} /> Exportar PDF
+              <Download size={14} /> Exportar <ChevronDown size={14} />
             </button>
-            <button
-              onClick={exportExcel}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${dark
-                  ? "border-white/10 text-white/70 hover:bg-primary/20 hover:text-white hover:border-primary/50"
-                  : "border-slate-200 text-slate-600 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                }`}
-            >
-              <FileSpreadsheet size={13} /> Exportar Excel
-            </button>
+            {showExportMenu && (
+              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-lg border overflow-hidden z-20 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
+                <button onClick={() => { setShowExportMenu(false); exportPDF(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
+                  <File size={16} className="text-red-500" /> Exportar a PDF
+                </button>
+                <button onClick={() => { setShowExportMenu(false); exportExcel(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
+                  <FileSpreadsheet size={16} className="text-green-600" /> Exportar a Excel
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

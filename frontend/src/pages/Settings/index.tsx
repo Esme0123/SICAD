@@ -31,7 +31,6 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     qrDuration: 15,
     openingHour: "07:00",
     closingHour: "22:00",
-    exportFormat: "PDF",
     institutionName: "Universidad Católica Boliviana San Pablo",
   });
   const [audits, setAudits] = useState<AuditLog[]>([]);
@@ -173,31 +172,7 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
                     />
                   </div>
 
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1.5 ${dark ? "text-white/60" : "text-slate-500"
-                        }`}
-                    >
-                      Formato de Exportación Predeterminado
-                    </label>
-                    <select
-                      value={systemSettings.exportFormat}
-                      onChange={(e) =>
-                        setSystemSettings({
-                          ...systemSettings,
-                          exportFormat: e.target.value as any,
-                        })
-                      }
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
-                          ? "bg-[#1E293B] border-white/10 text-white focus:border-blue-500/60"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
-                        }`}
-                    >
-                      <option value="PDF">PDF (.pdf)</option>
-                      <option value="Excel">Excel (.xlsx)</option>
-                      <option value="CSV">CSV (.csv)</option>
-                    </select>
-                  </div>
+
                 </div>
 
                 {/* Límites y Horarios */}

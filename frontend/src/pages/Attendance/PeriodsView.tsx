@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, FileText, FileSpreadsheet } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
 import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
@@ -36,6 +36,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState<any>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Form values para Asignación Múltiple (Multidía)
   const [modalEmployee, setModalEmployee] = useState<string>("");
@@ -160,6 +162,17 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     });
   }, [selectedPeriod]);
 
+  // ── Cerrar menú exportación al hacer clic afuera ──
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // ── LÓGICA DE AGRUPACIÓN (MATRIZ SEMANAL) ──
   const aggregatedSchedules = Array.from(
     schedules.reduce((acc, current) => {
@@ -249,18 +262,25 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     <div className="space-y-6">
       {/* Botón superior alineado a la derecha */}
       <div className="flex justify-end gap-2">
-        <button
-          onClick={exportPDF}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:border-white/10 dark:text-white/70 dark:hover:bg-primary/20 dark:hover:text-white dark:hover:border-primary/50"
-        >
-          <FileText size={13} /> Exportar PDF
-        </button>
-        <button
-          onClick={exportExcel}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:border-white/10 dark:text-white/70 dark:hover:bg-primary/20 dark:hover:text-white dark:hover:border-primary/50"
-        >
-          <FileSpreadsheet size={13} /> Exportar Excel
-        </button>
+        <div className="relative" ref={exportMenuRef}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer shadow-md"
+            style={{ background: COLORS.primary }}
+          >
+            <Download size={14} /> Exportar <ChevronDown size={14} />
+          </button>
+          {showExportMenu && (
+            <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-lg border overflow-hidden z-20 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
+              <button onClick={() => { setShowExportMenu(false); exportPDF(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
+                <File size={16} className="text-red-500" /> Exportar a PDF
+              </button>
+              <button onClick={() => { setShowExportMenu(false); exportExcel(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
+                <FileSpreadsheet size={16} className="text-green-600" /> Exportar a Excel
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => {
             resetModal();

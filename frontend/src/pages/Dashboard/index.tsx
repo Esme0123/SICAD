@@ -325,15 +325,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ dark }) => {
             ))}
           </div>
 
-          <div className={`mt-6 pt-5 border-t ${dark ? "border-white/10" : "border-slate-100"}`}>
-            <div className="flex justify-between text-xs mb-2">
-              <span className={dark ? "text-white/50" : "text-slate-500"}>Almacenamiento</span>
-              <span className={`font-semibold ${dark ? "text-white" : "text-slate-700"}`}>--</span>
-            </div>
-            <div className={`w-full h-1.5 rounded-full ${dark ? "bg-white/10" : "bg-slate-100"}`}>
-              <div className="h-full rounded-full bg-[#0F4C97] w-[0%]" />
-            </div>
-          </div>
         </div>
       </div>
 

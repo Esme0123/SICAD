@@ -19,7 +19,7 @@ import { COLORS } from "@/theme/colors";
 import { getAnalisis, AnalisisResponse } from "@/services/report.service";
 import { getEmployees, Employee } from "@/services/employees.service";
 import { generatePeriodOptions } from "@/utils/periodo.utils";
-import { exportToCSV, exportAnalyticsPDF, exportAnalyticsExcel } from "@/utils/export.utils";
+import { exportAnalyticsPDF, exportAnalyticsExcel } from "@/utils/export.utils";
 
 const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F97316", "#06B6D4"];
 
@@ -192,40 +192,19 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     };
   }, [analisisData]);
 
-  // ── Exportar ──
-  const handleExport = async (format: "PDF" | "Excel" | "CSV") => {
+  const handleExport = async (format: "PDF" | "Excel") => {
     setShowExportMenu(false);
     if (!analisisData) return;
 
-    const filename = `Reporte_Asistencia_${selectedPeriod.replace(/\s/g, "_")}`;
-
-    if (format === "CSV") {
-      const data = analisisData.graficoBarras.map((b) => ({
-        Fecha: b.fecha,
-        Presentes: b.presentes,
-        Ausentes: b.ausentes,
-      }));
-      exportToCSV(data, filename);
-      return;
-    }
-
-    if (format === "Excel") {
-      setExporting(true);
-      try {
+    setExporting(true);
+    try {
+      if (format === "Excel") {
         await exportAnalyticsExcel(analisisData, selectedPeriod, searchQuery);
-      } finally {
-        setExporting(false);
-      }
-      return;
-    }
-
-    if (format === "PDF") {
-      setExporting(true);
-      try {
+      } else if (format === "PDF") {
         await exportAnalyticsPDF(analisisData, selectedPeriod, searchQuery);
-      } finally {
-        setExporting(false);
       }
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -344,9 +323,6 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
                 </button>
                 <button onClick={() => handleExport("Excel")} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
                   <FileSpreadsheet size={16} className="text-green-600" /> Exportar a Excel
-                </button>
-                <button onClick={() => handleExport("CSV")} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
-                  <FileText size={16} className="text-blue-500" /> Exportar a CSV
                 </button>
               </div>
             )}
