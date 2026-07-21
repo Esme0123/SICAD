@@ -2,6 +2,7 @@
 // Gestión de permisos parciales con transacciones Prisma
 
 const prisma = require('../config/db');
+const { crearNotificacion } = require('./notificacion.controller');
 
 // GET /api/permisos
 async function getAll(req, res) {
@@ -108,6 +109,15 @@ async function create(req, res) {
       });
     });
 
+    // Notificar a administradores
+    const empleado = permiso?.usuario;
+    crearNotificacion({
+      titulo: 'Nueva solicitud de permiso',
+      mensaje: `${empleado?.nombre || 'Un empleado'} solicitó un permiso de tipo "${permiso?.tipoPermiso?.nombre || tipoPermisoNombre}" para el ${new Date(fecha).toLocaleDateString('es-BO')}.`,
+      permisoId: permiso?.id,
+      paraRol: 'ADMIN',
+    });
+
     res.status(201).json({ ok: true, data: permiso });
   } catch (error) {
     console.error('[permiso.create]', error);
@@ -139,9 +149,20 @@ async function cambiarEstado(req, res) {
         fechaRevision: new Date(),
       },
       include: {
-        usuario: { select: { nombre: true } },
+        usuario: { select: { id: true, nombre: true } },
+        tipoPermiso: { select: { nombre: true } },
       },
     });
+
+    // Notificar al empleado
+    crearNotificacion({
+      titulo: `Permiso ${estado === 'APROBADO' ? 'aprobado' : 'rechazado'}`,
+      mensaje: `Tu solicitud de permiso de tipo "${permiso.tipoPermiso?.nombre || 'Permiso'}" fue ${estado === 'APROBADO' ? 'APROBADA' : 'RECHAZADA'}.`,
+      usuarioId: permiso.usuario.id,
+      permisoId: permiso.id,
+      paraRol: 'EMPLEADO',
+    });
+
     res.json({ ok: true, data: permiso });
   } catch (error) {
     if (error.code === 'P2025') {

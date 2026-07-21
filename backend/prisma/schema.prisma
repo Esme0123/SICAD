@@ -58,6 +58,7 @@ model Usuario {
   horariosAsignados HorarioAsignado[]
   asistencias       Asistencia[]
   permisos          Permiso[]
+  notificaciones    Notificacion[]
 
   @@map("usuarios")
 }
@@ -332,5 +333,33 @@ model QrNonce {
   createdAt DateTime @default(now())
 
   @@map("qr_nonces")
+}
+
+// ============================================================
+// NOTIFICACIÓN
+// Alertas del sistema para empleados y administradores.
+// Ej: "Tu permiso fue APROBADO", "Nueva solicitud de permiso"
+// ============================================================
+
+model Notificacion {
+  id        Int      @id @default(autoincrement())
+
+  /// Destinatario (null = para todos los ADMIN/COORDINADOR)
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  titulo    String
+  mensaje   String
+  leida     Boolean  @default(false)
+
+  /// "ADMIN" | "EMPLEADO" | "SISTEMA"
+  paraRol   String   @default("EMPLEADO")
+
+  /// ID del permiso relacionado (para enlace rápido)
+  permisoId Int?
+
+  createdAt DateTime @default(now())
+
+  @@map("notificaciones")
 }
 

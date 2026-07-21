@@ -20,6 +20,7 @@ const reportesRoutes = require('./routes/reportes.routes');
 const usuarioSistemaRoutes = require('./routes/usuarioSistema.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
 const respaldosRoutes = require('./routes/respaldos.routes');
+const notificacionRoutes = require('./routes/notificacion.routes');
 
 const app = express();
 
@@ -70,6 +71,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reportes', reportesRoutes);
 // Usuarios del sistema (Admin Dashboard)
 app.use('/api/usuarios-sistema', usuarioSistemaRoutes);
+// Notificaciones
+app.use('/api/notificaciones', notificacionRoutes);
 // Auditoría
 app.use('/api/auditoria', auditoriaRoutes);
 // Respaldos

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, AlertCircle,
-  Calendar, ChevronLeft, ChevronRight, X, Upload, Send,
+  Calendar, ChevronLeft, ChevronRight, X, Upload, Send, Eye,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL;
@@ -43,28 +43,15 @@ const MOTIVOS_PREDEFINIDOS = [
   "Calamidad Doméstica",
 ];
 
-const estadoIcon: Record<string, React.ReactNode> = {
-  APROBADO:  <CheckCircle2 size={16} className="text-success" />,
-  RECHAZADO: <XCircle size={16} className="text-destructive" />,
-  PENDIENTE: <AlertCircle size={16} className="text-warning" />,
-};
-
-const estadoLabel: Record<string, string> = {
-  APROBADO: "Aprobado",
-  RECHAZADO: "Rechazado",
-  PENDIENTE: "Pendiente",
-};
-
-const estadoBg: Record<string, string> = {
-  APROBADO: "bg-success/10 text-success",
-  RECHAZADO: "bg-destructive/10 text-destructive",
-  PENDIENTE: "bg-warning/10 text-warning",
+const estadoConfig: Record<string, { icon: React.ElementType; label: string; bg: string; border: string }> = {
+  PENDIENTE:  { icon: AlertCircle,  label: "En Revisión",  bg: "#FBBF24", border: "#F59E0B" },
+  APROBADO:   { icon: CheckCircle2, label: "Aprobado",    bg: "#34D399", border: "#10B981" },
+  RECHAZADO:  { icon: XCircle,      label: "Rechazado",   bg: "#F87171", border: "#EF4444" },
 };
 
 const filtrosIcon: Record<Filtro, React.ElementType> = {
   hoy: Clock, semana: Calendar, mes: ChevronLeft, periodo: FileText,
 };
-
 const filtrosLabel: Record<Filtro, string> = {
   hoy: "Hoy", semana: "Semana", mes: "Mes", periodo: "Periodo",
 };
@@ -103,23 +90,17 @@ async function apiPost(path: string, body: unknown) {
 
 export const MobilePermisos: React.FC = () => {
   const { user } = useEmployeeAuth();
-
   const ahora = useMemo(() => boDate(), []);
-  const hoy = useMemo(() => fmtDateISO(ahora), [ahora]);
-
-  // ── Filter state ──
   const [filtro, setFiltro] = useState<Filtro>("hoy");
   const [mes, setMes] = useState(ahora.getMonth() + 1);
   const [anio, setAnio] = useState(ahora.getFullYear());
   const [periodosAcademicos, setPeriodosAcademicos] = useState<string[]>([]);
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
-
-  // ── Data state ──
   const [permisos, setPermisos] = useState<PermisoBackend[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailPermiso, setDetailPermiso] = useState<PermisoBackend | null>(null);
 
-  // Load academic periods
   useEffect(() => {
     if (!user) return;
     apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`)
@@ -149,8 +130,6 @@ export const MobilePermisos: React.FC = () => {
       }
       case "mes":
         return `/permisos/mis-permisos?mes=${mes}&anio=${anio}`;
-      case "periodo":
-        return `/permisos/mis-permisos`;
       default:
         return `/permisos/mis-permisos`;
     }
@@ -162,52 +141,40 @@ export const MobilePermisos: React.FC = () => {
     try {
       const json = await apiGet(buildUrl());
       if (json.ok) setPermisos(json.data || []);
-    } catch (err) {
-      console.error("Error al cargar permisos:", err);
+    } catch {
       setPermisos([]);
     } finally {
       setLoading(false);
     }
   }, [user, buildUrl]);
 
-  useEffect(() => {
-    fetchPermisos();
-  }, [fetchPermisos]);
+  useEffect(() => { fetchPermisos(); }, [fetchPermisos]);
 
   const cambiarMes = (delta: number) => {
-    let nm = mes + delta;
-    let ny = anio;
+    let nm = mes + delta, ny = anio;
     if (nm < 1) { nm = 12; ny--; }
     if (nm > 12) { nm = 1; ny++; }
-    setMes(nm);
-    setAnio(ny);
+    setMes(nm); setAnio(ny);
   };
 
   return (
     <div className="p-4 pb-24 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
-          Mis Permisos
-        </h1>
-        <button
-          onClick={() => setModalOpen(true)}
+        <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>Mis Permisos</h1>
+        <button onClick={() => setModalOpen(true)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
           style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
         >
-          <Plus size={14} />
-          Nuevo
+          <Plus size={14} /> Nuevo
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-1.5">
         {(Object.keys(filtrosLabel) as Filtro[]).map((key) => {
           const Icon = filtrosIcon[key];
           const isActive = filtro === key;
           return (
-            <button
-              key={key}
-              onClick={() => { setFiltro(key); if (key === "periodo" && !selectedPeriodo && periodosAcademicos.length > 0) setSelectedPeriodo(periodosAcademicos[0]); }}
+            <button key={key} onClick={() => setFiltro(key)}
               className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all flex-1 justify-center"
               style={{
                 background: isActive ? "var(--primary)" : "var(--card)",
@@ -215,8 +182,7 @@ export const MobilePermisos: React.FC = () => {
                 border: isActive ? "none" : "1px solid var(--border)",
               }}
             >
-              <Icon size={13} />
-              <span>{filtrosLabel[key]}</span>
+              <Icon size={13} /> <span>{filtrosLabel[key]}</span>
             </button>
           );
         })}
@@ -235,23 +201,18 @@ export const MobilePermisos: React.FC = () => {
       )}
 
       {filtro === "periodo" && periodosAcademicos.length > 0 && (
-        <select
-          value={selectedPeriodo}
-          onChange={(e) => setSelectedPeriodo(e.target.value)}
+        <select value={selectedPeriodo} onChange={(e) => setSelectedPeriodo(e.target.value)}
           className="w-full appearance-none rounded-xl px-4 py-3 text-sm font-medium border"
           style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--border)" }}
         >
-          {periodosAcademicos.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+          {periodosAcademicos.map((p) => (<option key={p} value={p}>{p}</option>))}
         </select>
       )}
 
-      {/* Lista */}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4 animate-pulse">
+            <div key={i} className="animate-pulse bg-card border border-border rounded-xl p-4">
               <div className="h-4 bg-muted rounded w-32 mb-2" />
               <div className="h-3 bg-muted rounded w-48 mb-2" />
               <div className="h-3 bg-muted rounded w-24" />
@@ -263,50 +224,63 @@ export const MobilePermisos: React.FC = () => {
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
             <FileText size={24} style={{ color: "var(--muted-foreground)" }} />
           </div>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Sin permisos registrados</p>
-            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>Solicita un permiso usando el botón "Nuevo"</p>
-          </div>
+          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Sin permisos registrados</p>
+          <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>Solicita un permiso usando el botón "Nuevo"</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {permisos.map((p) => (
-            <div key={p.id} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1 flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    {p.tipoPermiso?.nombre || "Permiso"}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{p.motivo}</p>
-                  <div className="flex items-center gap-3 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
-                    <span className="flex items-center gap-1">
-                      <Clock size={10} />
-                      {new Date(p.fecha + "T00:00:00").toLocaleDateString("es-BO")}
-                    </span>
-                    {p.periodos && p.periodos.length > 0 && (
+          {permisos.map((p) => {
+            const cfg = estadoConfig[p.estado] || estadoConfig.PENDIENTE;
+            const Icon = cfg.icon;
+            return (
+              <div key={p.id} onClick={() => setDetailPermiso(p)}
+                className="bg-card border rounded-xl p-4 cursor-pointer transition-all hover:opacity-80"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      {p.tipoPermiso?.nombre || "Permiso"}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{p.motivo}</p>
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
                       <span className="flex items-center gap-1">
-                        <Calendar size={10} />
-                        {p.periodos.length} periodo(s)
+                        <Clock size={10} />
+                        {new Date(p.fecha + "T00:00:00").toLocaleDateString("es-BO")}
                       </span>
-                    )}
+                      {p.periodos && p.periodos.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Calendar size={10} />
+                          {p.periodos.length} periodo(s)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2"
+                    style={{ background: `${cfg.bg}20`, color: cfg.border }}
+                  >
+                    <Icon size={10} />
+                    <span>{cfg.label}</span>
                   </div>
                 </div>
-                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2 ${estadoBg[p.estado] || ""}`}>
-                  {estadoIcon[p.estado]}
-                  <span>{estadoLabel[p.estado]}</span>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Modal Nuevo Permiso */}
       {modalOpen && (
         <NuevoPermisoModal
           user={user}
           onClose={() => setModalOpen(false)}
           onSuccess={() => { setModalOpen(false); fetchPermisos(); }}
+        />
+      )}
+
+      {detailPermiso && (
+        <DetallePermisoModal
+          permiso={detailPermiso}
+          onClose={() => setDetailPermiso(null)}
         />
       )}
     </div>
@@ -326,57 +300,38 @@ interface NuevoPermisoModalProps {
 const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, onSuccess }) => {
   const [fecha, setFecha] = useState(fmtDateISO(new Date()));
   const [periodosDisponibles, setPeriodosDisponibles] = useState<PeriodoCatalogo[]>([]);
+  const [periodosLoaded, setPeriodosLoaded] = useState(false);
   const [selectedPeriodos, setSelectedPeriodos] = useState<number[]>([]);
   const [motivo, setMotivo] = useState("");
   const [detalle, setDetalle] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [tipoPermisos, setTipoPermisos] = useState<{ id: number; nombre: string }[]>([]);
-
-  // Load tipoPermisos
-  useEffect(() => {
-    apiGet("/permisos/tipos")
-      .then((res) => setTipoPermisos(res.data || []))
-      .catch(console.error);
-  }, []);
-
-  // Fetch periods for selected date
-  useEffect(() => {
-    if (!user || !fecha) return;
-    const d = new Date(fecha + "T12:00:00");
+  const fetchPeriodos = useCallback(async (f: string) => {
+    if (!user || !f) return;
+    setPeriodosLoaded(false);
+    setSelectedPeriodos([]);
+    const d = new Date(f + "T12:00:00");
     const diaSemana = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"][d.getDay()];
     if (diaSemana === "Domingo") {
       setPeriodosDisponibles([]);
-      setSelectedPeriodos([]);
+      setPeriodosLoaded(true);
       return;
     }
-    apiGet(`/horarios/${user.id}?fechaInicio=${fecha}&fechaFin=${fecha}`)
-      .then((res) => {
-        const asignados: PeriodoCatalogo[] = (res.data || [])
-          .filter((h: any) => h.diaSemana === diaSemana && h.periodo)
-          .map((h: any) => h.periodo);
-        setPeriodosDisponibles(asignados);
-        setSelectedPeriodos([]);
-      })
-      .catch(() => {
-        setPeriodosDisponibles([]);
-        setSelectedPeriodos([]);
-      });
-  }, [user, fecha]);
+    try {
+      const res = await apiGet(`/horarios/${user.id}`);
+      const asignados: PeriodoCatalogo[] = (res.data || [])
+        .filter((h: any) => h.diaSemana === diaSemana && h.periodo)
+        .map((h: any) => h.periodo);
+      setPeriodosDisponibles(asignados);
+    } catch {
+      setPeriodosDisponibles([]);
+    } finally {
+      setPeriodosLoaded(true);
+    }
+  }, [user]);
 
-  // Also fetch all catalog periods for the day if no assignments exist
-  useEffect(() => {
-    if (!user || !fecha || periodosDisponibles.length > 0) return;
-    const d = new Date(fecha + "T12:00:00");
-    const diaSemana = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"][d.getDay()];
-    if (diaSemana === "Domingo") return;
-    apiGet("/horarios/periodos")
-      .then((res) => {
-        setPeriodosDisponibles(res.data || []);
-      })
-      .catch(console.error);
-  }, [fecha, periodosDisponibles.length, user]);
+  useEffect(() => { fetchPeriodos(fecha); }, [fecha, fetchPeriodos]);
 
   const togglePeriodo = (id: number) => {
     setSelectedPeriodos((prev) =>
@@ -396,8 +351,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
         periodosIds: selectedPeriodos,
       });
       onSuccess();
-    } catch (err) {
-      console.error("Error al crear permiso:", err);
+    } catch {
       alert("Error al crear el permiso. Intenta de nuevo.");
     } finally {
       setSubmitting(false);
@@ -406,27 +360,29 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
 
   const esFinde = (() => {
     if (!fecha) return false;
-    const d = new Date(fecha + "T12:00:00");
-    return d.getDay() === 0;
+    return new Date(fecha + "T12:00:00").getDay() === 0;
   })();
+
+  const puedeEnviar = !!motivo && selectedPeriodos.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.5)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto"
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col"
         style={{ background: "var(--card)" }}
       >
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between p-4 border-b shrink-0"
+          style={{ borderColor: "var(--border)" }}
+        >
           <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Nuevo Permiso</h2>
           <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "var(--muted-foreground)" }}>
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
-          {/* Empleado (fijo) */}
+        <div className="overflow-y-auto p-4 space-y-4 flex-1">
           <div>
             <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Empleado</label>
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm"
@@ -444,21 +400,22 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
             </div>
           </div>
 
-          {/* Fecha */}
           <div>
             <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Fecha</label>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
               className="w-full rounded-xl px-4 py-2.5 text-sm font-medium border"
               style={{ background: "var(--input-background)", color: "var(--foreground)", borderColor: "var(--border)" }}
             />
           </div>
 
-          {/* Periodos */}
           {esFinde ? (
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>No hay periodos disponibles los domingos.</p>
+            <p className="text-xs py-2 px-3 rounded-xl" style={{ color: "var(--muted-foreground)", background: "color-mix(in srgb, var(--muted-foreground) 8%, transparent)" }}>
+              No hay periodos disponibles los domingos.
+            </p>
+          ) : periodosLoaded && periodosDisponibles.length === 0 ? (
+            <p className="text-xs py-2 px-3 rounded-xl" style={{ color: "var(--color-warning)", background: "color-mix(in srgb, var(--color-warning) 10%, transparent)" }}>
+              Sin periodos asignados para esta fecha. Selecciona otro día.
+            </p>
           ) : periodosDisponibles.length > 0 ? (
             <div>
               <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Periodos a cubrir</label>
@@ -466,9 +423,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
                 {periodosDisponibles.map((p) => {
                   const sel = selectedPeriodos.includes(p.id);
                   return (
-                    <button
-                      key={p.id}
-                      onClick={() => togglePeriodo(p.id)}
+                    <button key={p.id} onClick={() => togglePeriodo(p.id)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-all"
                       style={{
                         background: sel ? "color-mix(in srgb, var(--primary) 8%, transparent)" : "var(--input-background)",
@@ -476,7 +431,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
                         color: "var(--foreground)",
                       }}
                     >
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all`}
+                      <div className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all"
                         style={{
                           borderColor: sel ? "var(--primary)" : "var(--muted-foreground)",
                           background: sel ? "var(--primary)" : "transparent",
@@ -484,10 +439,8 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
                       >
                         {sel && <div className="w-2 h-2 rounded-[1px]" style={{ background: "var(--primary-foreground)" }} />}
                       </div>
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="font-mono text-xs font-bold">{p.horaInicio} - {p.horaFin}</span>
-                        <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{p.nombre}</span>
-                      </div>
+                      <span className="font-mono text-xs font-bold">{p.horaInicio} - {p.horaFin}</span>
+                      <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{p.nombre}</span>
                     </button>
                   );
                 })}
@@ -495,20 +448,17 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
             </div>
           ) : (
             <p className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
-              Selecciona una fecha para ver los periodos disponibles...
+              Cargando periodos...
             </p>
           )}
 
-          {/* Motivo */}
           <div>
             <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Motivo del Permiso</label>
             <div className="grid grid-cols-2 gap-2">
               {MOTIVOS_PREDEFINIDOS.map((m) => {
                 const sel = motivo === m;
                 return (
-                  <button
-                    key={m}
-                    onClick={() => setMotivo(m)}
+                  <button key={m} onClick={() => setMotivo(m)}
                     className="px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all"
                     style={{
                       background: sel ? "var(--primary)" : "var(--input-background)",
@@ -523,38 +473,27 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
             </div>
           </div>
 
-          {/* Detalle */}
           <div>
             <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-              Detalle / Observación <span className="font-normal" style={{ color: "var(--muted-foreground)" }}>(opcional)</span>
+              Detalle / Observación <span className="font-normal">(opcional)</span>
             </label>
-            <textarea
-              value={detalle}
-              onChange={(e) => setDetalle(e.target.value)}
-              rows={3}
-              placeholder="Escribe una explicación..."
+            <textarea value={detalle} onChange={(e) => setDetalle(e.target.value)}
+              rows={3} placeholder="Escribe una explicación..."
               className="w-full rounded-xl px-4 py-2.5 text-sm border resize-none"
               style={{ background: "var(--input-background)", color: "var(--foreground)", borderColor: "var(--border)" }}
             />
           </div>
 
-          {/* Adjunto */}
           <div>
             <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-              Adjuntar archivo <span className="font-normal" style={{ color: "var(--muted-foreground)" }}>(opcional)</span>
+              Adjuntar archivo <span className="font-normal">(opcional)</span>
             </label>
-            <label
-              className="flex items-center gap-2 px-4 py-3 rounded-xl border cursor-pointer text-sm"
+            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border cursor-pointer text-sm"
               style={{ background: "var(--input-background)", borderColor: "var(--border)", color: "var(--foreground)" }}
             >
               <Upload size={16} style={{ color: "var(--muted-foreground)" }} />
-              <span className="flex-1 truncate">
-                {archivo ? archivo.name : "Seleccionar archivo..."}
-              </span>
-              <input
-                type="file"
-                accept="image/*,.pdf,.doc,.docx"
-                className="hidden"
+              <span className="flex-1 truncate">{archivo ? archivo.name : "Seleccionar archivo..."}</span>
+              <input type="file" accept="image/*,.pdf,.doc,.docx" className="hidden"
                 onChange={(e) => setArchivo(e.target.files?.[0] || null)}
               />
               {archivo && (
@@ -564,16 +503,130 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
               )}
             </label>
           </div>
+        </div>
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || !motivo || selectedPeriodos.length === 0}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+        {/* Fixed Footer */}
+        <div className="p-4 border-t shrink-0 flex gap-3" style={{ borderColor: "var(--border)" }}>
+          <button onClick={onClose}
+            className="flex-1 py-3 rounded-xl text-sm font-bold border transition-all"
+            style={{ borderColor: "var(--border)", color: "var(--foreground)", background: "var(--input-background)" }}
+          >
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} disabled={submitting || !puedeEnviar}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
             style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
           >
             <Send size={16} />
             {submitting ? "Enviando..." : "Enviar Solicitud"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// =============================================================
+// MODAL DETALLE DE PERMISO
+// =============================================================
+
+interface DetallePermisoModalProps {
+  permiso: PermisoBackend;
+  onClose: () => void;
+}
+
+const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onClose }) => {
+  const cfg = estadoConfig[permiso.estado] || estadoConfig.PENDIENTE;
+  const Icon = cfg.icon;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl"
+        style={{ background: "var(--card)" }}
+      >
+        <div className="flex items-center justify-between p-4 border-b"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Detalle del Permiso</h2>
+          <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "var(--muted-foreground)" }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                {permiso.tipoPermiso?.nombre || "Permiso"}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                ID #{permiso.id}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+              style={{ background: `${cfg.bg}20`, color: cfg.border }}
+            >
+              <Icon size={14} />
+              <span>{cfg.label}</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted-foreground)" }}>
+              <Calendar size={14} />
+              <span className="font-medium" style={{ color: "var(--foreground)" }}>
+                {new Date(permiso.fecha + "T00:00:00").toLocaleDateString("es-BO", {
+                  weekday: "long", day: "numeric", month: "long", year: "numeric",
+                })}
+              </span>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Motivo</p>
+              <p className="text-sm" style={{ color: "var(--foreground)" }}>{permiso.motivo}</p>
+            </div>
+
+            {permiso.periodos && permiso.periodos.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+                  Periodos afectados ({permiso.periodos.length})
+                </p>
+                <div className="space-y-1">
+                  {permiso.periodos.map((pp) => (
+                    <div key={pp.periodo.id}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border"
+                      style={{ borderColor: "var(--border)", background: "var(--input-background)" }}
+                    >
+                      <Clock size={12} style={{ color: "var(--muted-foreground)" }} />
+                      <span className="font-mono font-bold" style={{ color: "var(--foreground)" }}>
+                        {pp.periodo.horaInicio} - {pp.periodo.horaFin}
+                      </span>
+                      <span style={{ color: "var(--muted-foreground)" }}>{pp.periodo.nombre}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {permiso.fechaRevision && (
+              <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+                Revisado: {new Date(permiso.fechaRevision).toLocaleString("es-BO")}
+              </div>
+            )}
+
+            <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+              Solicitado: {new Date(permiso.createdAt).toLocaleString("es-BO")}
+            </div>
+          </div>
+
+          <button onClick={onClose}
+            className="w-full py-3 rounded-xl text-sm font-bold border transition-all"
+            style={{ borderColor: "var(--border)", color: "var(--foreground)", background: "var(--input-background)" }}
+          >
+            Cerrar
           </button>
         </div>
       </div>
