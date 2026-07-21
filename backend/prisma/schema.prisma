@@ -218,6 +218,12 @@ model Permiso {
   motivo         String
   estado         EstadoPermiso @default(PENDIENTE)
 
+  /// Explicación ingresada por el empleado al solicitar el permiso
+  observacion    String?
+
+  /// Ruta del archivo o imagen adjunta subida por el empleado
+  adjuntoUrl     String?
+
   /// ID del administrador que aprobó/rechazó
   revisadoPor    Int?
   fechaRevision  DateTime?

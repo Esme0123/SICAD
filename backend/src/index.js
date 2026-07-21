@@ -5,6 +5,7 @@
 const env = require('./config/env');
 
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 
 // ── Rutas ────────────────────────────────────────────────────
@@ -27,6 +28,9 @@ const app = express();
 // ── Middlewares globales ─────────────────────────────────────
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+// Archivos estáticos (uploads)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── Health check ─────────────────────────────────────────────
 app.get('/', (req, res) => {

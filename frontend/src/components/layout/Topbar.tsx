@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Bell, Sun, Moon } from "lucide-react";
 
+const API = import.meta.env.VITE_API_URL;
+
 interface TopbarProps {
   dark: boolean;
   onToggleDark: () => void;
@@ -22,10 +24,31 @@ const screenMeta: Record<string, { title: string; subtitle: string }> = {
 export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
   const location = useLocation();
   const [now, setNow] = useState(new Date());
+  const [notifCount, setNotifCount] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Fetch admin unread notifications
+  const fetchUnreadCount = () => {
+    const token = localStorage.getItem("sicad_token");
+    if (!token) return;
+    fetch(`${API}/notificaciones/admin/no-leidas`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.ok) setNotifCount(json.data);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const meta = screenMeta[location.pathname] || {
@@ -53,14 +76,18 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
         </span>
         <div className={`w-px h-5 mx-1 ${dark ? "bg-white/10" : "bg-slate-200"}`} />
         <button
-          className={`relative p-2 rounded-xl transition-colors cursor-pointer ${dark ? "hover:bg-white/6 text-white/40" : "hover:bg-slate-100 text-slate-500"
+          className={`relative p-2 rounded-xl transition-all cursor-pointer ${dark ? "hover:bg-white/6 text-white/40" : "hover:bg-slate-100 text-slate-500"
             }`}
         >
           <Bell size={17} />
-          <span
-            className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-            style={{ background: "#64B5F6" }} // Celeste notification badge
-          />
+          {notifCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+              style={{ background: "#EF4444" }}
+            >
+              {notifCount > 9 ? "9+" : notifCount}
+            </span>
+          )}
         </button>
         <button
           onClick={onToggleDark}

@@ -7,6 +7,8 @@ export interface PermisoBackend {
   fecha: string;
   motivo: string;
   estado: "PENDIENTE" | "APROBADO" | "RECHAZADO";
+  observacion?: string | null;
+  adjuntoUrl?: string | null;
   revisadoPor?: number | null;
   fechaRevision?: string | null;
   createdAt: string;
@@ -23,6 +25,7 @@ export interface CreatePermisoPayload {
   motivo: string;
   periodosIds: number[];
   estado?: string;
+  observacion?: string;
 }
 
 export async function getPermisos(): Promise<PermisoBackend[]> {

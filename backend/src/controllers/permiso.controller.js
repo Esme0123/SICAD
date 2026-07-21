@@ -44,10 +44,11 @@ async function getById(req, res) {
 }
 
 // POST /api/permisos
-// Body: { usuarioId, tipoPermisoId (o tipoPermisoNombre), fecha, motivo, periodosIds: [1,2,3] }
+// Body (JSON): { usuarioId, tipoPermisoId (o tipoPermisoNombre), fecha, motivo, periodosIds: [1,2,3], observacion }
+// Body (multipart): mismo + campo "archivo" (file)
 async function create(req, res) {
   try {
-    let { usuarioId, tipoPermisoId, tipoPermisoNombre, fecha, motivo, periodosIds, estado } = req.body;
+    let { usuarioId, tipoPermisoId, tipoPermisoNombre, fecha, motivo, periodosIds, estado, observacion } = req.body;
 
     if (!usuarioId || !fecha || !motivo) {
       return res.status(400).json({
@@ -61,6 +62,12 @@ async function create(req, res) {
         ok: false,
         message: 'periodosIds debe ser un arreglo con al menos un periodo',
       });
+    }
+
+    // Resolver tipos (como strings desde FormData)
+    if (typeof usuarioId === 'string') usuarioId = parseInt(usuarioId);
+    if (typeof periodosIds === 'string') {
+      try { periodosIds = JSON.parse(periodosIds); } catch { periodosIds = periodosIds.split(',').map(Number); }
     }
 
     // Resolver tipoPermisoId por nombre si se envió tipoPermisoNombre
@@ -80,6 +87,12 @@ async function create(req, res) {
       });
     }
 
+    // Ruta del archivo subido (si viene en la petición)
+    let adjuntoUrl = null;
+    if (req.file) {
+      adjuntoUrl = `/uploads/permisos/${req.file.filename}`;
+    }
+
     const permiso = await prisma.$transaction(async (tx) => {
       const nuevoPermiso = await tx.permiso.create({
         data: {
@@ -88,11 +101,13 @@ async function create(req, res) {
           fecha: new Date(fecha),
           motivo,
           estado: estado || 'PENDIENTE',
+          observacion: observacion || null,
+          adjuntoUrl,
         },
       });
 
       await tx.permisoPeriodo.createMany({
-        data: periodosIds.map((periodoId) => ({
+        data: (Array.isArray(periodosIds) ? periodosIds : []).map((periodoId) => ({
           permisoId: nuevoPermiso.id,
           periodoId: parseInt(periodoId),
         })),

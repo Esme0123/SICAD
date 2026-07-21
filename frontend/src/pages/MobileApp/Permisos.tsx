@@ -17,6 +17,8 @@ interface PermisoBackend {
   fecha: string;
   motivo: string;
   estado: "PENDIENTE" | "APROBADO" | "RECHAZADO";
+  observacion?: string | null;
+  adjuntoUrl?: string | null;
   revisadoPor?: number | null;
   fechaRevision?: string | null;
   createdAt: string;
@@ -343,13 +345,34 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
     if (!user || !motivo || selectedPeriodos.length === 0) return;
     setSubmitting(true);
     try {
-      await apiPost("/permisos", {
-        usuarioId: user.id,
-        tipoPermisoNombre: motivo,
-        fecha,
-        motivo: detalle || motivo,
-        periodosIds: selectedPeriodos,
-      });
+      if (archivo) {
+        const formData = new FormData();
+        formData.append("usuarioId", String(user.id));
+        formData.append("tipoPermisoNombre", motivo);
+        formData.append("fecha", fecha);
+        formData.append("motivo", detalle || motivo);
+        formData.append("periodosIds", JSON.stringify(selectedPeriodos));
+        formData.append("observacion", detalle || "");
+        formData.append("archivo", archivo);
+
+        const token = localStorage.getItem("sicad_emp_token");
+        const res = await fetch(`${API}/permisos`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.message || "Error de API");
+      } else {
+        await apiPost("/permisos", {
+          usuarioId: user.id,
+          tipoPermisoNombre: motivo,
+          fecha,
+          motivo: detalle || motivo,
+          observacion: detalle || "",
+          periodosIds: selectedPeriodos,
+        });
+      }
       onSuccess();
     } catch {
       alert("Error al crear el permiso. Intenta de nuevo.");
@@ -535,19 +558,42 @@ interface DetallePermisoModalProps {
   onClose: () => void;
 }
 
+function formatDateSafe(dateStr: string | undefined | null, options?: Intl.DateTimeFormatOptions): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("es-BO", options);
+  } catch {
+    return "—";
+  }
+}
+
+function formatDateTimeSafe(dateStr: string | undefined | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("es-BO");
+  } catch {
+    return "—";
+  }
+}
+
 const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onClose }) => {
   const cfg = estadoConfig[permiso.estado] || estadoConfig.PENDIENTE;
   const Icon = cfg.icon;
+  const API_URL = import.meta.env.VITE_API_URL;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.5)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl"
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col"
         style={{ background: "var(--card)" }}
       >
-        <div className="flex items-center justify-between p-4 border-b"
+        <div className="flex items-center justify-between p-4 border-b shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
           <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Detalle del Permiso</h2>
@@ -556,7 +602,7 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="overflow-y-auto p-4 space-y-4 flex-1">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
@@ -578,7 +624,7 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
             <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted-foreground)" }}>
               <Calendar size={14} />
               <span className="font-medium" style={{ color: "var(--foreground)" }}>
-                {new Date(permiso.fecha + "T00:00:00").toLocaleDateString("es-BO", {
+                {formatDateSafe(permiso.fecha, {
                   weekday: "long", day: "numeric", month: "long", year: "numeric",
                 })}
               </span>
@@ -588,6 +634,26 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
               <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Motivo</p>
               <p className="text-sm" style={{ color: "var(--foreground)" }}>{permiso.motivo}</p>
             </div>
+
+            {permiso.observacion && (
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Observación</p>
+                <p className="text-sm" style={{ color: "var(--foreground)" }}>{permiso.observacion}</p>
+              </div>
+            )}
+
+            {permiso.adjuntoUrl && (
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Archivo Adjunto</p>
+                <a href={`${API_URL}${permiso.adjuntoUrl}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-all"
+                  style={{ borderColor: "var(--border)", background: "var(--input-background)", color: "var(--primary)" }}
+                >
+                  <Upload size={14} />
+                  Ver archivo adjunto
+                </a>
+              </div>
+            )}
 
             {permiso.periodos && permiso.periodos.length > 0 && (
               <div>
@@ -613,12 +679,12 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
 
             {permiso.fechaRevision && (
               <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
-                Revisado: {new Date(permiso.fechaRevision).toLocaleString("es-BO")}
+                Revisado: {formatDateTimeSafe(permiso.fechaRevision)}
               </div>
             )}
 
             <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
-              Solicitado: {new Date(permiso.createdAt).toLocaleString("es-BO")}
+              Solicitado: {formatDateTimeSafe(permiso.createdAt)}
             </div>
           </div>
 

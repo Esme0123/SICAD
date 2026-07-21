@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Calendar as CalendarIcon, Clock, Filter, CheckCircle2, AlertCircle, XCircle, X } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, Filter, CheckCircle2, AlertCircle, XCircle, X, Eye, FileText, Download } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { COLORS } from "@/theme/colors";
 import { card } from "@/utils/card";
@@ -64,6 +64,8 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
   const [filterEmp, setFilterEmp] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+
+  const [detailPermiso, setDetailPermiso] = useState<PermisoBackend | null>(null);
 
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
   const [formDate, setFormDate] = useState("");
@@ -164,8 +166,21 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    } catch { return "—"; }
+  };
+
+  const formatDateTimeSafe = (iso: string | undefined | null) => {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleString("es-BO");
+    } catch { return "—"; }
   };
 
   const renderTypeBadge = (typeId: string) => {
@@ -291,26 +306,34 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                         {renderStatus(statusDisplay)}
                       </td>
                       <td className="px-5 py-4">
-                        {leave.estado === "PENDIENTE" ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleCambiarEstado(leave.id, "APROBADO")}
-                              disabled={loadingAction === leave.id}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-                            >
-                              {loadingAction === leave.id ? "..." : "Aprobar"}
-                            </button>
-                            <button
-                              onClick={() => handleCambiarEstado(leave.id, "RECHAZADO")}
-                              disabled={loadingAction === leave.id}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-                            >
-                              {loadingAction === leave.id ? "..." : "Rechazar"}
-                            </button>
-                          </div>
-                        ) : (
-                          <span className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>—</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setDetailPermiso(leave)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                            style={{ color: dark ? "#93C5FD" : "#3B82F6", background: dark ? "rgba(59,130,246,0.1)" : "rgba(59,130,246,0.08)" }}
+                          >
+                            <Eye size={14} className="inline mr-1" />
+                            Detalle
+                          </button>
+                          {leave.estado === "PENDIENTE" ? (
+                            <>
+                              <button
+                                onClick={() => handleCambiarEstado(leave.id, "APROBADO")}
+                                disabled={loadingAction === leave.id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                              >
+                                {loadingAction === leave.id ? "..." : "Aprobar"}
+                              </button>
+                              <button
+                                onClick={() => handleCambiarEstado(leave.id, "RECHAZADO")}
+                                disabled={loadingAction === leave.id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                              >
+                                {loadingAction === leave.id ? "..." : "Rechazar"}
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -326,6 +349,128 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
           </table>
         </div>
       </div>
+
+      {detailPermiso && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setDetailPermiso(null); }}
+        >
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+              <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>Detalle del Permiso</h3>
+              <button onClick={() => setDetailPermiso(null)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-base font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+                    {detailPermiso.tipoPermiso?.nombre || "Permiso"}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
+                    ID #{detailPermiso.id} • {detailPermiso.usuario?.nombre}
+                  </p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                  detailPermiso.estado === "APROBADO" ? "text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30" :
+                  detailPermiso.estado === "RECHAZADO" ? "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30" :
+                  "text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30"
+                }`}>
+                  {detailPermiso.estado === "APROBADO" ? <CheckCircle2 size={14} /> :
+                   detailPermiso.estado === "RECHAZADO" ? <XCircle size={14} /> :
+                   <AlertCircle size={14} />}
+                  {STATUS_MAP[detailPermiso.estado] || detailPermiso.estado}
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Fecha</p>
+                  <p className={`text-sm font-medium ${dark ? "text-white/80" : "text-slate-700"}`}>
+                    {formatDate(detailPermiso.fecha)}
+                    <span className={`ml-2 text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
+                      ({getLocalDayFromDate(detailPermiso.fecha)})
+                    </span>
+                  </p>
+                </div>
+
+                <div>
+                  <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Motivo</p>
+                  <p className={`text-sm font-medium ${dark ? "text-white/80" : "text-slate-700"}`}>{detailPermiso.motivo}</p>
+                </div>
+
+                {detailPermiso.observacion && (
+                  <div>
+                    <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Observación del Empleado</p>
+                    <div className={`p-3 rounded-lg text-sm ${dark ? "bg-white/5 text-white/70 border border-white/10" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>
+                      {detailPermiso.observacion}
+                    </div>
+                  </div>
+                )}
+
+                {detailPermiso.periodos && detailPermiso.periodos.length > 0 && (
+                  <div>
+                    <p className={`text-xs font-medium mb-1.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
+                      Periodos Afectados ({detailPermiso.periodos.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {detailPermiso.periodos.map((pp, i) => (
+                        <span key={i} className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium border ${dark ? "bg-white/5 border-white/10 text-white/70" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                          <Clock size={11} className="inline mr-1 opacity-60" />
+                          {pp.periodo.horaInicio}–{pp.periodo.horaFin}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {detailPermiso.adjuntoUrl && (
+                  <div>
+                    <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Archivo Adjunto</p>
+                    <a href={`${import.meta.env.VITE_API_URL}${detailPermiso.adjuntoUrl}`} target="_blank" rel="noopener noreferrer"
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all cursor-pointer ${
+                        dark ? "bg-blue-600/10 border-blue-500/30 text-blue-400 hover:bg-blue-600/20" : "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                      }`}
+                    >
+                      <FileText size={16} />
+                      Ver Documento
+                      <Download size={14} className="ml-1" />
+                    </a>
+                  </div>
+                )}
+
+                {(detailPermiso.fechaRevision || detailPermiso.revisadoPor) && (
+                  <div className={`p-3 rounded-lg ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-200"}`}>
+                    <p className={`text-xs font-medium ${dark ? "text-white/50" : "text-slate-400"}`}>
+                      Revisado {detailPermiso.fechaRevision ? formatDateTimeSafe(detailPermiso.fechaRevision) : "—"}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
+                      Solicitado: {formatDateTimeSafe(detailPermiso.createdAt)}
+                    </p>
+                  </div>
+                )}
+
+                {!detailPermiso.fechaRevision && !detailPermiso.revisadoPor && (
+                  <div className={`p-3 rounded-lg ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+                    <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
+                      Solicitado: {formatDateTimeSafe(detailPermiso.createdAt)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`flex items-center justify-end px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+              <button onClick={() => setDetailPermiso(null)}
+                className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${dark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"}`}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
