@@ -433,23 +433,30 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      {resumen && !loading && (
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: "Total", value: resumen.total, color: "text-foreground", bg: "bg-card" },
-            { label: "Puntual", value: resumen.puntual, color: "text-success", bg: "bg-success/10" },
-            { label: "Atrasos", value: resumen.tardanza, color: "text-warning", bg: "bg-warning/10" },
-            { label: "Justif.", value: resumen.justificado, color: "text-primary", bg: "bg-primary/10" },
+      <div className="grid grid-cols-4 gap-2">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
+              <div className="h-6 bg-muted rounded w-8 mx-auto mb-1" />
+              <div className="h-3 bg-muted rounded w-12 mx-auto" />
+            </div>
+          ))
+        ) : resumen ? (
+          [
+            { label: "Total", value: resumen.total },
+            { label: "Puntual", value: resumen.puntual, clr: "var(--color-success)", bg: "color-mix(in srgb, var(--color-success) 10%, transparent)" },
+            { label: "Atrasos", value: resumen.tardanza, clr: "var(--color-warning)", bg: "color-mix(in srgb, var(--color-warning) 10%, transparent)" },
+            { label: "Justif.", value: resumen.justificado, clr: "var(--primary)", bg: "color-mix(in srgb, var(--primary) 10%, transparent)" },
           ].map((s) => (
-            <div key={s.label} className={`rounded-xl p-3 text-center border`}
-              style={{ background: s.bg === "bg-card" ? "var(--card)" : undefined, borderColor: "var(--border)" }}
+            <div key={s.label} className="rounded-xl p-3 text-center border"
+              style={{ background: s.bg || "var(--card)", borderColor: "var(--border)" }}
             >
-              <p className="text-lg font-black" style={{ color: `var(--${s.color === "text-foreground" ? "foreground" : s.color === "text-success" ? "color-success" : s.color === "text-warning" ? "color-warning" : "color-primary"})` }}>{s.value}</p>
+              <p className="text-lg font-black" style={{ color: s.clr || "var(--foreground)" }}>{s.value}</p>
               <p className="text-[10px] font-medium mt-0.5" style={{ color: "var(--muted-foreground)" }}>{s.label}</p>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        ) : null}
+      </div>
 
       {/* Lista */}
       {loading ? (

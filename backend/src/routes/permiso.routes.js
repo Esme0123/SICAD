@@ -1,7 +1,8 @@
 // src/routes/permiso.routes.js
 
 const { Router } = require('express');
-const { getAll, getById, create, cambiarEstado } = require('../controllers/permiso.controller');
+const { getAll, getById, create, cambiarEstado, misPermisos } = require('../controllers/permiso.controller');
+const { authMiddleware } = require('../middlewares/auth.middleware');
 const prisma = require('../config/db');
 
 const router = Router();
@@ -16,8 +17,9 @@ router.get('/tipos',            async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener tipos de permiso' });
   }
 });
+router.get('/mis-permisos',     authMiddleware, misPermisos);
 router.get('/:id',              getById);
-router.post('/',                create);
+router.post('/',                authMiddleware, create);
 router.patch('/:id/estado',     cambiarEstado);
 
 module.exports = router;

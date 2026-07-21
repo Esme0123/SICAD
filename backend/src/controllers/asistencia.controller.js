@@ -856,7 +856,9 @@ async function getEstadoHoy(req, res) {
 async function miHistorial(req, res) {
   try {
     const usuarioId = parseInt(req.usuario.id);
-    if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
+    if (isNaN(usuarioId)) {
+      return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+    }
 
     const ahoraBolivia = getBoliviaDate();
     let startDate, endDate;
@@ -864,12 +866,21 @@ async function miHistorial(req, res) {
     const { fechaInicio, fechaFin } = req.query;
 
     if (fechaInicio && fechaFin) {
+      const reDate = /^\d{4}-\d{2}-\d{2}$/;
+      if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+      }
       startDate = new Date(fechaInicio + "T04:00:00.000Z");
       endDate   = new Date(fechaFin   + "T27:59:59.999Z");
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+      }
     } else {
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
       const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
-      if (mes < 1 || mes > 12) return res.status(400).json({ ok: false, message: 'Mes inválido (1-12)' });
+      if (mes < 1 || mes > 12) {
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+      }
       startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
       endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
     }
@@ -882,16 +893,13 @@ async function miHistorial(req, res) {
       orderBy: { fecha: 'desc' },
     });
 
-    // Determinar estado por cada registro
     const data = asistencias.map((a) => {
-      const obs = a.observacion || '';
+      const obs = (a.observacion || '').toLowerCase();
       let estado = 'Puntual';
-      if (obs.startsWith('Llegó') || obs.toLowerCase().includes('tarde')) {
+      if (obs.startsWith('llegó') || obs.includes('tarde')) {
         estado = 'Tardanza';
-      } else if (obs.includes('permiso') || obs.includes('Permiso')) {
+      } else if (obs.includes('permiso') || obs.includes('justificado')) {
         estado = 'Justificado';
-      } else if (a.salidaOmitida) {
-        estado = 'Puntual';
       }
 
       const fmtTime = (d) =>
@@ -906,7 +914,7 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: a.periodo,
+        periodo: a.periodo || null,
         observacion: a.observacion,
         salidaOmitida: a.salidaOmitida,
       };
@@ -924,7 +932,7 @@ async function miHistorial(req, res) {
     });
   } catch (error) {
     console.error('[asistencia.miHistorial]', error);
-    res.status(500).json({ ok: false, message: 'Error al obtener historial' });
+    res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
   }
 }
 

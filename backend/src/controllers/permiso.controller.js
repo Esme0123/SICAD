@@ -152,4 +152,60 @@ async function cambiarEstado(req, res) {
   }
 }
 
-module.exports = { getAll, getById, create, cambiarEstado };
+// GET /api/permisos/mis-permisos
+// Devuelve los permisos del empleado autenticado (desde JWT del móvil)
+// Query: ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD o ?mes=1-12&anio=YYYY
+async function misPermisos(req, res) {
+  try {
+    const usuarioId = parseInt(req.usuario.id);
+    if (isNaN(usuarioId)) {
+      return res.json({ ok: true, data: [] });
+    }
+
+    const ahoraBolivia = new Date(new Date().toLocaleString("en-US", { timeZone: "America/La_Paz" }));
+    let fechaFilter = {};
+
+    const { fechaInicio, fechaFin } = req.query;
+
+    if (fechaInicio && fechaFin) {
+      const reDate = /^\d{4}-\d{2}-\d{2}$/;
+      if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
+        return res.json({ ok: true, data: [] });
+      }
+      const startDate = new Date(fechaInicio + "T04:00:00.000Z");
+      const endDate   = new Date(fechaFin   + "T27:59:59.999Z");
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.json({ ok: true, data: [] });
+      }
+      fechaFilter = { gte: startDate, lte: endDate };
+    } else {
+      const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
+      const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
+      if (mes < 1 || mes > 12) {
+        return res.json({ ok: true, data: [] });
+      }
+      const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
+      const endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
+      fechaFilter = { gte: startDate, lte: endDate };
+    }
+
+    const permisos = await prisma.permiso.findMany({
+      where: {
+        usuarioId,
+        fecha: fechaFilter,
+      },
+      include: {
+        tipoPermiso: { select: { nombre: true } },
+        periodos: { include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ ok: true, data: permisos });
+  } catch (error) {
+    console.error('[permiso.misPermisos]', error);
+    res.json({ ok: true, data: [] });
+  }
+}
+
+module.exports = { getAll, getById, create, cambiarEstado, misPermisos };
