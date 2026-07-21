@@ -130,7 +130,7 @@ async function asignar(req, res) {
     // Notificar al empleado sobre el cambio de horario
     crearNotificacion({
       titulo: 'Horario Actualizado',
-      mensaje: 'Se han actualizado tus periodos u horarios asignados. Consulta la sección Mis Horarios.',
+      mensaje: 'Tu horario de atención/clases ha sido actualizado por el administrador.',
       usuarioId: uid,
       paraRol: 'EMPLEADO',
     });

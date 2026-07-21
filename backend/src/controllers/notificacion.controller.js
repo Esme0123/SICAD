@@ -145,4 +145,77 @@ async function marcarAdminTodasLeidas(req, res) {
   }
 }
 
-module.exports = { crearNotificacion, misNotificaciones, noLeidas, marcarLeida, marcarTodasLeidas, notificacionesAdmin, noLeidasAdmin, marcarAdminLeida, marcarAdminTodasLeidas };
+// DELETE /api/notificaciones/:id
+// Elimina una notificación del empleado autenticado
+async function eliminarNotificacion(req, res) {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const notif = await prisma.notificacion.findUnique({ where: { id } });
+    if (!notif) return res.status(404).json({ ok: false, message: 'Notificación no encontrada' });
+    if (notif.usuarioId !== parseInt(req.usuario.id)) {
+      return res.status(403).json({ ok: false, message: 'No tienes permiso para eliminar esta notificación' });
+    }
+
+    await prisma.notificacion.delete({ where: { id } });
+    res.json({ ok: true, message: 'Notificación eliminada' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ ok: false, message: 'Notificación no encontrada' });
+    }
+    console.error('[notificacion.eliminar]', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar notificación' });
+  }
+}
+
+// DELETE /api/notificaciones/todas
+// Elimina todas las notificaciones del empleado autenticado
+async function eliminarTodasNotificaciones(req, res) {
+  try {
+    const usuarioId = parseInt(req.usuario.id);
+    await prisma.notificacion.deleteMany({ where: { usuarioId } });
+    res.json({ ok: true, message: 'Todas las notificaciones eliminadas' });
+  } catch (error) {
+    console.error('[notificacion.eliminarTodas]', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar notificaciones' });
+  }
+}
+
+// DELETE /api/notificaciones/admin/:id
+// Elimina una notificación admin (cualquier admin)
+async function eliminarAdminNotificacion(req, res) {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const notif = await prisma.notificacion.findUnique({ where: { id } });
+    if (!notif) return res.status(404).json({ ok: false, message: 'Notificación no encontrada' });
+    if (notif.paraRol !== 'ADMIN') {
+      return res.status(403).json({ ok: false, message: 'No es una notificación de administrador' });
+    }
+
+    await prisma.notificacion.delete({ where: { id } });
+    res.json({ ok: true, message: 'Notificación eliminada' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ ok: false, message: 'Notificación no encontrada' });
+    }
+    console.error('[notificacion.eliminarAdmin]', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar notificación' });
+  }
+}
+
+// DELETE /api/notificaciones/admin/todas
+// Elimina todas las notificaciones admin
+async function eliminarAdminTodasNotificaciones(req, res) {
+  try {
+    await prisma.notificacion.deleteMany({ where: { paraRol: 'ADMIN' } });
+    res.json({ ok: true, message: 'Todas las notificaciones de administrador eliminadas' });
+  } catch (error) {
+    console.error('[notificacion.eliminarAdminTodas]', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar notificaciones' });
+  }
+}
+
+module.exports = { crearNotificacion, misNotificaciones, noLeidas, marcarLeida, marcarTodasLeidas, notificacionesAdmin, noLeidasAdmin, marcarAdminLeida, marcarAdminTodasLeidas, eliminarNotificacion, eliminarTodasNotificaciones, eliminarAdminNotificacion, eliminarAdminTodasNotificaciones };

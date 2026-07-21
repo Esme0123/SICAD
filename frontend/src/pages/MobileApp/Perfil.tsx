@@ -86,19 +86,29 @@ export const MobilePerfil: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4 pb-8">
-      <div className="flex flex-col items-center gap-3 py-6">
-        <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-lg">
+      <div className="relative overflow-hidden rounded-2xl p-6 flex flex-col items-center gap-3"
+        style={{
+          background: "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 60%, var(--color-secondary, #7C3AED)) 100%)",
+        }}
+      >
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10"
+          style={{ background: "var(--primary-foreground)" }}
+        />
+        <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black shadow-lg relative"
+          style={{ background: "color-mix(in srgb, var(--primary-foreground) 20%, transparent)", color: "var(--primary-foreground)" }}
+        >
           {user.nombre.charAt(0).toUpperCase()}
         </div>
-        <div className="text-center">
-          <h2 className="text-lg font-bold text-foreground">{user.nombre}</h2>
-          <p className="text-xs text-muted-foreground">{user.codigo}</p>
+        <div className="text-center relative">
+          <h2 className="text-lg font-bold" style={{ color: "var(--primary-foreground)" }}>{user.nombre}</h2>
+          <p className="text-xs mt-0.5" style={{ color: "color-mix(in srgb, var(--primary-foreground) 70%, transparent)" }}>{user.codigo}</p>
         </div>
-        <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${
-          user.activo
-            ? "bg-success/10 text-success"
-            : "bg-destructive/10 text-destructive"
-        }`}>
+        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full relative"
+          style={{
+            background: "color-mix(in srgb, var(--primary-foreground) 15%, transparent)",
+            color: "var(--primary-foreground)",
+          }}
+        >
           {user.activo ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
           {user.activo ? "Activo" : "Inactivo"}
         </div>

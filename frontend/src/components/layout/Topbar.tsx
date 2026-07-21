@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, Sun, Moon, CheckCheck, ChevronRight, X, FileText, Loader } from "lucide-react";
+import { Bell, Sun, Moon, CheckCheck, ChevronRight, X, FileText, Loader, Trash2 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -83,6 +83,30 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
       headers: { Authorization: `Bearer ${token}` },
     });
     setNotifications((prev) => prev.map((n) => ({ ...n, leida: true })));
+    setNotifCount(0);
+  }, [token]);
+
+  const eliminarNotificacion = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!token) return;
+    await fetch(`${API}/notificaciones/admin/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setNotifications((prev) => {
+      const removed = prev.find((n) => n.id === id);
+      if (removed && !removed.leida) setNotifCount((c) => Math.max(0, c - 1));
+      return prev.filter((n) => n.id !== id);
+    });
+  }, [token]);
+
+  const eliminarTodasAdmin = useCallback(async () => {
+    if (!token) return;
+    await fetch(`${API}/notificaciones/admin/todas`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setNotifications([]);
     setNotifCount(0);
   }, [token]);
 
@@ -186,6 +210,16 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
               <div className={`flex items-center justify-between px-4 py-3 border-b ${dark ? "border-white/10" : "border-slate-100"}`}>
                 <span className={`text-sm font-bold ${dark ? "text-white" : "text-slate-800"}`}>Notificaciones</span>
                 <div className="flex items-center gap-2">
+                  {notifications.length > 0 && (
+                    <button onClick={eliminarTodasAdmin}
+                      className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded-lg transition-colors cursor-pointer ${
+                        dark ? "text-red-400 hover:bg-white/10" : "text-red-500 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Trash2 size={13} />
+                      Limpiar
+                    </button>
+                  )}
                   {notifications.some((n) => !n.leida) && (
                     <button onClick={markAllAsRead}
                       className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded-lg transition-colors cursor-pointer ${
@@ -217,7 +251,7 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
                   notifications.map((n) => (
                     <div key={n.id}
                       onClick={() => handleNotifClick(n)}
-                      className={`px-4 py-3 border-b cursor-pointer transition-colors ${
+                      className={`px-4 py-3 border-b cursor-pointer transition-colors group ${
                         !n.leida
                           ? (dark ? "bg-blue-600/5 border-white/10" : "bg-blue-50/50 border-slate-100")
                           : (dark ? "border-white/5 hover:bg-white/3" : "border-slate-50 hover:bg-slate-50/50")
@@ -236,9 +270,20 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
                             <p className={`text-xs font-semibold truncate ${!n.leida ? (dark ? "text-white" : "text-slate-800") : (dark ? "text-white/60" : "text-slate-500")}`}>
                               {n.titulo}
                             </p>
-                            <span className={`text-[10px] whitespace-nowrap flex-shrink-0 ${dark ? "text-white/30" : "text-slate-400"}`}>
-                              {formatTimeAgo(n.createdAt)}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={(e) => eliminarNotificacion(n.id, e)}
+                                className={`p-1 rounded transition-all opacity-0 group-hover:opacity-100 ${
+                                  dark ? "text-red-400 hover:bg-white/10" : "text-red-500 hover:bg-slate-200"
+                                }`}
+                                title="Eliminar notificación"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                              <span className={`text-[10px] whitespace-nowrap ${dark ? "text-white/30" : "text-slate-400"}`}>
+                                {formatTimeAgo(n.createdAt)}
+                              </span>
+                            </div>
                           </div>
                           <p className={`text-[11px] mt-0.5 line-clamp-2 ${dark ? "text-white/50" : "text-slate-500"}`}>
                             {n.mensaje}

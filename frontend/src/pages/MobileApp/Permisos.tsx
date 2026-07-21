@@ -236,16 +236,25 @@ export const MobilePermisos: React.FC = () => {
             const Icon = cfg.icon;
             return (
               <div key={p.id} onClick={() => setDetailPermiso(p)}
-                className="bg-card border rounded-xl p-4 cursor-pointer transition-all hover:opacity-80"
-                style={{ borderColor: "var(--border)" }}
+                className="bg-card border rounded-xl p-4 cursor-pointer transition-all hover:opacity-80 relative overflow-hidden"
+                style={{
+                  borderColor: p.estado === 'PENDIENTE'
+                    ? "color-mix(in srgb, var(--color-warning, #F59E0B) 30%, transparent)"
+                    : "var(--border)",
+                }}
               >
-                <div className="flex items-start justify-between">
+                {p.estado === 'PENDIENTE' && (
+                  <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full"
+                    style={{ background: "var(--color-warning, #F59E0B)" }}
+                  />
+                )}
+                <div className="flex items-start justify-between pl-1">
                   <div className="space-y-1 flex-1 min-w-0">
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
                       {p.tipoPermiso?.nombre || "Permiso"}
                     </p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{p.motivo}</p>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
                       <span className="flex items-center gap-1">
                         <Clock size={10} />
                         {formatDateSafe(p.fecha)}
@@ -258,8 +267,8 @@ export const MobilePermisos: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2"
-                    style={{ background: `${cfg.bg}20`, color: cfg.border }}
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2"
+                    style={{ background: `${cfg.bg}20`, color: cfg.border, border: `1px solid ${cfg.bg}40` }}
                   >
                     <Icon size={10} />
                     <span>{cfg.label}</span>

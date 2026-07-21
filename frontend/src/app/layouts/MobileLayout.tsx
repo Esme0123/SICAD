@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck } from "lucide-react";
+import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2 } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 
 const API = import.meta.env.VITE_API_URL;
@@ -35,6 +35,17 @@ async function apiPatch(path: string) {
   const token = localStorage.getItem("sicad_emp_token");
   const res = await fetch(`${API}${path}`, {
     method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.message || "Error de API");
+  return json;
+}
+
+async function apiDelete(path: string) {
+  const token = localStorage.getItem("sicad_emp_token");
+  const res = await fetch(`${API}${path}`, {
+    method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
   const json = await res.json();
@@ -109,6 +120,22 @@ export const MobileLayout: React.FC = () => {
     } catch {}
   };
 
+  const eliminarNotificacion = async (id: number) => {
+    try {
+      await apiDelete(`/notificaciones/${id}`);
+      setNotis((prev) => prev.filter((n) => n.id !== id));
+      setNoLeidas((prev) => Math.max(0, prev - 1));
+    } catch {}
+  };
+
+  const eliminarTodas = async () => {
+    try {
+      await apiDelete("/notificaciones/todas");
+      setNotis([]);
+      setNoLeidas(0);
+    } catch {}
+  };
+
   if (!isAuthenticated) {
     return null;
   }
@@ -176,6 +203,11 @@ export const MobileLayout: React.FC = () => {
                   >
                     <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Notificaciones</h3>
                     <div className="flex items-center gap-1">
+                      {notis.length > 0 && (
+                        <button onClick={eliminarTodas} className="p-1 rounded hover:opacity-70" style={{ color: "var(--color-danger, #EF4444)" }} title="Eliminar todas">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                       {noLeidas > 0 && (
                         <button onClick={marcarTodasLeidas} className="p-1 rounded" style={{ color: "var(--muted-foreground)" }} title="Marcar todas como leídas">
                           <CheckCheck size={14} />
@@ -196,25 +228,34 @@ export const MobileLayout: React.FC = () => {
                         {notis.map((n) => (
                           <div
                             key={n.id}
-                            onClick={() => !n.leida && marcarLeida(n.id)}
-                            className="px-4 py-3 cursor-pointer transition-colors"
+                            className="px-4 py-3 transition-colors group"
                             style={{
                               background: n.leida ? "transparent" : "color-mix(in srgb, var(--primary) 4%, transparent)",
                             }}
                           >
                             <div className="flex items-start gap-2">
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => !n.leida && marcarLeida(n.id)}>
                                 <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{n.titulo}</p>
                                 <p className="text-[11px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>{n.mensaje}</p>
                                 <p className="text-[9px] mt-1" style={{ color: "var(--muted-foreground)" }}>
                                   {new Date(n.createdAt).toLocaleString("es-BO")}
                                 </p>
                               </div>
-                              {!n.leida && (
-                                <div className="w-2 h-2 rounded-full shrink-0 mt-1"
-                                  style={{ background: "var(--primary)" }}
-                                />
-                              )}
+                              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                <button
+                                  onClick={() => eliminarNotificacion(n.id)}
+                                  className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                  style={{ color: "var(--color-danger, #EF4444)" }}
+                                  title="Eliminar notificación"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                                {!n.leida && (
+                                  <div className="w-2 h-2 rounded-full"
+                                    style={{ background: "var(--primary)" }}
+                                  />
+                                )}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -266,12 +307,17 @@ export const MobileLayout: React.FC = () => {
                 <NavLink
                   key={to}
                   to={to}
-                  className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors"
+                  className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all relative"
                   style={{ color: isActive ? "var(--primary)" : "var(--muted-foreground)" }}
                   onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = "var(--foreground)"; }}
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = "var(--muted-foreground)"; }}
                 >
-                  <Icon size={20} />
+                  {isActive && (
+                    <div className="absolute -top-px left-1/4 right-1/4 h-0.5 rounded-b-full"
+                      style={{ background: "var(--primary)" }}
+                    />
+                  )}
+                  <Icon size={isActive ? 22 : 20} strokeWidth={isActive ? 2.5 : 2} />
                   <span className="text-[10px] font-medium">{label}</span>
                 </NavLink>
               );
