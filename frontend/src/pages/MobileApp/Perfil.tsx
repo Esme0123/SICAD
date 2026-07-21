@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Hash, BadgeCheck, Shield, Phone, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Key } from "lucide-react";
+import { User, Mail, Hash, BadgeCheck, Shield, Phone, Clock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Key } from "lucide-react";
 import { cambiarPassword as cambiarPasswordApi } from "@/services/employee.service";
 
 export const MobilePerfil: React.FC = () => {
@@ -73,6 +73,15 @@ export const MobilePerfil: React.FC = () => {
     { icon: Mail, label: "Correo electrónico", value: user.email },
     { icon: Phone, label: "Celular", value: user.celular || "No registrado" },
     { icon: Shield, label: "Cargo / Rol", value: user.rol === "EMPLEADO" ? "Empleado" : user.rol },
+    {
+      icon: Clock,
+      label: "Carga Horaria",
+      value: user.horasBase >= 40
+        ? `${user.horasBase} Horas (Tiempo Completo)`
+        : user.horasBase > 0
+          ? `${user.horasBase} Horas (Medio Tiempo)`
+          : "No definida",
+    },
   ];
 
   return (

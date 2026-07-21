@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 
 export const MobileInicio: React.FC = () => {
   const { user } = useEmployeeAuth();
+  const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -60,20 +62,20 @@ export const MobileInicio: React.FC = () => {
       <div className="bg-card border border-border rounded-2xl p-4">
         <h3 className="text-sm font-bold text-foreground mb-3">Acceso Rápido</h3>
         <div className="grid grid-cols-2 gap-3">
-          <a
-            href="/app/horarios"
-            className="flex flex-col items-center gap-2 bg-muted rounded-xl p-4 hover:bg-muted/80 transition-colors"
+          <button
+            onClick={() => navigate("/app/horarios")}
+            className="flex flex-col items-center gap-2 bg-muted rounded-xl p-4 hover:bg-muted/80 transition-colors cursor-pointer"
           >
             <CalendarDays size={24} className="text-primary" />
             <span className="text-xs font-medium text-foreground">Mis Horarios</span>
-          </a>
-          <a
-            href="/app/permisos"
-            className="flex flex-col items-center gap-2 bg-muted rounded-xl p-4 hover:bg-muted/80 transition-colors"
+          </button>
+          <button
+            onClick={() => navigate("/app/permisos")}
+            className="flex flex-col items-center gap-2 bg-muted rounded-xl p-4 hover:bg-muted/80 transition-colors cursor-pointer"
           >
             <FileText size={24} className="text-primary" />
             <span className="text-xs font-medium text-foreground">Mis Permisos</span>
-          </a>
+          </button>
         </div>
       </div>
     </div>

@@ -83,10 +83,15 @@ export const MobileLayout: React.FC = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setNotis([]);
+      setNoLeidas(0);
+      return;
+    }
     fetchNotis();
     const interval = setInterval(fetchNotis, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotis]);
+  }, [isAuthenticated, fetchNotis]);
 
   const marcarLeida = async (id: number) => {
     try {

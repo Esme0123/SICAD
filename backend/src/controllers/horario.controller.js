@@ -3,6 +3,7 @@
 
 const prisma = require('../config/db');
 const { obtenerPeriodoActual } = require('../utils/periodo.utils');
+const { crearNotificacion } = require('./notificacion.controller');
 
 // ── GET /api/horarios/periodos ────────────────────────────────
 // Devuelve todos los periodos activos del catálogo
@@ -124,6 +125,14 @@ async function asignar(req, res) {
       });
 
       return { usuarioActualizado, horariosAsignados: todosLosHorarios.length };
+    });
+
+    // Notificar al empleado sobre el cambio de horario
+    crearNotificacion({
+      titulo: 'Horario Actualizado',
+      mensaje: 'Se han actualizado tus periodos u horarios asignados. Consulta la sección Mis Horarios.',
+      usuarioId: uid,
+      paraRol: 'EMPLEADO',
     });
 
     res.json({ ok: true, data: resultado });

@@ -222,8 +222,9 @@ async function misPermisos(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [] });
       }
-      const startDate = new Date(fechaInicio + "T04:00:00.000Z");
-      const endDate   = new Date(fechaFin   + "T27:59:59.999Z");
+      // America/La_Paz = UTC-4. Cubrir 00:00:00 a 23:59:59 hora local
+      const startDate = new Date(`${fechaInicio}T00:00:00.000-04:00`);
+      const endDate   = new Date(`${fechaFin}T23:59:59.999-04:00`);
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.json({ ok: true, data: [] });
       }
@@ -234,8 +235,10 @@ async function misPermisos(req, res) {
       if (mes < 1 || mes > 12) {
         return res.json({ ok: true, data: [] });
       }
-      const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
-      const endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
+      // Último día del mes: día 0 del mes siguiente
+      const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+      const startDate = new Date(`${anio}-${String(mes).padStart(2, '0')}-01T00:00:00.000-04:00`);
+      const endDate   = new Date(`${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}T23:59:59.999-04:00`);
       fechaFilter = { gte: startDate, lte: endDate };
     }
 
