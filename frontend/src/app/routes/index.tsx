@@ -17,6 +17,7 @@ import { ScanProcessor } from "@/pages/Mobile/ScanProcessor";
 import { MobileLogin } from "@/pages/MobileLogin";
 import { MobileInicio } from "@/pages/MobileApp/Inicio";
 import { MobileHorarios } from "@/pages/MobileApp/Horarios";
+import { MobileHistorial } from "@/pages/MobileApp/Historial";
 import { MobilePermisos } from "@/pages/MobileApp/Permisos";
 import { MobilePerfil } from "@/pages/MobileApp/Perfil";
 import { MobileMarcar } from "@/pages/Mobile/MarcarMobile";
@@ -54,6 +55,7 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         <Route index element={<Navigate to="/app/inicio" replace />} />
         <Route path="inicio" element={<MobileInicio />} />
         <Route path="horarios" element={<MobileHorarios />} />
+        <Route path="historial" element={<MobileHistorial />} />
         <Route path="permisos" element={<MobilePermisos />} />
         <Route path="perfil" element={<MobilePerfil />} />
       </Route>

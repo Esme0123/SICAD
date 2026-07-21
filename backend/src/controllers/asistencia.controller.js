@@ -846,5 +846,80 @@ async function getEstadoHoy(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, getEstadoHoy };
+/**
+ * GET /api/asistencia/mi-historial
+ * Auth: Requiere JWT de empleado
+ * Query: ?mes=1-12&anio=YYYY (default: mes y año actual en Bolivia)
+ *
+ * Devuelve las marcaciones del empleado autenticado en el mes especificado.
+ */
+async function miHistorial(req, res) {
+  try {
+    const usuarioId = parseInt(req.usuario.id);
+    if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
+
+    const ahoraBolivia = getBoliviaDate();
+    const anio  = parseInt(req.query.anio)  || ahoraBolivia.getFullYear();
+    const mes   = parseInt(req.query.mes)   || (ahoraBolivia.getMonth() + 1);
+
+    if (mes < 1 || mes > 12) return res.status(400).json({ ok: false, message: 'Mes inválido (1-12)' });
+
+    const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
+    const endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
+
+    const asistencias = await prisma.asistencia.findMany({
+      where: {
+        usuarioId,
+        fecha: { gte: startDate, lte: endDate },
+      },
+      orderBy: { fecha: 'desc' },
+    });
+
+    // Determinar estado por cada registro
+    const data = asistencias.map((a) => {
+      const obs = a.observacion || '';
+      let estado = 'Puntual';
+      if (obs.startsWith('Llegó') || obs.toLowerCase().includes('tarde')) {
+        estado = 'Tardanza';
+      } else if (obs.includes('permiso') || obs.includes('Permiso')) {
+        estado = 'Justificado';
+      } else if (a.salidaOmitida) {
+        estado = 'Puntual';
+      }
+
+      const fmtTime = (d) =>
+        d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
+
+      return {
+        id: a.id,
+        fecha: a.fecha,
+        fechaLegible: getBoliviaDate(a.fecha).toLocaleDateString('es-BO', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        }),
+        horaEntrada: fmtTime(a.horaEntrada),
+        horaSalida: fmtTime(a.horaSalida),
+        estado,
+        periodo: a.periodo,
+        observacion: a.observacion,
+        salidaOmitida: a.salidaOmitida,
+      };
+    });
+
+    res.json({
+      ok: true,
+      data,
+      resumen: {
+        total: data.length,
+        puntual: data.filter((d) => d.estado === 'Puntual').length,
+        tardanza: data.filter((d) => d.estado === 'Tardanza').length,
+        justificado: data.filter((d) => d.estado === 'Justificado').length,
+      },
+    });
+  } catch (error) {
+    console.error('[asistencia.miHistorial]', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener historial' });
+  }
+}
+
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, getEstadoHoy, miHistorial };
 

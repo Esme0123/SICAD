@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff } from "lucide-react";
@@ -16,6 +16,15 @@ export const MobileMarcar: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate        = useNavigate();
   const qrToken         = searchParams.get("qrToken") || searchParams.get("token") || "";
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setDark(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const [showPassword, setShowPassword] = useState(false);
   const [codigo, setCodigo] = useState("");
@@ -60,7 +69,8 @@ export const MobileMarcar: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+    <div className={`min-h-screen flex items-center justify-center p-6 ${dark ? "dark" : ""}`}
+      style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <motion.div
         initial={{ scale: 0.88, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
@@ -8,6 +8,15 @@ import { User, Key, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 export const MobileLogin: React.FC = () => {
   const { login } = useEmployeeAuth();
   const navigate = useNavigate();
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setDark(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const [codigo, setCodigo] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +51,8 @@ export const MobileLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+    <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${dark ? "dark" : ""}`}
+      style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
