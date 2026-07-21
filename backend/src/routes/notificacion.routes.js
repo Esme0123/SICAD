@@ -20,9 +20,9 @@ router.get('/admin/no-leidas',    noLeidasAdmin);
 router.patch('/admin/leer-todas', marcarAdminTodasLeidas);
 router.patch('/admin/leer/:id',   marcarAdminLeida);
 
-// DELETE - Empleado
-router.delete('/:id',             eliminarNotificacion);
+// DELETE - Empleado (estática /todas antes que /:id para evitar colisión)
 router.delete('/todas',           eliminarTodasNotificaciones);
+router.delete('/:id',             eliminarNotificacion);
 
 // DELETE - Admin
 router.delete('/admin/:id',       eliminarAdminNotificacion);

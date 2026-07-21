@@ -69,11 +69,17 @@ async function getInstitutionName(): Promise<string> {
 export const MobileHorarios: React.FC = () => {
   const { user } = useEmployeeAuth();
 
+  // Seleccionar día actual automáticamente (domingo → lunes)
+  const getTodayIndex = () => {
+    const day = new Date().getDay(); // 0=Dom, 1=Lun, …, 6=Sáb
+    return day === 0 ? 0 : day - 1;
+  };
+
   const [periodosAcademicos, setPeriodosAcademicos] = useState<string[]>([]);
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
   const [periodosCatalogo, setPeriodosCatalogo] = useState<PeriodoCatalogo[]>([]);
   const [asignaciones, setAsignaciones] = useState<HorarioAsignado[]>([]);
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(getTodayIndex());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
 

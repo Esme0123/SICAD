@@ -93,6 +93,27 @@ async function create(req, res) {
       });
     }
 
+    // Validar que no exista permiso duplicado (mismo día y periodos, estado PENDIENTE o APROBADO)
+    const permisoExistente = await prisma.permiso.findFirst({
+      where: {
+        usuarioId: parseInt(usuarioId),
+        fecha: new Date(fecha),
+        estado: { in: ['PENDIENTE', 'APROBADO'] },
+        periodos: {
+          some: {
+            periodoId: { in: periodosIds.map(Number) },
+          },
+        },
+      },
+    });
+
+    if (permisoExistente) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Ya tienes una solicitud pendiente o aprobada para uno o más de los periodos seleccionados.',
+      });
+    }
+
     // Ruta del archivo subido (si viene en la petición)
     let adjuntoUrl = null;
     if (req.file) {

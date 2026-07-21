@@ -383,8 +383,8 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
         });
       }
       onSuccess();
-    } catch {
-      alert("Error al crear el permiso. Intenta de nuevo.");
+    } catch (err: any) {
+      alert(err?.message || "Error al crear el permiso. Intenta de nuevo.");
     } finally {
       setSubmitting(false);
     }
