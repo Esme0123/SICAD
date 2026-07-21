@@ -245,10 +245,10 @@ export const MobilePermisos: React.FC = () => {
                       {p.tipoPermiso?.nombre || "Permiso"}
                     </p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{p.motivo}</p>
-                    <div className="flex items-center gap-3 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
                       <span className="flex items-center gap-1">
                         <Clock size={10} />
-                        {new Date(p.fecha + "T00:00:00").toLocaleDateString("es-BO")}
+                        {formatDateSafe(p.fecha)}
                       </span>
                       {p.periodos && p.periodos.length > 0 && (
                         <span className="flex items-center gap-1">
@@ -389,105 +389,90 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
   const puedeEnviar = !!motivo && selectedPeriodos.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col"
-        style={{ background: "var(--card)" }}
-      >
-        <div className="flex items-center justify-between p-4 border-b shrink-0"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Nuevo Permiso</h2>
-          <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "var(--muted-foreground)" }}>
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900">
+        <div className="flex items-center justify-between p-4 border-b shrink-0 border-slate-200 dark:border-slate-700">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Nuevo Permiso</h2>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-500 dark:text-slate-400">
             <X size={18} />
           </button>
         </div>
 
         <div className="overflow-y-auto p-4 space-y-4 flex-1">
           <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Empleado</label>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm"
-              style={{ background: "var(--input-background)", borderColor: "var(--border)", color: "var(--foreground)" }}
-            >
-              <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold"
-                style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
-              >
+            <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">Empleado</label>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold bg-primary text-white">
                 {user?.nombre?.charAt(0) || "U"}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.nombre || "—"}</p>
-                <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{user?.codigo || "—"}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{user?.codigo || "—"}</p>
               </div>
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Fecha</label>
+            <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">Fecha</label>
             <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-              className="w-full rounded-xl px-4 py-2.5 text-sm font-medium border"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", borderColor: "var(--border)" }}
+              className="w-full rounded-xl px-4 py-2.5 text-sm font-medium border bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700"
             />
           </div>
 
           {esFinde ? (
-            <p className="text-xs py-2 px-3 rounded-xl" style={{ color: "var(--muted-foreground)", background: "color-mix(in srgb, var(--muted-foreground) 8%, transparent)" }}>
+            <p className="text-xs py-2 px-3 rounded-xl text-slate-500 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-800/50">
               No hay periodos disponibles los domingos.
             </p>
           ) : periodosLoaded && periodosDisponibles.length === 0 ? (
-            <p className="text-xs py-2 px-3 rounded-xl" style={{ color: "var(--color-warning)", background: "color-mix(in srgb, var(--color-warning) 10%, transparent)" }}>
+            <p className="text-xs py-2 px-3 rounded-xl text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
               Sin periodos asignados para esta fecha. Selecciona otro día.
             </p>
           ) : periodosDisponibles.length > 0 ? (
             <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Periodos a cubrir</label>
+              <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">Periodos a cubrir</label>
               <div className="space-y-1.5">
                 {periodosDisponibles.map((p) => {
                   const sel = selectedPeriodos.includes(p.id);
                   return (
                     <button key={p.id} onClick={() => togglePeriodo(p.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-all"
-                      style={{
-                        background: sel ? "color-mix(in srgb, var(--primary) 8%, transparent)" : "var(--input-background)",
-                        borderColor: sel ? "var(--primary)" : "var(--border)",
-                        color: "var(--foreground)",
-                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-all ${
+                        sel
+                          ? "bg-primary/10 dark:bg-primary/20 border-primary text-slate-900 dark:text-slate-100"
+                          : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                      }`}
                     >
-                      <div className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all"
-                        style={{
-                          borderColor: sel ? "var(--primary)" : "var(--muted-foreground)",
-                          background: sel ? "var(--primary)" : "transparent",
-                        }}
-                      >
-                        {sel && <div className="w-2 h-2 rounded-[1px]" style={{ background: "var(--primary-foreground)" }} />}
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                        sel ? "border-primary bg-primary" : "border-slate-400 dark:border-slate-500 bg-transparent"
+                      }`}>
+                        {sel && <div className="w-2 h-2 rounded-[1px] bg-white" />}
                       </div>
                       <span className="font-mono text-xs font-bold">{p.horaInicio} - {p.horaFin}</span>
-                      <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{p.nombre}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">{p.nombre}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
           ) : (
-            <p className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-xs py-2 text-slate-500 dark:text-slate-400">
               Cargando periodos...
             </p>
           )}
 
           <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>Motivo del Permiso</label>
+            <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">Motivo del Permiso</label>
             <div className="grid grid-cols-2 gap-2">
               {MOTIVOS_PREDEFINIDOS.map((m) => {
                 const sel = motivo === m;
                 return (
                   <button key={m} onClick={() => setMotivo(m)}
-                    className="px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all"
-                    style={{
-                      background: sel ? "var(--primary)" : "var(--input-background)",
-                      color: sel ? "var(--primary-foreground)" : "var(--foreground)",
-                      borderColor: sel ? "var(--primary)" : "var(--border)",
-                    }}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                      sel
+                        ? "bg-primary text-white border-primary"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                    }`}
                   >
                     {m}
                   </button>
@@ -497,30 +482,27 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>
+            <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">
               Detalle / Observación <span className="font-normal">(opcional)</span>
             </label>
             <textarea value={detalle} onChange={(e) => setDetalle(e.target.value)}
               rows={3} placeholder="Escribe una explicación..."
-              className="w-full rounded-xl px-4 py-2.5 text-sm border resize-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", borderColor: "var(--border)" }}
+              className="w-full rounded-xl px-4 py-2.5 text-sm border resize-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>
+            <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">
               Adjuntar archivo <span className="font-normal">(opcional)</span>
             </label>
-            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border cursor-pointer text-sm"
-              style={{ background: "var(--input-background)", borderColor: "var(--border)", color: "var(--foreground)" }}
-            >
-              <Upload size={16} style={{ color: "var(--muted-foreground)" }} />
+            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border cursor-pointer text-sm bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
+              <Upload size={16} className="text-slate-500 dark:text-slate-400" />
               <span className="flex-1 truncate">{archivo ? archivo.name : "Seleccionar archivo..."}</span>
               <input type="file" accept="image/*,.pdf,.doc,.docx" className="hidden"
                 onChange={(e) => setArchivo(e.target.files?.[0] || null)}
               />
               {archivo && (
-                <button onClick={(e) => { e.preventDefault(); setArchivo(null); }} style={{ color: "var(--destructive)" }}>
+                <button onClick={(e) => { e.preventDefault(); setArchivo(null); }} className="text-red-500 dark:text-red-400">
                   <X size={14} />
                 </button>
               )}
@@ -529,16 +511,14 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
         </div>
 
         {/* Fixed Footer */}
-        <div className="p-4 border-t shrink-0 flex gap-3" style={{ borderColor: "var(--border)" }}>
+        <div className="p-4 border-t shrink-0 flex gap-3 border-slate-200 dark:border-slate-700">
           <button onClick={onClose}
-            className="flex-1 py-3 rounded-xl text-sm font-bold border transition-all"
-            style={{ borderColor: "var(--border)", color: "var(--foreground)", background: "var(--input-background)" }}
+            className="flex-1 py-3 rounded-xl text-sm font-bold border transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
           >
             Cancelar
           </button>
           <button onClick={handleSubmit} disabled={submitting || !puedeEnviar}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 bg-primary text-white"
           >
             <Send size={16} />
             {submitting ? "Enviando..." : "Enviar Solicitud"}
@@ -586,18 +566,13 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
   const API_URL = import.meta.env.VITE_API_URL;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col"
-        style={{ background: "var(--card)" }}
-      >
-        <div className="flex items-center justify-between p-4 border-b shrink-0"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Detalle del Permiso</h2>
-          <button onClick={onClose} className="p-1 rounded-lg" style={{ color: "var(--muted-foreground)" }}>
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900">
+        <div className="flex items-center justify-between p-4 border-b shrink-0 border-slate-200 dark:border-slate-700">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Detalle del Permiso</h2>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-500 dark:text-slate-400">
             <X size={18} />
           </button>
         </div>
@@ -605,10 +580,10 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
         <div className="overflow-y-auto p-4 space-y-4 flex-1">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {permiso.tipoPermiso?.nombre || "Permiso"}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">
                 ID #{permiso.id}
               </p>
             </div>
@@ -621,9 +596,9 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted-foreground)" }}>
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <Calendar size={14} />
-              <span className="font-medium" style={{ color: "var(--foreground)" }}>
+              <span className="font-medium text-slate-900 dark:text-slate-100">
                 {formatDateSafe(permiso.fecha, {
                   weekday: "long", day: "numeric", month: "long", year: "numeric",
                 })}
@@ -631,23 +606,22 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
             </div>
 
             <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Motivo</p>
-              <p className="text-sm" style={{ color: "var(--foreground)" }}>{permiso.motivo}</p>
+              <p className="text-xs font-semibold mb-1 text-slate-500 dark:text-slate-400">Motivo</p>
+              <p className="text-sm text-slate-900 dark:text-slate-100">{permiso.motivo}</p>
             </div>
 
             {permiso.observacion && (
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Observación</p>
-                <p className="text-sm" style={{ color: "var(--foreground)" }}>{permiso.observacion}</p>
+                <p className="text-xs font-semibold mb-1 text-slate-500 dark:text-slate-400">Observación</p>
+                <p className="text-sm text-slate-900 dark:text-slate-100">{permiso.observacion}</p>
               </div>
             )}
 
             {permiso.adjuntoUrl && (
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>Archivo Adjunto</p>
+                <p className="text-xs font-semibold mb-1 text-slate-500 dark:text-slate-400">Archivo Adjunto</p>
                 <a href={`${API_URL}${permiso.adjuntoUrl}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-all"
-                  style={{ borderColor: "var(--border)", background: "var(--input-background)", color: "var(--primary)" }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-primary"
                 >
                   <Upload size={14} />
                   Ver archivo adjunto
@@ -657,20 +631,19 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
 
             {permiso.periodos && permiso.periodos.length > 0 && (
               <div>
-                <p className="text-xs font-semibold mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+                <p className="text-xs font-semibold mb-1.5 text-slate-500 dark:text-slate-400">
                   Periodos afectados ({permiso.periodos.length})
                 </p>
                 <div className="space-y-1">
                   {permiso.periodos.map((pp) => (
                     <div key={pp.periodo.id}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border"
-                      style={{ borderColor: "var(--border)", background: "var(--input-background)" }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
                     >
-                      <Clock size={12} style={{ color: "var(--muted-foreground)" }} />
-                      <span className="font-mono font-bold" style={{ color: "var(--foreground)" }}>
+                      <Clock size={12} className="text-slate-500 dark:text-slate-400" />
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                         {pp.periodo.horaInicio} - {pp.periodo.horaFin}
                       </span>
-                      <span style={{ color: "var(--muted-foreground)" }}>{pp.periodo.nombre}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{pp.periodo.nombre}</span>
                     </div>
                   ))}
                 </div>
@@ -678,19 +651,18 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
             )}
 
             {permiso.fechaRevision && (
-              <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">
                 Revisado: {formatDateTimeSafe(permiso.fechaRevision)}
               </div>
             )}
 
-            <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
               Solicitado: {formatDateTimeSafe(permiso.createdAt)}
             </div>
           </div>
 
           <button onClick={onClose}
-            className="w-full py-3 rounded-xl text-sm font-bold border transition-all"
-            style={{ borderColor: "var(--border)", color: "var(--foreground)", background: "var(--input-background)" }}
+            className="w-full py-3 rounded-xl text-sm font-bold border transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
           >
             Cerrar
           </button>

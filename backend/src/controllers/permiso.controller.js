@@ -57,17 +57,23 @@ async function create(req, res) {
       });
     }
 
+    // Resolver tipos desde FormData (multipart envía strings)
+    if (typeof usuarioId === 'string') usuarioId = parseInt(usuarioId);
+    if (typeof estado === 'string' && estado === '') estado = undefined;
+    if (typeof periodosIds === 'string') {
+      try {
+        periodosIds = JSON.parse(periodosIds);
+      } catch {
+        periodosIds = periodosIds.split(',').map(Number);
+      }
+    }
+
+    // periodosIds debe ser un arreglo después del parseo
     if (!Array.isArray(periodosIds) || periodosIds.length === 0) {
       return res.status(400).json({
         ok: false,
         message: 'periodosIds debe ser un arreglo con al menos un periodo',
       });
-    }
-
-    // Resolver tipos (como strings desde FormData)
-    if (typeof usuarioId === 'string') usuarioId = parseInt(usuarioId);
-    if (typeof periodosIds === 'string') {
-      try { periodosIds = JSON.parse(periodosIds); } catch { periodosIds = periodosIds.split(',').map(Number); }
     }
 
     // Resolver tipoPermisoId por nombre si se envió tipoPermisoNombre
@@ -135,7 +141,15 @@ async function create(req, res) {
 
     res.status(201).json({ ok: true, data: permiso });
   } catch (error) {
-    console.error('[permiso.create]', error);
+    console.error('[permiso.create] Error detallado:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack?.split('\n').slice(0, 4).join('\n'),
+    });
+    if (error.code === 'P2002' || error.code === 'P2003' || error.code === 'P2025') {
+      return res.status(400).json({ ok: false, message: `Error de base de datos: ${error.message}` });
+    }
     res.status(500).json({ ok: false, message: 'Error al crear permiso' });
   }
 }
