@@ -212,4 +212,79 @@ async function getEmpleados(req, res) {
   }
 }
 
-module.exports = { getAll, getById, create, update, remove, getEmpleados };
+/**
+ * GET /api/usuarios/perfil
+ * Devuelve el perfil del empleado autenticado (desde el JWT).
+ */
+async function getPerfil(req, res) {
+  try {
+    const id = parseInt(req.usuario.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        nombre: true,
+        codigo: true,
+        ci: true,
+        email: true,
+        celular: true,
+        rol: true,
+        activo: true,
+        horasBase: true,
+        horasProgramadas: true,
+        createdAt: true,
+      },
+    });
+
+    if (!usuario) return res.status(404).json({ ok: false, message: 'Empleado no encontrado' });
+    res.json({ ok: true, data: usuario });
+  } catch (error) {
+    console.error('[user.getPerfil]', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener perfil' });
+  }
+}
+
+/**
+ * PATCH /api/usuarios/cambiar-password
+ * Cambia la contraseña del empleado autenticado.
+ * Body: { passwordActual, nuevaPassword }
+ */
+async function cambiarPassword(req, res) {
+  try {
+    const id = parseInt(req.usuario.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const { passwordActual, nuevaPassword } = req.body;
+
+    if (!passwordActual || !nuevaPassword) {
+      return res.status(400).json({ ok: false, message: 'passwordActual y nuevaPassword son requeridos' });
+    }
+
+    if (nuevaPassword.length < 6) {
+      return res.status(400).json({ ok: false, message: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    const usuario = await prisma.usuario.findUnique({ where: { id } });
+    if (!usuario) return res.status(404).json({ ok: false, message: 'Empleado no encontrado' });
+
+    const passwordValido = await bcrypt.compare(passwordActual, usuario.password);
+    if (!passwordValido) {
+      return res.status(401).json({ ok: false, message: 'La contraseña actual no es correcta' });
+    }
+
+    const nuevaPasswordHash = await bcrypt.hash(nuevaPassword, 10);
+    await prisma.usuario.update({
+      where: { id },
+      data: { password: nuevaPasswordHash },
+    });
+
+    res.json({ ok: true, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('[user.cambiarPassword]', error);
+    res.status(500).json({ ok: false, message: 'Error al cambiar contraseña' });
+  }
+}
+
+module.exports = { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword };

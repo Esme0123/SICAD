@@ -1,90 +1,60 @@
-/**
- * SICAD — Employee Service
- * Placeholder para integración con Express + Prisma backend
- *
- * TODO: Reemplazar las funciones stub con llamadas reales a `api`
- */
+import api from "./api";
+import axios from "axios";
 
-// ── Interfaces ────────────────────────────────────────────
+const employeeApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: { "Content-Type": "application/json" },
+});
 
-export type EmployeeStatus = "Activo" | "Inactivo" | "Licencia";
+employeeApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("sicad_emp_token");
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-export interface Employee {
-  id:      string;
-  code:    string;
-  ci:      string;
-  name:    string;
-  role:    string;
-  status:  EmployeeStatus;
-  periods: number;
+export interface LoginMovilPayload {
+  codigo: string;
+  password: string;
 }
 
-export interface CreateEmployeePayload {
-  ci:      string;
-  name:    string;
-  role:    string;
-  status?: EmployeeStatus;
+export interface EmployeeUserResponse {
+  id: number;
+  nombre: string;
+  codigo: string;
+  email: string;
+  ci: string | null;
+  celular: string | null;
+  rol: string;
+  activo: boolean;
+  horasBase: number;
+  horasProgramadas: number;
 }
 
-export interface UpdateEmployeePayload extends Partial<CreateEmployeePayload> {
-  id: string;
+export interface LoginMovilResponse {
+  ok: boolean;
+  token: string;
+  usuario: EmployeeUserResponse;
+  message?: string;
 }
 
-export interface PaginatedResponse<T> {
-  data:    T[];
-  total:   number;
-  page:    number;
-  perPage: number;
+export async function loginMovil(payload: LoginMovilPayload): Promise<LoginMovilResponse> {
+  const { data } = await employeeApi.post<LoginMovilResponse>("/auth/login-movil", payload);
+  return data;
 }
 
-// ── Service functions ──────────────────────────────────────
-
-/**
- * Lista todos los empleados con paginación y filtros opcionales.
- * TODO: GET /api/employees?page=1&search=...
- */
-export async function getEmployees(
-  _page = 1,
-  _search = ""
-): Promise<PaginatedResponse<Employee>> {
-  // Stub — reemplazar con:
-  // const { data } = await api.get<PaginatedResponse<Employee>>("/employees", {
-  //   params: { page, search },
-  // });
-  // return data;
-  return Promise.reject(new Error("Employee service not connected to backend yet"));
+export async function getPerfil(): Promise<EmployeeUserResponse> {
+  const { data } = await employeeApi.get<{ ok: boolean; data: EmployeeUserResponse }>("/usuarios/perfil");
+  return data.data;
 }
 
-/**
- * Obtiene un empleado por ID.
- * TODO: GET /api/employees/:id
- */
-export async function getEmployeeById(_id: string): Promise<Employee> {
-  return Promise.reject(new Error("Employee service not connected to backend yet"));
+export interface CambiarPasswordPayload {
+  passwordActual: string;
+  nuevaPassword: string;
 }
 
-/**
- * Crea un nuevo empleado.
- * TODO: POST /api/employees
- */
-export async function createEmployee(_payload: CreateEmployeePayload): Promise<Employee> {
-  return Promise.reject(new Error("Employee service not connected to backend yet"));
+export async function cambiarPassword(payload: CambiarPasswordPayload): Promise<{ ok: boolean; message: string }> {
+  const { data } = await employeeApi.patch<{ ok: boolean; message: string }>("/usuarios/cambiar-password", payload);
+  return data;
 }
-
-/**
- * Actualiza un empleado existente.
- * TODO: PUT /api/employees/:id
- */
-export async function updateEmployee(_payload: UpdateEmployeePayload): Promise<Employee> {
-  return Promise.reject(new Error("Employee service not connected to backend yet"));
-}
-
-/**
- * Elimina un empleado por ID.
- * TODO: DELETE /api/employees/:id
- */
-export async function deleteEmployee(_id: string): Promise<void> {
-  return Promise.reject(new Error("Employee service not connected to backend yet"));
-}
-
-export default { getEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee };

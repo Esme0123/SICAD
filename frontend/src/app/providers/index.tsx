@@ -1,6 +1,7 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../context/AuthContext";
+import { EmployeeAuthProvider } from "../../context/EmployeeAuthContext";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -16,7 +17,9 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({ children })
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {children}
+        <EmployeeAuthProvider>
+          {children}
+        </EmployeeAuthProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
