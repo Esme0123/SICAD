@@ -859,13 +859,20 @@ async function miHistorial(req, res) {
     if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
 
     const ahoraBolivia = getBoliviaDate();
-    const anio  = parseInt(req.query.anio)  || ahoraBolivia.getFullYear();
-    const mes   = parseInt(req.query.mes)   || (ahoraBolivia.getMonth() + 1);
+    let startDate, endDate;
 
-    if (mes < 1 || mes > 12) return res.status(400).json({ ok: false, message: 'Mes inválido (1-12)' });
+    const { fechaInicio, fechaFin } = req.query;
 
-    const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
-    const endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
+    if (fechaInicio && fechaFin) {
+      startDate = new Date(fechaInicio + "T04:00:00.000Z");
+      endDate   = new Date(fechaFin   + "T27:59:59.999Z");
+    } else {
+      const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
+      const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
+      if (mes < 1 || mes > 12) return res.status(400).json({ ok: false, message: 'Mes inválido (1-12)' });
+      startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
+      endDate   = new Date(Date.UTC(anio, mes, 0, 27, 59, 59, 999));
+    }
 
     const asistencias = await prisma.asistencia.findMany({
       where: {

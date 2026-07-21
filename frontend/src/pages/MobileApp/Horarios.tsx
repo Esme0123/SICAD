@@ -59,7 +59,7 @@ function boDateTime(): string {
 
 async function getInstitutionName(): Promise<string> {
   try {
-    const res = await fetch(`${API}/api/configuracion`);
+    const res = await fetch(`${API}/configuracion`);
     const json = await res.json();
     if (json.ok && json.data?.nombreInstitucion) return json.data.nombreInstitucion;
   } catch {}
@@ -81,8 +81,8 @@ export const MobileHorarios: React.FC = () => {
     if (!user) return;
     setLoading(true);
     Promise.all([
-      apiGet(`/api/horarios/periodos-academicos?usuarioId=${user.id}`),
-      apiGet("/api/horarios/periodos"),
+      apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`),
+      apiGet("/horarios/periodos"),
     ])
       .then(([academicos, catalogos]) => {
         setPeriodosAcademicos(academicos);
@@ -95,7 +95,7 @@ export const MobileHorarios: React.FC = () => {
 
   useEffect(() => {
     if (!user || !selectedPeriodo) return;
-    apiGet(`/api/horarios/${user.id}?periodoAcademico=${encodeURIComponent(selectedPeriodo)}`)
+    apiGet(`/horarios/${user.id}?periodoAcademico=${encodeURIComponent(selectedPeriodo)}`)
       .then(setAsignaciones)
       .catch(console.error);
   }, [user, selectedPeriodo]);
