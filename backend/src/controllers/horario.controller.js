@@ -21,12 +21,18 @@ async function getPeriodos(req, res) {
 
 // ── GET /api/horarios/:usuarioId ──────────────────────────────
 // Devuelve los horarios asignados de un empleado agrupados por día
+// Query params: ?periodoAcademico=Invierno%202026
 async function getHorarioUsuario(req, res) {
   try {
     const usuarioId = parseInt(req.params.usuarioId);
     if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
+
+    const { periodoAcademico } = req.query;
+    const where = { usuarioId };
+    if (periodoAcademico) where.periodoAcademico = periodoAcademico;
+
     const horarios = await prisma.horarioAsignado.findMany({
-      where: { usuarioId },
+      where,
       include: { periodo: true },
       orderBy: [{ diaSemana: 'asc' }, { periodo: { horaInicio: 'asc' } }],
     });
@@ -34,6 +40,31 @@ async function getHorarioUsuario(req, res) {
   } catch (error) {
     console.error('[horario.getHorarioUsuario]', error);
     res.status(500).json({ ok: false, message: 'Error al obtener horario del usuario' });
+  }
+}
+
+// ── GET /api/horarios/periodos-academicos ──────────────────────
+// Devuelve los periodos académicos distintos asociados a un usuario
+// Query params: ?usuarioId=123
+async function getPeriodosAcademicos(req, res) {
+  try {
+    const usuarioId = req.query.usuarioId ? parseInt(req.query.usuarioId) : undefined;
+
+    const where = {};
+    if (usuarioId && !isNaN(usuarioId)) where.usuarioId = usuarioId;
+
+    const result = await prisma.horarioAsignado.findMany({
+      where,
+      select: { periodoAcademico: true },
+      distinct: ['periodoAcademico'],
+      orderBy: { periodoAcademico: 'desc' },
+    });
+
+    const data = result.map(r => r.periodoAcademico);
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error('[horario.getPeriodosAcademicos]', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener periodos académicos' });
   }
 }
 
@@ -181,5 +212,5 @@ async function eliminarAsignacion(req, res) {
   }
 }
 
-module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion };
+module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion, getPeriodosAcademicos };
 

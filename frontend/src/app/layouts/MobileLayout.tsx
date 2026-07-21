@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Home, Calendar, FileText, ScrollText, User, LogOut } from "lucide-react";
+import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 
 const navItems = [
@@ -18,11 +18,24 @@ export const MobileLayout: React.FC = () => {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const saved = localStorage.getItem("sicad_theme");
+    if (saved === "dark" || saved === "light") {
+      setDark(saved === "dark");
+    } else {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      setDark(mq.matches);
+      const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setDark((prev) => {
+      const next = !prev;
+      localStorage.setItem("sicad_theme", next ? "dark" : "light");
+      return next;
+    });
   }, []);
 
   if (!isAuthenticated) {
@@ -51,12 +64,22 @@ export const MobileLayout: React.FC = () => {
           </div>
           <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>SICAD</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {user && (
-            <span className="text-xs truncate max-w-[120px]" style={{ color: "var(--muted-foreground)" }}>
+            <span className="text-xs truncate max-w-[100px]" style={{ color: "var(--muted-foreground)" }}>
               {user.nombre}
             </span>
           )}
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: "var(--muted-foreground)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--foreground)"; e.currentTarget.style.background = "color-mix(in srgb, var(--primary) 8%, transparent)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--muted-foreground)"; e.currentTarget.style.background = "transparent"; }}
+            title={dark ? "Modo claro" : "Modo oscuro"}
+          >
+            {dark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           <button
             onClick={handleLogout}
             className="p-1.5 rounded-lg transition-colors"
