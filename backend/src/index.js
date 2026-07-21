@@ -6,6 +6,7 @@ const env = require('./config/env');
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 
 // ── Rutas ────────────────────────────────────────────────────
@@ -30,7 +31,12 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // Archivos estáticos (uploads)
+const uploadsDir = path.join(__dirname, '../uploads/permisos');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── Health check ─────────────────────────────────────────────
 app.get('/', (req, res) => {

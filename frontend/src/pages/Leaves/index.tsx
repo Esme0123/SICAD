@@ -363,13 +363,14 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              {/* Status header */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-base font-bold ${dark ? "text-white" : "text-slate-800"}`}>
                     {detailPermiso.tipoPermiso?.nombre || "Permiso"}
                   </p>
                   <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
-                    ID #{detailPermiso.id} • {detailPermiso.usuario?.nombre}
+                    ID #{detailPermiso.id}
                   </p>
                 </div>
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
@@ -384,7 +385,21 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                 </span>
               </div>
 
+              {/* Employee data */}
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"}`}>
+                <Avatar name={detailPermiso.usuario?.nombre || ""} size={34} bg={COLORS.primary} />
+                <div>
+                  <p className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-800"}`}>{detailPermiso.usuario?.nombre}</p>
+                  <p className={`text-xs ${dark ? "text-white/50" : "text-slate-500"}`}>
+                    {detailPermiso.usuario?.codigo && `Código: ${detailPermiso.usuario.codigo}`}
+                    {detailPermiso.usuario?.codigo && detailPermiso.usuario?.ci && " • "}
+                    {detailPermiso.usuario?.ci && `CI: ${detailPermiso.usuario.ci}`}
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-4">
+                {/* Date */}
                 <div>
                   <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Fecha</p>
                   <p className={`text-sm font-medium ${dark ? "text-white/80" : "text-slate-700"}`}>
@@ -395,20 +410,23 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                   </p>
                 </div>
 
+                {/* Motivo */}
                 <div>
                   <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Motivo</p>
                   <p className={`text-sm font-medium ${dark ? "text-white/80" : "text-slate-700"}`}>{detailPermiso.motivo}</p>
                 </div>
 
-                {detailPermiso.observacion && (
-                  <div>
-                    <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Observación del Empleado</p>
-                    <div className={`p-3 rounded-lg text-sm ${dark ? "bg-white/5 text-white/70 border border-white/10" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>
-                      {detailPermiso.observacion}
-                    </div>
+                {/* Observación */}
+                <div>
+                  <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Observación del Empleado</p>
+                  <div className={`p-3 rounded-lg text-sm ${dark ? "bg-white/5 text-white/70 border border-white/10" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>
+                    {detailPermiso.observacion || (
+                      <span className="italic opacity-60">Sin observación</span>
+                    )}
                   </div>
-                )}
+                </div>
 
+                {/* Periodos */}
                 {detailPermiso.periodos && detailPermiso.periodos.length > 0 && (
                   <div>
                     <p className={`text-xs font-medium mb-1.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
@@ -425,7 +443,8 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                   </div>
                 )}
 
-                {detailPermiso.adjuntoUrl && (
+                {/* Adjunto */}
+                {detailPermiso.adjuntoUrl ? (
                   <div>
                     <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Archivo Adjunto</p>
                     <a href={`${import.meta.env.VITE_API_URL}${detailPermiso.adjuntoUrl}`} target="_blank" rel="noopener noreferrer"
@@ -434,39 +453,56 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                       }`}
                     >
                       <FileText size={16} />
-                      Ver Documento
+                      Ver / Descargar Adjunto
                       <Download size={14} className="ml-1" />
                     </a>
                   </div>
-                )}
-
-                {(detailPermiso.fechaRevision || detailPermiso.revisadoPor) && (
-                  <div className={`p-3 rounded-lg ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-200"}`}>
-                    <p className={`text-xs font-medium ${dark ? "text-white/50" : "text-slate-400"}`}>
-                      Revisado {detailPermiso.fechaRevision ? formatDateTimeSafe(detailPermiso.fechaRevision) : "—"}
-                    </p>
-                    <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-400"}`}>
-                      Solicitado: {formatDateTimeSafe(detailPermiso.createdAt)}
-                    </p>
+                ) : (
+                  <div>
+                    <p className={`text-xs font-medium mb-1 ${dark ? "text-white/50" : "text-slate-400"}`}>Archivo Adjunto</p>
+                    <p className={`text-xs italic ${dark ? "text-white/30" : "text-slate-400"}`}>Sin archivo adjunto</p>
                   </div>
                 )}
 
-                {!detailPermiso.fechaRevision && !detailPermiso.revisadoPor && (
-                  <div className={`p-3 rounded-lg ${dark ? "bg-white/5" : "bg-slate-50"}`}>
-                    <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
-                      Solicitado: {formatDateTimeSafe(detailPermiso.createdAt)}
+                {/* Timestamps */}
+                <div className={`p-3 rounded-lg ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-200"}`}>
+                  <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Solicitado: {formatDateTimeSafe(detailPermiso.createdAt)}
+                  </p>
+                  {detailPermiso.fechaRevision && (
+                    <p className={`text-xs mt-1 ${dark ? "text-white/40" : "text-slate-400"}`}>
+                      Revisado: {formatDateTimeSafe(detailPermiso.fechaRevision)}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className={`flex items-center justify-end px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+            {/* Actions footer */}
+            <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
               <button onClick={() => setDetailPermiso(null)}
-                className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${dark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"}`}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${dark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"}`}
               >
                 Cerrar
               </button>
+              {detailPermiso.estado === "PENDIENTE" && (
+                <>
+                  <button
+                    onClick={() => { handleCambiarEstado(detailPermiso.id, "APROBADO"); setDetailPermiso(null); }}
+                    disabled={loadingAction === detailPermiso.id}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  >
+                    {loadingAction === detailPermiso.id ? "..." : "Aprobar"}
+                  </button>
+                  <button
+                    onClick={() => { handleCambiarEstado(detailPermiso.id, "RECHAZADO"); setDetailPermiso(null); }}
+                    disabled={loadingAction === detailPermiso.id}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  >
+                    {loadingAction === detailPermiso.id ? "..." : "Rechazar"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
