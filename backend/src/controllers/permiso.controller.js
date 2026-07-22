@@ -93,9 +93,8 @@ async function create(req, res) {
       });
     }
 
-    // Interpretar fecha como mediodía local en Bolivia (UTC-4) para evitar desfase UTC
-    const [anioF, mesF, diaF] = fecha.split('-').map(Number);
-    const fechaLocal = new Date(Date.UTC(anioF, mesF - 1, diaF, 16, 0, 0, 0)); // noon Bolivia = 16:00 UTC
+    // @db.Date en PostgreSQL: solo almacena fecha, sin timezone
+    const fechaLocal = new Date(`${fecha}T00:00:00`);
 
     // Validar que no exista permiso duplicado (mismo día y periodos, estado PENDIENTE o APROBADO)
     const permisoExistente = await prisma.permiso.findFirst({
@@ -247,10 +246,8 @@ async function misPermisos(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [] });
       }
-      const [iy, im, id] = fechaInicio.split('-').map(Number);
-      const [fy, fm, fd] = fechaFin.split('-').map(Number);
-      const startDate = new Date(Date.UTC(iy, im - 1, id, 4, 0, 0, 0)); // 00:00 Bolivia = 04:00 UTC
-      const endDate   = new Date(Date.UTC(fy, fm - 1, fd, 27, 59, 59, 999)); // 23:59 Bolivia = 27:59 UTC
+      const startDate = new Date(`${fechaInicio}T00:00:00`);
+      const endDate   = new Date(`${fechaFin}T23:59:59`);
       fechaFilter = { gte: startDate, lte: endDate };
     } else {
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
@@ -259,8 +256,8 @@ async function misPermisos(req, res) {
         return res.json({ ok: true, data: [] });
       }
       const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-      const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
-      const endDate   = new Date(Date.UTC(anio, mes - 1, ultimoDia, 27, 59, 59, 999));
+      const startDate = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01T00:00:00`);
+      const endDate   = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}T23:59:59`);
       fechaFilter = { gte: startDate, lte: endDate };
     }
 
