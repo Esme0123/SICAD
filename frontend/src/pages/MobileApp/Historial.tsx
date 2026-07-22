@@ -20,7 +20,7 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado";
+  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente";
   periodo: string | null;
   observacion: string | null;
   salidaOmitida: boolean;
@@ -434,27 +434,32 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-5 gap-2">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="rounded-xl p-2.5 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
-              <div className="h-5 bg-muted rounded w-6 mx-auto mb-1" />
-              <div className="h-2.5 bg-muted rounded w-10 mx-auto" />
+            <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
+              <div className="h-6 bg-muted rounded w-8 mx-auto mb-1" />
+              <div className="h-3 bg-muted rounded w-12 mx-auto" />
             </div>
           ))
         ) : resumen ? (
           [
-            { label: "Total", value: resumen.total },
-            { label: "Puntual", value: resumen.puntual, clr: "var(--color-success)", bg: "color-mix(in srgb, var(--color-success) 10%, transparent)" },
-            { label: "Atrasos", value: resumen.tardanza, clr: "var(--color-warning)", bg: "color-mix(in srgb, var(--color-warning) 10%, transparent)" },
-            { label: "Justif.", value: resumen.justificado, clr: "var(--primary)", bg: "color-mix(in srgb, var(--primary) 10%, transparent)" },
-            { label: "Ausente", value: resumen.ausente, clr: "var(--color-danger)", bg: "color-mix(in srgb, var(--color-danger) 10%, transparent)" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl p-2.5 text-center border"
-              style={{ background: s.bg || "var(--card)", borderColor: "var(--border)" }}
+            { label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
+            { label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
+            { label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
+            { label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
+            { label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
+          ].map((s, idx) => (
+            <div key={s.label}
+              className="rounded-xl p-3 text-center border shadow-lg"
+              style={{
+                background: s.bg,
+                borderColor: s.border,
+                boxShadow: `0 4px 16px ${s.border}22`,
+              }}
             >
-              <p className="text-base font-black" style={{ color: s.clr || "var(--foreground)" }}>{s.value}</p>
-              <p className="text-[9px] font-medium mt-0.5" style={{ color: "var(--muted-foreground)" }}>{s.label}</p>
+              <p className="text-2xl font-extrabold tracking-tight" style={{ color: s.clr }}>{s.value}</p>
+              <p className="text-[10px] font-semibold mt-1 opacity-80" style={{ color: s.clr }}>{s.label}</p>
             </div>
           ))
         ) : null}
@@ -483,21 +488,37 @@ export const MobileHistorial: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {data.map((m) => {
             const cfg = estadoConfig[m.estado] || estadoConfig.Puntual;
             const Icon = cfg.icon;
             const f = boDate(new Date(m.fecha));
             const hoyBool = fmtDateISO(f) === hoy;
+
+            const borderClr = m.estado === "Puntual" ? "#10B981" :
+              m.estado === "Tardanza" ? "#F59E0B" :
+              m.estado === "Ausente" ? "#EF4444" :
+              "#3B82F6";
+
+            const bgGlow = m.estado === "Puntual" ? "#10B98108" :
+              m.estado === "Tardanza" ? "#F59E0B08" :
+              m.estado === "Ausente" ? "#EF444408" :
+              "#3B82F608";
+
             return (
               <div
                 key={m.id}
-                className="bg-card border rounded-xl p-4 transition-colors"
+                className="relative rounded-xl p-4 border overflow-hidden transition-all"
                 style={{
-                  borderColor: hoyBool ? "var(--primary)" : "var(--border)",
+                  background: `linear-gradient(135deg, ${bgGlow}, transparent)`,
+                  borderColor: `${borderClr}30`,
+                  boxShadow: `0 2px 12px ${borderClr}10`,
                 }}
               >
-                <div className="flex items-start justify-between mb-2">
+                <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full"
+                  style={{ background: borderClr }}
+                />
+                <div className="flex items-start justify-between mb-2 pl-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
                       {f.toLocaleDateString("es-BO", {
@@ -505,21 +526,18 @@ export const MobileHistorial: React.FC = () => {
                       })}
                     </p>
                     {hoyBool && (
-                      <span className="text-[10px] font-semibold" style={{ color: "var(--primary)" }}>
+                      <span className="text-[10px] font-semibold ml-1.5 px-1.5 py-0.5 rounded"
+                        style={{ background: `${borderClr}20`, color: borderClr }}
+                      >
                         Hoy
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2"
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border"
                     style={{
-                      background: m.estado === "Puntual" ? "color-mix(in srgb, var(--color-success) 10%, transparent)" :
-                        m.estado === "Tardanza" ? "color-mix(in srgb, var(--color-warning) 10%, transparent)" :
-                        m.estado === "Ausente" ? "color-mix(in srgb, var(--color-danger) 10%, transparent)" :
-                        "color-mix(in srgb, var(--primary) 10%, transparent)",
-                      color: m.estado === "Puntual" ? "var(--color-success)" :
-                        m.estado === "Tardanza" ? "var(--color-warning)" :
-                        m.estado === "Ausente" ? "var(--color-danger)" :
-                        "var(--primary)",
+                      background: `${borderClr}15`,
+                      color: borderClr,
+                      borderColor: `${borderClr}30`,
                     }}
                   >
                     <Icon size={10} />
@@ -527,35 +545,37 @@ export const MobileHistorial: React.FC = () => {
                   </div>
                 </div>
 
-                {m.estado !== "Ausente" && m.estado !== "Justificado" ? (
-                  <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
-                      <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
-                        {m.horaEntrada || "--:--"}
-                      </span>
-                      <span>entrada</span>
+                <div className="pl-2">
+                  {m.estado !== "Ausente" && m.estado !== "Justificado" ? (
+                    <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10B981" }} />
+                        <span className="font-mono font-semibold" style={{ color: "var(--foreground)" }}>
+                          {m.horaEntrada || "--:--"}
+                        </span>
+                        <span className="opacity-60">entrada</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#EF4444" }} />
+                        <span className="font-mono font-semibold" style={{ color: "var(--foreground)" }}>
+                          {m.horaSalida || (m.salidaOmitida ? "Automática" : "--:--")}
+                        </span>
+                        <span className="opacity-60">salida</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-danger)" }} />
-                      <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
-                        {m.horaSalida || (m.salidaOmitida ? "Automática" : "--:--")}
-                      </span>
-                      <span>salida</span>
+                  ) : (
+                    <div className="text-xs font-medium" style={{ color: borderClr }}>
+                      {m.estado === "Justificado" ? `✓ ${m.observacion}` : `✗ ${m.observacion}`}
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-xs italic" style={{ color: "var(--muted-foreground)" }}>
-                    {m.estado === "Justificado" ? `Permiso aprobado — ${m.observacion}` : `Sin marcación — ${m.observacion}`}
-                  </div>
-                )}
+                  )}
 
-                {m.periodo && (
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <Clock size={10} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-[10px] font-mono" style={{ color: "var(--muted-foreground)" }}>{m.periodo}</span>
-                  </div>
-                )}
+                  {m.periodo && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <Clock size={10} style={{ color: "var(--muted-foreground)" }} />
+                      <span className="text-[10px] font-mono" style={{ color: "var(--muted-foreground)" }}>{m.periodo}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

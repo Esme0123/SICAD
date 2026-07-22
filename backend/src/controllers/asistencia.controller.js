@@ -977,8 +977,12 @@ async function miHistorial(req, res) {
     const diasSemanaMap = { 0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sabado' };
     const ausenteIds = new Set();
 
+    const ahoraBoliviaTime = ahoraBolivia.getTime();
+
     for (const fecha of fechasEnRango) {
       const bd = getBoliviaDate(fecha);
+      // Saltar fechas futuras (no se puede estar ausente en un día que aún no ocurre)
+      if (bd.getTime() > ahoraBoliviaTime) continue;
       if (bd.getDay() === 0) continue; // saltar domingos
       const diaSemana = diasSemanaMap[bd.getDay()];
       const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
