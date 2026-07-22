@@ -112,6 +112,12 @@ export const MobileHistorial: React.FC = () => {
   const [resumen, setResumen] = useState<HistorialResponse["resumen"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
+
+  const dataFiltrada = useMemo(() => {
+    if (!filtroEstado) return data;
+    return data.filter((m) => m.estado === filtroEstado);
+  }, [data, filtroEstado]);
 
   // Load periodos academicos once
   useEffect(() => {
@@ -444,24 +450,33 @@ export const MobileHistorial: React.FC = () => {
           ))
         ) : resumen ? (
           [
-            { label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
-            { label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
-            { label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
-            { label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
-            { label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
-          ].map((s, idx) => (
-            <div key={s.label}
-              className="rounded-xl p-3 text-center border shadow-lg"
-              style={{
-                background: s.bg,
-                borderColor: s.border,
-                boxShadow: `0 4px 16px ${s.border}22`,
-              }}
-            >
-              <p className="text-2xl font-extrabold tracking-tight" style={{ color: s.clr }}>{s.value}</p>
-              <p className="text-[10px] font-semibold mt-1 opacity-80" style={{ color: s.clr }}>{s.label}</p>
-            </div>
-          ))
+            { key: null,      label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
+            { key: "Puntual",    label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
+            { key: "Tardanza",   label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
+            { key: "Justificado", label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
+            { key: "Ausente",    label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
+          ].map((s) => {
+            const isActive = s.key !== null && filtroEstado === s.key;
+            return (
+              <button key={s.label}
+                onClick={() => {
+                  if (s.key === null) { setFiltroEstado(null); return; }
+                  setFiltroEstado((prev) => (prev === s.key ? null : s.key));
+                }}
+                className="rounded-xl p-3 text-center border shadow-lg transition-all cursor-pointer"
+                style={{
+                  background: s.bg,
+                  borderColor: isActive ? s.clr : s.border,
+                  boxShadow: isActive ? `0 0 0 2px ${s.clr}, 0 4px 16px ${s.border}44` : `0 4px 16px ${s.border}22`,
+                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                  filter: isActive ? 'brightness(1.2)' : 'none',
+                }}
+              >
+                <p className="text-2xl font-extrabold tracking-tight" style={{ color: s.clr }}>{s.value}</p>
+                <p className="text-[10px] font-semibold mt-1" style={{ color: s.clr, opacity: 0.8 }}>{s.label}</p>
+              </button>
+            );
+          })
         ) : null}
       </div>
 
@@ -475,7 +490,7 @@ export const MobileHistorial: React.FC = () => {
             </div>
           ))}
         </div>
-      ) : data.length === 0 ? (
+      ) : dataFiltrada.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
             <Clock size={24} style={{ color: "var(--muted-foreground)" }} />
@@ -483,13 +498,26 @@ export const MobileHistorial: React.FC = () => {
           <div>
             <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Sin registros</p>
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
-              No hay marcaciones en este período
+              {filtroEstado ? `No hay registros con estado "${filtroEstado}"` : 'No hay marcaciones en este período'}
             </p>
           </div>
         </div>
       ) : (
         <div className="space-y-2.5">
-          {data.map((m) => {
+          {filtroEstado && (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                Mostrando {dataFiltrada.length} de {data.length} registros
+              </span>
+              <button onClick={() => setFiltroEstado(null)}
+                className="text-[10px] font-medium px-2 py-1 rounded-lg transition-colors"
+                style={{ color: "var(--primary)", background: "color-mix(in srgb, var(--primary) 10%, transparent)" }}
+              >
+                Limpiar filtro
+              </button>
+            </div>
+          )}
+          {dataFiltrada.map((m) => {
             const cfg = estadoConfig[m.estado] || estadoConfig.Puntual;
             const Icon = cfg.icon;
             const f = boDate(new Date(m.fecha));

@@ -93,11 +93,14 @@ async function create(req, res) {
       });
     }
 
+    // Interpretar fecha en hora local de Bolivia (UTC-4) para evitar desfase UTC
+    const fechaLocal = new Date(`${fecha}T12:00:00.000-04:00`);
+
     // Validar que no exista permiso duplicado (mismo día y periodos, estado PENDIENTE o APROBADO)
     const permisoExistente = await prisma.permiso.findFirst({
       where: {
         usuarioId: parseInt(usuarioId),
-        fecha: new Date(fecha),
+        fecha: fechaLocal,
         estado: { in: ['PENDIENTE', 'APROBADO'] },
         periodos: {
           some: {
@@ -125,7 +128,7 @@ async function create(req, res) {
         data: {
           usuarioId: parseInt(usuarioId),
           tipoPermisoId: parseInt(tipoPermisoId),
-          fecha: new Date(fecha),
+          fecha: fechaLocal,
           motivo,
           estado: estado || 'PENDIENTE',
           observacion: observacion || null,
@@ -155,7 +158,7 @@ async function create(req, res) {
     const empleado = permiso?.usuario;
     crearNotificacion({
       titulo: 'Nueva solicitud de permiso',
-      mensaje: `${empleado?.nombre || 'Un empleado'} solicitó un permiso de tipo "${permiso?.tipoPermiso?.nombre || tipoPermisoNombre}" para el ${new Date(fecha).toLocaleDateString('es-BO')}.`,
+      mensaje: `${empleado?.nombre || 'Un empleado'} solicitó un permiso de tipo "${permiso?.tipoPermiso?.nombre || tipoPermisoNombre}" para el ${fechaLocal.toLocaleDateString('es-BO')}.`,
       permisoId: permiso?.id,
       paraRol: 'ADMIN',
     });
