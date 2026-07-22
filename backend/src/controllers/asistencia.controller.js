@@ -893,6 +893,9 @@ async function miHistorial(req, res) {
       orderBy: { fecha: 'desc' },
     });
 
+    const fmtTime = (d) =>
+      d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
+
     const data = asistencias.map((a) => {
       const obs = (a.observacion || '').toLowerCase();
       let estado = 'Puntual';
@@ -901,9 +904,6 @@ async function miHistorial(req, res) {
       } else if (obs.includes('permiso') || obs.includes('justificado')) {
         estado = 'Justificado';
       }
-
-      const fmtTime = (d) =>
-        d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
 
       return {
         id: a.id,
@@ -920,6 +920,107 @@ async function miHistorial(req, res) {
       };
     });
 
+    // ── Agregar permisos APROBADOS como registros "Justificado" ──
+    const permisos = await prisma.permiso.findMany({
+      where: {
+        usuarioId,
+        estado: 'APROBADO',
+        fecha: { gte: startDate, lte: endDate },
+      },
+      include: {
+        tipoPermiso: { select: { nombre: true } },
+        periodos: { include: { periodo: { select: { nombre: true } } } },
+      },
+    });
+
+    for (const p of permisos) {
+      const fechaPermiso = getBoliviaDate(p.fecha).toLocaleDateString('es-BO', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      });
+      const nombrePeriodos = p.periodos.map(pp => pp.periodo.nombre).join(', ') || '—';
+
+      // Evitar duplicar si ya existe una asistencia Justificado para esa fecha
+      const yaExiste = data.some(
+        (d) => d.estado === 'Justificado' && d.fechaLegible === fechaPermiso
+      );
+
+      if (!yaExiste) {
+        data.push({
+          id: `permiso-${p.id}`,
+          fecha: p.fecha,
+          fechaLegible: fechaPermiso,
+          horaEntrada: null,
+          horaSalida: null,
+          estado: 'Justificado',
+          periodo: nombrePeriodos,
+          observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
+          salidaOmitida: false,
+        });
+      }
+    }
+
+    // ── Calcular ausentes: periodos sin marcación ──
+    // Obtener los horarios asignados del usuario para saber qué días/periodos esperar
+    const horariosAsignados = await prisma.horarioAsignado.findMany({
+      where: { usuarioId },
+      include: { periodo: { select: { nombre: true, horaInicio: true, horaFin: true } } },
+    });
+
+    // Generar conjunto de fechas del rango
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const fechasEnRango = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      fechasEnRango.push(new Date(d));
+    }
+
+    const diasSemanaMap = { 0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sabado' };
+    const ausenteIds = new Set();
+
+    for (const fecha of fechasEnRango) {
+      const bd = getBoliviaDate(fecha);
+      if (bd.getDay() === 0) continue; // saltar domingos
+      const diaSemana = diasSemanaMap[bd.getDay()];
+      const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
+      if (horariosDia.length === 0) continue;
+      const fechaISO = bd.toISOString().split('T')[0];
+
+      // Verificar si ya existe alguna asistencia para esta fecha
+      const asistenciaDia = asistencias.filter(a => {
+        const af = getBoliviaDate(a.fecha);
+        return af.toISOString().split('T')[0] === fechaISO;
+      });
+
+      const permisoDia = permisos.filter(p => {
+        const pf = getBoliviaDate(p.fecha);
+        return pf.toISOString().split('T')[0] === fechaISO;
+      });
+
+      // Si no hay asistencia ni permiso para este día, marcar ausente
+      if (asistenciaDia.length === 0 && permisoDia.length === 0) {
+        for (const h of horariosDia) {
+          const key = `${fechaISO}-${h.id}`;
+          ausenteIds.add(key);
+          data.push({
+            id: `ausente-${key}`,
+            fecha: fechaISO,
+            fechaLegible: bd.toLocaleDateString('es-BO', {
+              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }),
+            horaEntrada: null,
+            horaSalida: null,
+            estado: 'Ausente',
+            periodo: h.periodo?.nombre || '—',
+            observacion: `Sin marcación en ${h.periodo?.horaInicio || '?'}–${h.periodo?.horaFin || '?'}`,
+            salidaOmitida: false,
+          });
+        }
+      }
+    }
+
+    // Reordenar por fecha descendente
+    data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
     res.json({
       ok: true,
       data,
@@ -928,6 +1029,7 @@ async function miHistorial(req, res) {
         puntual: data.filter((d) => d.estado === 'Puntual').length,
         tardanza: data.filter((d) => d.estado === 'Tardanza').length,
         justificado: data.filter((d) => d.estado === 'Justificado').length,
+        ausente: data.filter((d) => d.estado === 'Ausente').length,
       },
     });
   } catch (error) {

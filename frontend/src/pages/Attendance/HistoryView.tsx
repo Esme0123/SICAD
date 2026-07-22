@@ -117,6 +117,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       CI: r.ci,
       Fecha: r.date,
       Periodo: r.period,
+      'Hora Entrada': r.horaEntrada || '—',
+      'Hora Salida': r.horaSalida || '—',
       Estado: r.status,
     }));
     const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
@@ -124,8 +126,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   };
 
   const exportPDF = () => {
-    const columns = ["Empleado", "Código", "CI", "Fecha", "Periodo", "Estado"];
-    const body = filteredRows.map(r => [r.name, r.code, r.ci, r.date, r.period, r.status]);
+    const columns = ["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora Entrada", "Hora Salida", "Estado"];
+    const body = filteredRows.map(r => [r.name, r.code, r.ci, r.date, r.period, r.horaEntrada || '—', r.horaSalida || '—', r.status]);
     const hoyLocal = new Date().toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/La_Paz" }).replace(/\//g, "-");
     exportToPDF(body, columns, `asistencia_${hoyLocal}`, "Historial de Asistencia", 0);
   };
@@ -255,7 +257,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora", "Estado"].map(c => (
+                {["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora Entrada", "Hora Salida", "Estado"].map(c => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
                   </th>
@@ -265,7 +267,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={8} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     Cargando historial...
                   </td>
                 </tr>
@@ -284,13 +286,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{r.ci}</td>
                     <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{r.date}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/60" : "text-slate-500"}`}>{r.period}</td>
-                    <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${dark ? "text-white/80" : "text-slate-700"}`}>{r.time}</td>
+                    <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${dark ? "text-green-400" : "text-green-700"}`}>{r.horaEntrada || "—"}</td>
+                    <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>{r.horaSalida || "—"}</td>
                     <td className="px-5 py-3.5">{renderStatusBadge(r.status)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={8} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     No se encontraron registros con los filtros seleccionados.
                   </td>
                 </tr>

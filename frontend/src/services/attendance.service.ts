@@ -11,6 +11,8 @@ export interface AttendanceRecord {
   date: string;
   period: string;
   time: string;
+  horaEntrada: string;
+  horaSalida: string | null;
   status: AttendanceStatus;
 }
 
@@ -81,8 +83,10 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       code: a.usuario?.codigo || `CC-${String(a.usuarioId).padStart(3, "0")}`,
       ci: a.usuario?.ci || "",
       date: dateStr,
-      period: a.periodo || entradaStr + (salidaStr ? `–${salidaStr}` : ""),
+      period: a.periodo || (salidaStr ? `${entradaStr}–${salidaStr}` : entradaStr),
       time: entradaStr,
+      horaEntrada: entradaStr,
+      horaSalida: salidaStr,
       status,
     };
   });

@@ -29,7 +29,7 @@ interface Marcacion {
 interface HistorialResponse {
   ok: boolean;
   data: Marcacion[];
-  resumen: { total: number; puntual: number; tardanza: number; justificado: number };
+  resumen: { total: number; puntual: number; tardanza: number; justificado: number; ausente: number };
 }
 
 const meses = [
@@ -48,6 +48,7 @@ const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg:
   Puntual:    { icon: CheckCircle2, color: "text-success", bg: "bg-success/10" },
   Tardanza:   { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10" },
   Justificado: { icon: FileText, color: "text-primary", bg: "bg-primary/10" },
+  Ausente:    { icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
 function boDate(date?: Date): Date {
@@ -433,12 +434,12 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-1.5">
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
-              <div className="h-6 bg-muted rounded w-8 mx-auto mb-1" />
-              <div className="h-3 bg-muted rounded w-12 mx-auto" />
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rounded-xl p-2.5 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
+              <div className="h-5 bg-muted rounded w-6 mx-auto mb-1" />
+              <div className="h-2.5 bg-muted rounded w-10 mx-auto" />
             </div>
           ))
         ) : resumen ? (
@@ -447,12 +448,13 @@ export const MobileHistorial: React.FC = () => {
             { label: "Puntual", value: resumen.puntual, clr: "var(--color-success)", bg: "color-mix(in srgb, var(--color-success) 10%, transparent)" },
             { label: "Atrasos", value: resumen.tardanza, clr: "var(--color-warning)", bg: "color-mix(in srgb, var(--color-warning) 10%, transparent)" },
             { label: "Justif.", value: resumen.justificado, clr: "var(--primary)", bg: "color-mix(in srgb, var(--primary) 10%, transparent)" },
+            { label: "Ausente", value: resumen.ausente, clr: "var(--color-danger)", bg: "color-mix(in srgb, var(--color-danger) 10%, transparent)" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl p-3 text-center border"
+            <div key={s.label} className="rounded-xl p-2.5 text-center border"
               style={{ background: s.bg || "var(--card)", borderColor: "var(--border)" }}
             >
-              <p className="text-lg font-black" style={{ color: s.clr || "var(--foreground)" }}>{s.value}</p>
-              <p className="text-[10px] font-medium mt-0.5" style={{ color: "var(--muted-foreground)" }}>{s.label}</p>
+              <p className="text-base font-black" style={{ color: s.clr || "var(--foreground)" }}>{s.value}</p>
+              <p className="text-[9px] font-medium mt-0.5" style={{ color: "var(--muted-foreground)" }}>{s.label}</p>
             </div>
           ))
         ) : null}
@@ -508,30 +510,45 @@ export const MobileHistorial: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2`}
-                    style={{ background: cfg.bg === "bg-success/10" ? "color-mix(in srgb, var(--color-success) 10%, transparent)" : cfg.bg === "bg-warning/10" ? "color-mix(in srgb, var(--color-warning) 10%, transparent)" : "color-mix(in srgb, var(--primary) 10%, transparent)", color: `var(--${m.estado === "Puntual" ? "color-success" : m.estado === "Tardanza" ? "color-warning" : "primary"})` }}
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2"
+                    style={{
+                      background: m.estado === "Puntual" ? "color-mix(in srgb, var(--color-success) 10%, transparent)" :
+                        m.estado === "Tardanza" ? "color-mix(in srgb, var(--color-warning) 10%, transparent)" :
+                        m.estado === "Ausente" ? "color-mix(in srgb, var(--color-danger) 10%, transparent)" :
+                        "color-mix(in srgb, var(--primary) 10%, transparent)",
+                      color: m.estado === "Puntual" ? "var(--color-success)" :
+                        m.estado === "Tardanza" ? "var(--color-warning)" :
+                        m.estado === "Ausente" ? "var(--color-danger)" :
+                        "var(--primary)",
+                    }}
                   >
                     <Icon size={10} />
                     <span>{m.estado}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
-                    <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
-                      {m.horaEntrada || "--:--"}
-                    </span>
-                    <span>entrada</span>
+                {m.estado !== "Ausente" && m.estado !== "Justificado" ? (
+                  <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
+                      <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
+                        {m.horaEntrada || "--:--"}
+                      </span>
+                      <span>entrada</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-danger)" }} />
+                      <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
+                        {m.horaSalida || (m.salidaOmitida ? "Automática" : "--:--")}
+                      </span>
+                      <span>salida</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-danger)" }} />
-                    <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
-                      {m.horaSalida || (m.salidaOmitida ? "Automática" : "--:--")}
-                    </span>
-                    <span>salida</span>
+                ) : (
+                  <div className="text-xs italic" style={{ color: "var(--muted-foreground)" }}>
+                    {m.estado === "Justificado" ? `Permiso aprobado — ${m.observacion}` : `Sin marcación — ${m.observacion}`}
                   </div>
-                </div>
+                )}
 
                 {m.periodo && (
                   <div className="mt-2 flex items-center gap-1.5">
