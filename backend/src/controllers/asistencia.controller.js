@@ -34,6 +34,11 @@ function toBoliviaDateStr(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+function toBoliviaDateAtNoon(date = new Date()) {
+  const bd = getBoliviaDate(date);
+  return new Date(Date.UTC(bd.getFullYear(), bd.getMonth(), bd.getDate(), 16, 0, 0, 0));
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 /**
@@ -127,7 +132,7 @@ async function registrar(req, res) {
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId: uid,
-          fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+          fecha: toBoliviaDateAtNoon(ahora),
           horaEntrada: ahora,
           periodo: periodoLabel,
         },
@@ -323,7 +328,7 @@ async function marcar(req, res) {
         where: {
           usuarioId: uid,
           estado: 'APROBADO',
-          fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+          fecha: toBoliviaDateAtNoon(ahora),
           OR: [
             { periodos: { some: { periodoId: periodoActivo.periodoId } } },
             { periodos: { none: {} } },
@@ -367,7 +372,7 @@ async function marcar(req, res) {
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId:         uid,
-          fecha:             new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+          fecha:             toBoliviaDateAtNoon(ahora),
           horaEntrada:       ahora,
           minutosTolerancia: toleranciaMin,
           observacion:       observacion,
@@ -545,7 +550,7 @@ async function marcarMovil(req, res) {
             where: {
               usuarioId: usuario.id,
               estado: 'APROBADO',
-              fecha: new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+              fecha: toBoliviaDateAtNoon(ahora),
               OR: [
                 { periodos: { some: { periodoId: periodoActivo.periodoId } } },
                 { periodos: { none: {} } },
@@ -589,7 +594,7 @@ async function marcarMovil(req, res) {
           resultado = await tx.asistencia.create({
             data: {
               usuarioId:         usuario.id,
-              fecha:             new Date(toBoliviaDateStr(ahora) + "T00:00:00.000Z"),
+              fecha:             toBoliviaDateAtNoon(ahora),
               horaEntrada:       ahora,
               minutosTolerancia: toleranciaMin,
               observacion:       observacion,
@@ -960,13 +965,11 @@ async function miHistorial(req, res) {
     }
 
     // ── Calcular ausentes: periodos sin marcación ──
-    // Obtener los horarios asignados del usuario para saber qué días/periodos esperar
     const horariosAsignados = await prisma.horarioAsignado.findMany({
       where: { usuarioId },
-      include: { periodo: { select: { nombre: true, horaInicio: true, horaFin: true } } },
+      include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
-    // Generar conjunto de fechas del rango
     const start = new Date(startDate);
     const end = new Date(endDate);
     const fechasEnRango = [];
@@ -975,50 +978,78 @@ async function miHistorial(req, res) {
     }
 
     const diasSemanaMap = { 0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sabado' };
-    const ausenteIds = new Set();
+    const ahoraBol = getBoliviaDate();
+    const ahoraBolTime = ahoraBol.getTime();
+    const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
 
-    const ahoraBoliviaTime = ahoraBolivia.getTime();
+    // Build asistencia lookup per date: dateISO -> array of asistencias
+    const asistenciaPorFecha = new Map();
+    for (const a of asistencias) {
+      const key = getBoliviaDate(a.fecha).toISOString().split('T')[0];
+      if (!asistenciaPorFecha.has(key)) asistenciaPorFecha.set(key, []);
+      asistenciaPorFecha.get(key).push(a);
+    }
+
+    // Build permiso lookup per date: dateISO -> Set of periodoIds
+    const permisoPorFecha = new Map();
+    for (const p of permisos) {
+      const key = getBoliviaDate(p.fecha).toISOString().split('T')[0];
+      if (!permisoPorFecha.has(key)) permisoPorFecha.set(key, new Set());
+      for (const pp of p.periodos) {
+        permisoPorFecha.get(key).add(pp.periodoId);
+      }
+    }
+
+    const hoyISO = getBoliviaDate(ahoraBol).toISOString().split('T')[0];
 
     for (const fecha of fechasEnRango) {
       const bd = getBoliviaDate(fecha);
-      // Saltar fechas futuras (no se puede estar ausente en un día que aún no ocurre)
-      if (bd.getTime() > ahoraBoliviaTime) continue;
-      if (bd.getDay() === 0) continue; // saltar domingos
+      if (bd.getTime() > ahoraBolTime) continue;
+      if (bd.getDay() === 0) continue;
       const diaSemana = diasSemanaMap[bd.getDay()];
       const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
       if (horariosDia.length === 0) continue;
+
       const fechaISO = bd.toISOString().split('T')[0];
+      const asistenciasDeHoy = asistenciaPorFecha.get(fechaISO) || [];
+      const periodoIdsPermiso = permisoPorFecha.get(fechaISO) || new Set();
+      const esHoy = fechaISO === hoyISO;
 
-      // Verificar si ya existe alguna asistencia para esta fecha
-      const asistenciaDia = asistencias.filter(a => {
-        const af = getBoliviaDate(a.fecha);
-        return af.toISOString().split('T')[0] === fechaISO;
-      });
+      for (const h of horariosDia) {
+        const periodoLabel = `${h.periodo.horaInicio}–${h.periodo.horaFin}`;
 
-      const permisoDia = permisos.filter(p => {
-        const pf = getBoliviaDate(p.fecha);
-        return pf.toISOString().split('T')[0] === fechaISO;
-      });
+        // Check if this block is covered by an asistencia with matching period label
+        let cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
 
-      // Si no hay asistencia ni permiso para este día, marcar ausente
-      if (asistenciaDia.length === 0 && permisoDia.length === 0) {
-        for (const h of horariosDia) {
-          const key = `${fechaISO}-${h.id}`;
-          ausenteIds.add(key);
-          data.push({
-            id: `ausente-${key}`,
-            fecha: fechaISO,
-            fechaLegible: bd.toLocaleDateString('es-BO', {
-              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-            }),
-            horaEntrada: null,
-            horaSalida: null,
-            estado: 'Ausente',
-            periodo: h.periodo?.nombre || '—',
-            observacion: `Sin marcación en ${h.periodo?.horaInicio || '?'}–${h.periodo?.horaFin || '?'}`,
-            salidaOmitida: false,
-          });
+        // If no label match, check if any asistencia has null periodo (legacy)
+        if (!cubierto) {
+          cubierto = asistenciasDeHoy.some(a => a.periodo === null);
         }
+
+        if (cubierto) continue;
+
+        // Check if this block is covered by a permiso
+        if (periodoIdsPermiso.has(h.periodo.id)) continue;
+
+        // For today: only mark Ausente if the block's end time has already passed
+        if (esHoy) {
+          const [hFin, mFin] = h.periodo.horaFin.split(':').map(Number);
+          if (ahoraMin < hFin * 60 + mFin) continue;
+        }
+
+        data.push({
+          id: `ausente-${fechaISO}-${h.id}`,
+          fecha: fechaISO,
+          fechaLegible: bd.toLocaleDateString('es-BO', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          }),
+          horaEntrada: null,
+          horaSalida: null,
+          estado: 'Ausente',
+          periodo: h.periodo?.nombre || '—',
+          observacion: `Sin marcación en ${h.periodo?.horaInicio || '?'}–${h.periodo?.horaFin || '?'}`,
+          salidaOmitida: false,
+        });
       }
     }
 

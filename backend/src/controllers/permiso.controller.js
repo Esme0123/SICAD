@@ -93,8 +93,9 @@ async function create(req, res) {
       });
     }
 
-    // Interpretar fecha en hora local de Bolivia (UTC-4) para evitar desfase UTC
-    const fechaLocal = new Date(`${fecha}T12:00:00.000-04:00`);
+    // Interpretar fecha como mediodía local en Bolivia (UTC-4) para evitar desfase UTC
+    const [anioF, mesF, diaF] = fecha.split('-').map(Number);
+    const fechaLocal = new Date(Date.UTC(anioF, mesF - 1, diaF, 16, 0, 0, 0)); // noon Bolivia = 16:00 UTC
 
     // Validar que no exista permiso duplicado (mismo día y periodos, estado PENDIENTE o APROBADO)
     const permisoExistente = await prisma.permiso.findFirst({
