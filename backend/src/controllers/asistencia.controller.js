@@ -875,8 +875,10 @@ async function miHistorial(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }
-      startDate = new Date(fechaInicio + "T04:00:00.000Z");
-      endDate   = new Date(fechaFin   + "T27:59:59.999Z");
+      const [iy, im, id] = fechaInicio.split('-').map(Number);
+      const [fy, fm, fd] = fechaFin.split('-').map(Number);
+      startDate = new Date(Date.UTC(iy, im - 1, id, 4, 0, 0, 0)); // 00:00 Bolivia = 04:00 UTC
+      endDate   = new Date(Date.UTC(fy, fm - 1, fd, 27, 59, 59, 999)); // 23:59 Bolivia = 27:59 UTC
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }

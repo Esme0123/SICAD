@@ -132,20 +132,21 @@ export const MobileHistorial: React.FC = () => {
   }, [user]);
 
   const buildUrl = useCallback(() => {
-    const b = boDate();
+    const hoyStr = new Date().toLocaleDateString('sv-SE');
     switch (filtro) {
-      case "hoy": {
-        const d = fmtDateISO(b);
-        return `/asistencia/mi-historial?fechaInicio=${d}&fechaFin=${d}`;
-      }
+      case "hoy":
+        return `/asistencia/mi-historial?fechaInicio=${hoyStr}&fechaFin=${hoyStr}`;
       case "semana": {
-        const dia = b.getDay();
+        const hoy = new Date();
+        const dia = hoy.getDay();
         const diffLun = dia === 0 ? -6 : 1 - dia;
-        const lun = new Date(b);
-        lun.setDate(b.getDate() + diffLun);
-        const sab = new Date(lun);
-        sab.setDate(lun.getDate() + 5);
-        return `/asistencia/mi-historial?fechaInicio=${fmtDateISO(lun)}&fechaFin=${fmtDateISO(sab)}`;
+        const lun = new Date(hoy);
+        lun.setDate(hoy.getDate() + diffLun);
+        const dom = new Date(lun);
+        dom.setDate(lun.getDate() + 6);
+        const lunStr = lun.toLocaleDateString('sv-SE');
+        const domStr = dom.toLocaleDateString('sv-SE');
+        return `/asistencia/mi-historial?fechaInicio=${lunStr}&fechaFin=${domStr}`;
       }
       case "mes":
         return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
@@ -154,7 +155,7 @@ export const MobileHistorial: React.FC = () => {
       default:
         return `/asistencia/mi-historial`;
     }
-  }, [filtro, mes, anio, hoy]);
+  }, [filtro, mes, anio]);
 
   const fetchHistorial = useCallback(async () => {
     if (!user) return;

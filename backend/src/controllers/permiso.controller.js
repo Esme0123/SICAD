@@ -247,12 +247,10 @@ async function misPermisos(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [] });
       }
-      // America/La_Paz = UTC-4. Cubrir 00:00:00 a 23:59:59 hora local
-      const startDate = new Date(`${fechaInicio}T00:00:00.000-04:00`);
-      const endDate   = new Date(`${fechaFin}T23:59:59.999-04:00`);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.json({ ok: true, data: [] });
-      }
+      const [iy, im, id] = fechaInicio.split('-').map(Number);
+      const [fy, fm, fd] = fechaFin.split('-').map(Number);
+      const startDate = new Date(Date.UTC(iy, im - 1, id, 4, 0, 0, 0)); // 00:00 Bolivia = 04:00 UTC
+      const endDate   = new Date(Date.UTC(fy, fm - 1, fd, 27, 59, 59, 999)); // 23:59 Bolivia = 27:59 UTC
       fechaFilter = { gte: startDate, lte: endDate };
     } else {
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
@@ -260,10 +258,9 @@ async function misPermisos(req, res) {
       if (mes < 1 || mes > 12) {
         return res.json({ ok: true, data: [] });
       }
-      // Último día del mes: día 0 del mes siguiente
       const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-      const startDate = new Date(`${anio}-${String(mes).padStart(2, '0')}-01T00:00:00.000-04:00`);
-      const endDate   = new Date(`${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}T23:59:59.999-04:00`);
+      const startDate = new Date(Date.UTC(anio, mes - 1, 1, 4, 0, 0, 0));
+      const endDate   = new Date(Date.UTC(anio, mes - 1, ultimoDia, 27, 59, 59, 999));
       fechaFilter = { gte: startDate, lte: endDate };
     }
 

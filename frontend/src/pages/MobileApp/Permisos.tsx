@@ -116,20 +116,21 @@ export const MobilePermisos: React.FC = () => {
   }, [user]);
 
   const buildUrl = useCallback(() => {
+    const hoyStr = new Date().toLocaleDateString('sv-SE');
     switch (filtro) {
-      case "hoy": {
-        const d = fmtDateISO(boDate());
-        return `/permisos/mis-permisos?fechaInicio=${d}&fechaFin=${d}`;
-      }
+      case "hoy":
+        return `/permisos/mis-permisos?fechaInicio=${hoyStr}&fechaFin=${hoyStr}`;
       case "semana": {
-        const b = boDate();
-        const dia = b.getDay();
+        const hoy = new Date();
+        const dia = hoy.getDay();
         const diffLun = dia === 0 ? -6 : 1 - dia;
-        const lun = new Date(b);
-        lun.setDate(b.getDate() + diffLun);
-        const sab = new Date(lun);
-        sab.setDate(lun.getDate() + 5);
-        return `/permisos/mis-permisos?fechaInicio=${fmtDateISO(lun)}&fechaFin=${fmtDateISO(sab)}`;
+        const lun = new Date(hoy);
+        lun.setDate(hoy.getDate() + diffLun);
+        const dom = new Date(lun);
+        dom.setDate(lun.getDate() + 6);
+        const lunStr = lun.toLocaleDateString('sv-SE');
+        const domStr = dom.toLocaleDateString('sv-SE');
+        return `/permisos/mis-permisos?fechaInicio=${lunStr}&fechaFin=${domStr}`;
       }
       case "mes":
         return `/permisos/mis-permisos?mes=${mes}&anio=${anio}`;
