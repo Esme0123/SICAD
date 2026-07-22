@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
 import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
 import { getEmployees, Employee } from "@/services/employees.service";
 import {
   getSchedules,
-  createSchedule,
+  createScheduleBatch,
   deleteSchedule,
   getPeriods,
   Periodo,
@@ -100,13 +101,21 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
         periodoAcademico: selectedPeriod,
       }));
 
-      await Promise.all(payloads.map(p => createSchedule(p)));
+      // Usar batch endpoint para generar UNA sola notificación
+      await createScheduleBatch({
+        usuarioId: emp.id!,
+        asignaciones: DAYS_OF_WEEK.filter(day => draftSchedules[day].length > 0).map(day => ({
+          diaSemana: day,
+          periodosIds: draftSchedules[day],
+        })),
+        periodoAcademico: selectedPeriod,
+      });
       await loadData();
       setFormModalOpen(false);
       resetModal();
     } catch (error) {
       console.error("Error al guardar horarios:", error);
-      alert("Ocurrió un error al guardar los horarios.");
+      toast.error("Ocurrió un error al guardar los horarios.", { position: "bottom-center", duration: 4000 });
     }
   };
 

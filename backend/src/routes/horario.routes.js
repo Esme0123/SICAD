@@ -1,7 +1,7 @@
 // src/routes/horario.routes.js
 
 const { Router } = require('express');
-const { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion, getPeriodosAcademicos } = require('../controllers/horario.controller');
+const { getPeriodos, getHorarioUsuario, asignar, asignarBatch, getHorariosEmpleados, eliminarAsignacion, getPeriodosAcademicos } = require('../controllers/horario.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
@@ -14,6 +14,9 @@ router.get('/empleados', authMiddleware, getHorariosEmpleados);
 
 // POST /api/horarios/asignar           — Solo ADMIN puede asignar horarios
 router.post('/asignar', authMiddleware, requireRol('ADMIN'), asignar);
+
+// POST /api/horarios/asignar-batch     — Asignación multidía → UNA notificación
+router.post('/asignar-batch', authMiddleware, requireRol('ADMIN'), asignarBatch);
 
 // GET  /api/horarios/periodos-academicos — Periodos académicos distintos
 router.get('/periodos-academicos', authMiddleware, getPeriodosAcademicos);

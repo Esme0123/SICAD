@@ -13,6 +13,17 @@ export interface Schedule {
   status: "Activo" | "Inactivo";
 }
 
+export interface BatchAssignment {
+  diaSemana: string;
+  periodosIds: number[];
+}
+
+export interface CreateScheduleBatchPayload {
+  usuarioId: number;
+  asignaciones: BatchAssignment[];
+  periodoAcademico?: string;
+}
+
 export interface CreateSchedulePayload {
   usuarioId: number;
   diaSemana: string;
@@ -92,6 +103,21 @@ export async function deleteSchedule(id: string): Promise<void> {
   }
 }
 
+export async function createScheduleBatch(payload: CreateScheduleBatchPayload): Promise<any> {
+  const { data } = await api.post<{ ok: boolean; data: any }>("/horarios/asignar-batch", {
+    usuarioId: payload.usuarioId,
+    asignaciones: payload.asignaciones.map(a => ({
+      diaSemana: mapDayToBackend(a.diaSemana),
+      periodosIds: a.periodosIds,
+    })),
+    periodoAcademico: payload.periodoAcademico,
+  });
+  if (!data.ok) {
+    throw new Error("Error al asignar horarios batch");
+  }
+  return data.data;
+}
+
 export async function getPeriods(): Promise<Periodo[]> {
   const { data } = await api.get<{ ok: boolean; data: Periodo[] }>("/horarios/periodos");
   if (!data.ok) {
@@ -103,6 +129,7 @@ export async function getPeriods(): Promise<Periodo[]> {
 export default {
   getSchedules,
   createSchedule,
+  createScheduleBatch,
   deleteSchedule,
   getPeriods,
 };

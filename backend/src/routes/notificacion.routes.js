@@ -24,8 +24,8 @@ router.patch('/admin/leer/:id',   marcarAdminLeida);
 router.delete('/todas',           eliminarTodasNotificaciones);
 router.delete('/:id',             eliminarNotificacion);
 
-// DELETE - Admin
-router.delete('/admin/:id',       eliminarAdminNotificacion);
+// DELETE - Admin (estática /todas antes que /:id para evitar colisión)
 router.delete('/admin/todas',     eliminarAdminTodasNotificaciones);
+router.delete('/admin/:id',       eliminarAdminNotificacion);
 
 module.exports = router;

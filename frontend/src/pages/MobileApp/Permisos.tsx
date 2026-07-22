@@ -4,6 +4,7 @@ import {
   FileText, Plus, Clock, CheckCircle2, XCircle, AlertCircle,
   Calendar, ChevronLeft, ChevronRight, X, Upload, Send, Eye,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const API = import.meta.env.VITE_API_URL;
 const BO_TZ = "America/La_Paz";
@@ -384,7 +385,10 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
       }
       onSuccess();
     } catch (err: any) {
-      alert(err?.message || "Error al crear el permiso. Intenta de nuevo.");
+      toast.error(err?.message || "Error al crear el permiso. Intenta de nuevo.", {
+        position: "bottom-center",
+        duration: 4000,
+      });
     } finally {
       setSubmitting(false);
     }

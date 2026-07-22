@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
+import { Toaster } from "@/components/ui/sonner";
 
 interface RootLayoutProps {
   dark: boolean;
@@ -43,6 +44,7 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ dark, onToggleDark }) =>
           </motion.main>
         </AnimatePresence>
       </div>
+      <Toaster />
     </div>
   );
 };

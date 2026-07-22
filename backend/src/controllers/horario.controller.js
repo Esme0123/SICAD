@@ -69,6 +69,46 @@ async function getPeriodosAcademicos(req, res) {
   }
 }
 
+// ── Helper: asigna los periodos de un día a un usuario (sin notificación) ──
+async function asignarDia(uid, diaSemana, periodosIds, periodo) {
+  return await prisma.$transaction(async (tx) => {
+    await tx.horarioAsignado.deleteMany({
+      where: { usuarioId: uid, diaSemana },
+    });
+
+    if (periodosIds.length > 0) {
+      await tx.horarioAsignado.createMany({
+        data: periodosIds.map((periodoId) => ({
+          usuarioId: uid,
+          periodoId: parseInt(periodoId),
+          diaSemana,
+          periodoAcademico: periodo,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const todosLosHorarios = await tx.horarioAsignado.findMany({
+      where: { usuarioId: uid },
+      include: { periodo: { select: { duracion: true } } },
+    });
+
+    const totalMinutos = todosLosHorarios.reduce(
+      (acc, h) => acc + (h.periodo?.duracion ?? 0),
+      0
+    );
+    const horasProgramadas = parseFloat((totalMinutos / 60).toFixed(2));
+
+    const usuarioActualizado = await tx.usuario.update({
+      where: { id: uid },
+      data: { horasProgramadas },
+      select: { id: true, nombre: true, horasBase: true, horasProgramadas: true },
+    });
+
+    return { usuarioActualizado, horariosAsignados: todosLosHorarios.length };
+  });
+}
+
 // ── POST /api/horarios/asignar ────────────────────────────────
 // Reemplaza los horarios de un día para un usuario y recalcula horasProgramadas
 // Body: { usuarioId: number, diaSemana: string, periodosIds: number[], periodoAcademico?: string }
@@ -86,48 +126,8 @@ async function asignar(req, res) {
     const uid = parseInt(usuarioId);
     const periodo = periodoAcademico || obtenerPeriodoActual();
 
-    const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Eliminar horarios previos de ese usuario en ese día
-      await tx.horarioAsignado.deleteMany({
-        where: { usuarioId: uid, diaSemana },
-      });
+    const resultado = await asignarDia(uid, diaSemana, periodosIds, periodo);
 
-      // 2. Insertar los nuevos horarios (si el array no está vacío)
-      if (periodosIds.length > 0) {
-        await tx.horarioAsignado.createMany({
-          data: periodosIds.map((periodoId) => ({
-            usuarioId: uid,
-            periodoId: parseInt(periodoId),
-            diaSemana,
-            periodoAcademico: periodo,
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      // 3. Recalcular horasProgramadas: suma total de duración de TODOS los horarios del usuario
-      const todosLosHorarios = await tx.horarioAsignado.findMany({
-        where: { usuarioId: uid },
-        include: { periodo: { select: { duracion: true } } },
-      });
-
-      const totalMinutos = todosLosHorarios.reduce(
-        (acc, h) => acc + (h.periodo?.duracion ?? 0),
-        0
-      );
-      const horasProgramadas = parseFloat((totalMinutos / 60).toFixed(2));
-
-      // 4. Actualizar el campo horasProgramadas del usuario
-      const usuarioActualizado = await tx.usuario.update({
-        where: { id: uid },
-        data: { horasProgramadas },
-        select: { id: true, nombre: true, horasBase: true, horasProgramadas: true },
-      });
-
-      return { usuarioActualizado, horariosAsignados: todosLosHorarios.length };
-    });
-
-    // Notificar al empleado sobre el cambio de horario
     crearNotificacion({
       titulo: 'Horario Actualizado',
       mensaje: 'Tu horario de atención/clases ha sido actualizado por el administrador.',
@@ -142,6 +142,48 @@ async function asignar(req, res) {
     }
     console.error('[horario.asignar]', error);
     res.status(500).json({ ok: false, message: 'Error al asignar horario' });
+  }
+}
+
+// ── POST /api/horarios/asignar-batch ──────────────────────────
+// Asigna múltiples días para un usuario en una sola llamada → UNA notificación
+// Body: { usuarioId: number, asignaciones: [{ diaSemana: string, periodosIds: number[] }], periodoAcademico?: string }
+async function asignarBatch(req, res) {
+  try {
+    const { usuarioId, asignaciones, periodoAcademico } = req.body;
+
+    if (!usuarioId || !Array.isArray(asignaciones) || asignaciones.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        message: 'usuarioId y asignaciones (array no vacío) son requeridos',
+      });
+    }
+
+    const uid = parseInt(usuarioId);
+    const periodo = periodoAcademico || obtenerPeriodoActual();
+    let totalAsignados = 0;
+
+    for (const asig of asignaciones) {
+      if (!asig.diaSemana || !Array.isArray(asig.periodosIds)) continue;
+      const resDia = await asignarDia(uid, asig.diaSemana, asig.periodosIds, periodo);
+      totalAsignados += resDia.horariosAsignados;
+    }
+
+    // UNA sola notificación para todos los días
+    crearNotificacion({
+      titulo: 'Horario Actualizado',
+      mensaje: 'Tu horario de atención/clases ha sido actualizado por el administrador.',
+      usuarioId: uid,
+      paraRol: 'EMPLEADO',
+    });
+
+    res.json({ ok: true, data: { horariosAsignados: totalAsignados } });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ ok: false, message: 'Usuario o periodo no encontrado' });
+    }
+    console.error('[horario.asignarBatch]', error);
+    res.status(500).json({ ok: false, message: 'Error al asignar horarios batch' });
   }
 }
 
@@ -221,5 +263,5 @@ async function eliminarAsignacion(req, res) {
   }
 }
 
-module.exports = { getPeriodos, getHorarioUsuario, asignar, getHorariosEmpleados, eliminarAsignacion, getPeriodosAcademicos };
+module.exports = { getPeriodos, getHorarioUsuario, asignar, asignarBatch, getHorariosEmpleados, eliminarAsignacion, getPeriodosAcademicos };
 

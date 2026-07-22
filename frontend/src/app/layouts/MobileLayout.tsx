@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2 } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
+import { Toaster } from "@/components/ui/sonner";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -325,6 +326,7 @@ export const MobileLayout: React.FC = () => {
           </div>
         </nav>
       )}
+      <Toaster />
     </div>
   );
 };
