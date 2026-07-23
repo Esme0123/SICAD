@@ -241,13 +241,18 @@ async function misPermisos(req, res) {
 
     const { fechaInicio, fechaFin } = req.query;
 
+    function fechaLocalMedioDia(isoStr) {
+      const [y, m, d] = isoStr.split('-').map(Number);
+      return new Date(y, m - 1, d, 12, 0, 0);
+    }
+
     if (fechaInicio && fechaFin) {
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [] });
       }
-      const startDate = new Date(`${fechaInicio}T00:00:00`);
-      const endDate   = new Date(`${fechaFin}T23:59:59`);
+      const startDate = fechaLocalMedioDia(fechaInicio);
+      const endDate   = fechaLocalMedioDia(fechaFin);
       fechaFilter = { gte: startDate, lte: endDate };
     } else {
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
@@ -255,9 +260,9 @@ async function misPermisos(req, res) {
       if (mes < 1 || mes > 12) {
         return res.json({ ok: true, data: [] });
       }
-      const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-      const startDate = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01T00:00:00`);
-      const endDate   = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}T23:59:59`);
+      const ultimoDia = new Date(anio, mes, 0, 12, 0, 0).getDate();
+      const startDate = new Date(anio, mes - 1, 1, 12, 0, 0);
+      const endDate   = new Date(anio, mes - 1, ultimoDia, 12, 0, 0);
       fechaFilter = { gte: startDate, lte: endDate };
     }
 

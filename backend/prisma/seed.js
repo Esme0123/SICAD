@@ -49,14 +49,17 @@ async function main() {
   console.log(`Configuracion por defecto creada/verificada (id: ${config.id})`);
 
   // 3. Gestiones Académicas (Periodos de Contrato)
-  const gestiones = [
-    { nombre: '1-2025', fechaInicio: new Date('2025-02-01T00:00:00'), fechaFin: new Date('2025-06-30T23:59:59') },
-    { nombre: 'Invierno 2025', fechaInicio: new Date('2025-07-01T00:00:00'), fechaFin: new Date('2025-07-31T23:59:59') },
-    { nombre: '2-2025', fechaInicio: new Date('2025-08-01T00:00:00'), fechaFin: new Date('2025-12-31T23:59:59') },
-    { nombre: '1-2026', fechaInicio: new Date('2026-02-01T00:00:00'), fechaFin: new Date('2026-06-30T23:59:59') },
-    { nombre: 'Invierno 2026', fechaInicio: new Date('2026-07-01T00:00:00'), fechaFin: new Date('2026-07-31T23:59:59') },
-    { nombre: '2-2026', fechaInicio: new Date('2026-08-01T00:00:00'), fechaFin: new Date('2026-12-31T23:59:59') },
-  ];
+  // Auto-generadas desde 2026 hasta el año siguiente al actual
+  const anioActual = new Date().getFullYear();
+  const gestiones = [];
+  for (let year = 2026; year <= anioActual + 1; year++) {
+    gestiones.push(
+      { nombre: `Verano ${year}`,     fechaInicio: new Date(year, 0, 1, 12, 0, 0), fechaFin: new Date(year, 0, 31, 12, 0, 0) },
+      { nombre: `1-${year}`,          fechaInicio: new Date(year, 1, 1, 12, 0, 0),  fechaFin: new Date(year, 5, 30, 12, 0, 0) },
+      { nombre: `Invierno ${year}`,   fechaInicio: new Date(year, 6, 1, 12, 0, 0),  fechaFin: new Date(year, 6, 31, 12, 0, 0) },
+      { nombre: `2-${year}`,          fechaInicio: new Date(year, 7, 1, 12, 0, 0),  fechaFin: new Date(year, 11, 31, 12, 0, 0) },
+    );
+  }
 
   for (const g of gestiones) {
     const existing = await prisma.gestionAcademica.findUnique({ where: { nombre: g.nombre } });

@@ -867,13 +867,14 @@ async function miHistorial(req, res) {
 
     const ahoraBolivia = getBoliviaDate();
     let startDate, endDate;
-    let periodoFilter = null;
 
-    const { fechaInicio, fechaFin, periodoAcademico } = req.query;
+    const { fechaInicio, fechaFin } = req.query;
 
-    // Si se envía periodoAcademico, filtrar horarios por ese periodo
-    if (periodoAcademico) {
-      periodoFilter = periodoAcademico;
+    // ── Construir fechas con MEDIODÍA LOCAL (12:00) para evitar
+    //    desfases de UTC-4 que ocurrían con T00:00 / T23:59 ──
+    function fechaLocalMedioDia(isoStr) {
+      const [y, m, d] = isoStr.split('-').map(Number);
+      return new Date(y, m - 1, d, 12, 0, 0);
     }
 
     if (fechaInicio && fechaFin) {
@@ -881,8 +882,8 @@ async function miHistorial(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }
-      startDate = new Date(`${fechaInicio}T00:00:00`);
-      endDate   = new Date(`${fechaFin}T23:59:59`);
+      startDate = fechaLocalMedioDia(fechaInicio);
+      endDate   = fechaLocalMedioDia(fechaFin);
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }
@@ -892,9 +893,9 @@ async function miHistorial(req, res) {
       if (mes < 1 || mes > 12) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }
-      const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-      startDate = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01T00:00:00`);
-      endDate   = new Date(`${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}T23:59:59`);
+      const ultimoDia = new Date(anio, mes, 0, 12, 0, 0).getDate();
+      startDate = new Date(anio, mes - 1, 1, 12, 0, 0);
+      endDate   = new Date(anio, mes - 1, ultimoDia, 12, 0, 0);
     }
 
     const asistencias = await prisma.asistencia.findMany({
@@ -917,11 +918,12 @@ async function miHistorial(req, res) {
         estado = 'Justificado';
       }
 
-      const fechaDate = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+      const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+      const fechaStr = fd.toISOString().split('T')[0];
       return {
         id: a.id,
-        fecha: fechaDate.toISOString().split('T')[0],
-        fechaLegible: fechaDate.toLocaleDateString('es-BO', {
+        fecha: fechaStr,
+        fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
           timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         }),
         horaEntrada: fmtTime(a.horaEntrada),
@@ -942,29 +944,29 @@ async function miHistorial(req, res) {
       },
       include: {
         tipoPermiso: { select: { nombre: true } },
-        periodos: { include: { periodo: { select: { nombre: true } } } },
+        periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } },
       },
     });
 
     for (const p of permisos) {
       const pfecha = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
-      const fechaPermiso = pfecha.toLocaleDateString('es-BO', {
-        timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      });
+      const fechaStr = pfecha.toISOString().split('T')[0];
       const nombrePeriodos = p.periodos
         .map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`)
         .join(', ') || '—';
 
       // Evitar duplicar si ya existe una asistencia Justificado para esa fecha
       const yaExiste = data.some(
-        (d) => d.estado === 'Justificado' && d.fechaLegible === fechaPermiso
+        (d) => d.estado === 'Justificado' && d.fecha === fechaStr
       );
 
       if (!yaExiste) {
         data.push({
           id: `permiso-${p.id}`,
-          fecha: pfecha.toISOString().split('T')[0],
-          fechaLegible: fechaPermiso,
+          fecha: fechaStr,
+          fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
+            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          }),
           horaEntrada: null,
           horaSalida: null,
           estado: 'Justificado',
@@ -976,36 +978,26 @@ async function miHistorial(req, res) {
     }
 
     // ── Calcular ausentes: periodos sin marcación ──
-    // Filtrar horarios solo por los periodos académicos que abarca el rango
-    const periodosEnRango = [];
-    if (periodoFilter) {
-      periodosEnRango.push(periodoFilter);
-    } else {
-      const startP = obtenerPeriodoActual(startDate);
-      const endP = obtenerPeriodoActual(endDate);
-      periodosEnRango.push(startP);
-      if (startP !== endP) periodosEnRango.push(endP);
-    }
-
+    // Misma lógica que NuevoPermisoModal: obtiene TODOS los horarios
+    // del usuario (sin filtro de periodoAcademico) y filtra por diaSemana.
     const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuarioId, periodoAcademico: { in: periodosEnRango } },
+      where: { usuarioId },
       include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
     const fechasEnRango = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
       fechasEnRango.push(new Date(d));
     }
 
     const diasSemanaMap = { 0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sabado' };
     const ahoraBol = getBoliviaDate();
     const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
-    const hoyStr = ahoraBol.toISOString().split('T')[0];
+    const hoyStr = `${ahoraBol.getFullYear()}-${String(ahoraBol.getMonth() + 1).padStart(2, '0')}-${String(ahoraBol.getDate()).padStart(2, '0')}`;
 
-    // Build asistencia lookup per date: dateISO -> array of asistencias
-    // a.fecha es @db.Date (midnight UTC), usamos toISOString directamente
+    // Build asistencia lookup per date: dateStr -> array of asistencias
+    // Usamos el string YYYY-MM-DD directamente desde fd.toISOString (UTC midnight)
+    // que es exactamente la fecha que @db.Date almacena.
     const asistenciaPorFecha = new Map();
     for (const a of asistencias) {
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
@@ -1014,7 +1006,7 @@ async function miHistorial(req, res) {
       asistenciaPorFecha.get(key).push(a);
     }
 
-    // Build permiso lookup per date: dateISO -> Set of periodoIds
+    // Build permiso lookup per date: dateStr -> Set of periodoIds
     const permisoPorFecha = new Map();
     for (const p of permisos) {
       const fd = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
@@ -1026,13 +1018,15 @@ async function miHistorial(req, res) {
     }
 
     for (const fecha of fechasEnRango) {
-      // Get date string directly from the local-Date representation (avoid timezone shift)
+      // Extraer YYYY-MM-DD desde el Date de mediodía local.
+      // Como se creó con new Date(y, m-1, d, 12, 0, 0), toISOString
+      // da siempre el mismo día en UTC (ej: 2026-07-21T16:00:00Z -> "2026-07-21").
       const fechaStr = fecha.toISOString().split('T')[0];
-      // Skip future dates (string compare on YYYY-MM-DD is lexicographically correct)
       if (fechaStr > hoyStr) continue;
-      // Day of week from the UTC date is reliable (the date IS correct in the ISO string)
-      const diaNum = new Date(fechaStr + 'T00:00:00Z').getUTCDay();
-      if (diaNum === 0) continue;
+
+      // Obtener día de la semana usando el string YYYY-MM-DD a mediodía UTC
+      const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
+      if (diaNum === 0) continue; // Saltar domingos
       const diaSemana = diasSemanaMap[diaNum];
       const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
       if (horariosDia.length === 0) continue;
@@ -1044,7 +1038,6 @@ async function miHistorial(req, res) {
       for (const h of horariosDia) {
         const periodoLabel = `${h.periodo.horaInicio}–${h.periodo.horaFin}`;
 
-        // Check if this block is covered by an asistencia with matching period label
         let cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
         if (!cubierto) {
           cubierto = asistenciasDeHoy.some(a => a.periodo === null);
@@ -1053,7 +1046,6 @@ async function miHistorial(req, res) {
 
         if (periodoIdsPermiso.has(h.periodo.id)) continue;
 
-        // For today: only mark Ausente if the block's end time has already passed
         if (esHoy) {
           const [hFin, mFin] = h.periodo.horaFin.split(':').map(Number);
           if (ahoraMin < hFin * 60 + mFin) continue;
@@ -1062,7 +1054,7 @@ async function miHistorial(req, res) {
         data.push({
           id: `ausente-${fechaStr}-${h.id}`,
           fecha: fechaStr,
-          fechaLegible: fecha.toLocaleDateString('es-BO', {
+          fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
             timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
           }),
           horaEntrada: null,
@@ -1075,7 +1067,6 @@ async function miHistorial(req, res) {
       }
     }
 
-    // Reordenar por fecha descendente
     data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
     res.json({
