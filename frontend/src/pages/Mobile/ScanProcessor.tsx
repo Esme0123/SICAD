@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff, Volume2 } from "lucide-react";
 import { marcarAsistenciaMovil, MarcarResponse } from "@/services/qr.service";
+import { anunciarAsistencia } from "@/utils/tts.utils";
 
 type Phase = "input" | "submitting" | "success" | "error";
 
@@ -41,6 +42,7 @@ export const ScanProcessor: React.FC = () => {
       const res = await marcarAsistenciaMovil(decodeURIComponent(qrToken), finalCode, password);
       if (res.ok) {
         setState({ phase: "success", response: res, errorMsg: "" });
+        anunciarAsistencia(res.empleado?.nombre || "Empleado");
 
         // Redirigir a la vista de éxito con datos para personalizar el mensaje
         setTimeout(() => {
@@ -188,6 +190,15 @@ export const ScanProcessor: React.FC = () => {
               )}
             </div>
             <p className="text-[10px] text-slate-400 mt-2">Redirigiendo...</p>
+            {state.response?.empleado?.nombre && (
+              <button
+                onClick={() => anunciarAsistencia(state.response!.empleado!.nombre!)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-white/10 dark:hover:text-white/70 transition-colors cursor-pointer"
+              >
+                <Volume2 size={12} />
+                Reproducir anuncio
+              </button>
+            )}
           </div>
         )}
 

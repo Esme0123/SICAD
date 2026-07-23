@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { RefreshCw, Server } from "lucide-react";
+import { RefreshCw, Server, Volume2 } from "lucide-react";
 import { QRCodeDisplay } from "./components/QRCodeDisplay";
+import { anunciarAsistencia } from "@/utils/tts.utils";
 import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
@@ -39,6 +40,13 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
 
   const activePeriod = periodos.find(p => p.estado === "ACTIVO" || p.estado === "RETRASO");
   const ausentes = estadoHoy.totalAusentes;
+
+  // TTS automático cuando llega un nuevo registro
+  useEffect(() => {
+    if (ultimoRegistro?.nombre) {
+      anunciarAsistencia(ultimoRegistro.nombre);
+    }
+  }, [ultimoRegistro]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -238,9 +246,20 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
 
         {/* Última asistencia */}
         <div className={sideCard}>
-          <p className={`text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? "text-white/30" : "text-slate-400"}`}>
-            Última asistencia
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className={`text-xs font-semibold uppercase tracking-widest ${dark ? "text-white/30" : "text-slate-400"}`}>
+              Última asistencia
+            </p>
+            {ultimoRegistro?.nombre && (
+              <button
+                onClick={() => anunciarAsistencia(ultimoRegistro!.nombre!)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Volume2 size={11} />
+                Anunciar
+              </button>
+            )}
+          </div>
           {ultimoRegistro ? (
             <div className={`p-3.5 rounded-xl flex items-center gap-3 ${
               dark ? "bg-green-900/20 border border-green-800/25" : "bg-green-50 border border-green-100"

@@ -20,6 +20,7 @@ import { MobileHorarios } from "@/pages/MobileApp/Horarios";
 import { MobileHistorial } from "@/pages/MobileApp/Historial";
 import { MobilePermisos } from "@/pages/MobileApp/Permisos";
 import { MobilePerfil } from "@/pages/MobileApp/Perfil";
+import { MobileEscanerQR } from "@/pages/MobileApp/EscanerQR";
 import { MobileMarcar } from "@/pages/Mobile/MarcarMobile";
 
 interface AppRoutesProps {
@@ -65,6 +66,9 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
 
       {/* Mobile Marcar — ruta pública que procesa el escaneo QR */}
       <Route path="/app/marcar" element={<MobileMarcar />} />
+
+      {/* Escáner QR in-app — cámara dentro de la aplicación */}
+      <Route path="/app/escaner" element={<MobileEscanerQR />} />
 
       {/* Ruta pública para escaneo móvil — no requiere layout de admin */}
       <Route path="/marcar" element={<ScanProcessor />} />

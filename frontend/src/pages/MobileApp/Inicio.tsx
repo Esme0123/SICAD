@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
-import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar } from "lucide-react";
+import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan } from "lucide-react";
 
 export const MobileInicio: React.FC = () => {
   const { user } = useEmployeeAuth();
@@ -85,36 +85,51 @@ export const MobileInicio: React.FC = () => {
 
       <div className="bg-card border border-border rounded-2xl p-4">
         <h3 className="text-sm font-bold text-foreground mb-4">Acceso Rápido</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <button
             onClick={() => navigate("/app/horarios")}
-            className="flex flex-col items-center gap-3 rounded-xl p-5 transition-all active:scale-[0.97] cursor-pointer border"
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
             style={{
               background: "color-mix(in srgb, var(--primary) 6%, transparent)",
               borderColor: "color-mix(in srgb, var(--primary) 15%, transparent)",
             }}
           >
-            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+            <div className="w-10 h-10 rounded-full flex items-center justify-center"
               style={{ background: "color-mix(in srgb, var(--primary) 15%, transparent)" }}
             >
-              <Calendar size={24} style={{ color: "var(--primary)" }} />
+              <Calendar size={20} style={{ color: "var(--primary)" }} />
             </div>
-            <span className="text-xs font-semibold text-foreground">Mis Horarios</span>
+            <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Horarios</span>
+          </button>
+          <button
+            onClick={() => navigate("/app/escaner")}
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
+            style={{
+              background: "color-mix(in srgb, var(--color-success, #10B981) 8%, transparent)",
+              borderColor: "color-mix(in srgb, var(--color-success, #10B981) 18%, transparent)",
+            }}
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ background: "color-mix(in srgb, var(--color-success, #10B981) 18%, transparent)" }}
+            >
+              <Scan size={20} style={{ color: "var(--color-success, #10B981)" }} />
+            </div>
+            <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Escanear QR</span>
           </button>
           <button
             onClick={() => navigate("/app/permisos")}
-            className="flex flex-col items-center gap-3 rounded-xl p-5 transition-all active:scale-[0.97] cursor-pointer border"
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
             style={{
               background: "color-mix(in srgb, var(--color-secondary, #7C3AED) 6%, transparent)",
               borderColor: "color-mix(in srgb, var(--color-secondary, #7C3AED) 15%, transparent)",
             }}
           >
-            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+            <div className="w-10 h-10 rounded-full flex items-center justify-center"
               style={{ background: "color-mix(in srgb, var(--color-secondary, #7C3AED) 15%, transparent)" }}
             >
-              <FileText size={24} style={{ color: "var(--color-secondary, #7C3AED)" }} />
+              <FileText size={20} style={{ color: "var(--color-secondary, #7C3AED)" }} />
             </div>
-            <span className="text-xs font-semibold text-foreground">Mis Permisos</span>
+            <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Permisos</span>
           </button>
         </div>
       </div>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
-import { Users, Clock, Activity, Check, AlertTriangle, FileText, LogOut, XCircle } from "lucide-react";
+import { Users, Clock, Activity, Check, AlertTriangle, FileText, LogOut, XCircle, Volume2 } from "lucide-react";
+import { anunciarAsistencia } from "@/utils/tts.utils";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 
@@ -82,6 +83,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({ dark }) => {
   const cfg = MARK_CONFIG[markType];
 
   const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    anunciarAsistencia(employeeName);
+  }, [employeeName]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -171,12 +176,20 @@ export const SuccessView: React.FC<SuccessViewProps> = ({ dark }) => {
           transition={{ delay: 0.6 }}
           className="flex flex-col items-center gap-2"
         >
-          <button
-            onClick={() => navigate("/attendance/qr")}
-            className="px-8 py-3 rounded-xl text-white text-sm font-semibold bg-primary hover:opacity-90 transition-all cursor-pointer shadow-md"
-          >
-            Volver al QR
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => anunciarAsistencia(employeeName)}
+              className="px-3 py-3 rounded-xl text-sm font-medium border border-border hover:bg-muted transition-all cursor-pointer"
+            >
+              <Volume2 size={16} />
+            </button>
+            <button
+              onClick={() => navigate("/attendance/qr")}
+              className="px-8 py-3 rounded-xl text-white text-sm font-semibold bg-primary hover:opacity-90 transition-all cursor-pointer shadow-md"
+            >
+              Volver al QR
+            </button>
+          </div>
           <p className={`text-xs ${dark ? "text-white/25" : "text-slate-400"}`}>
             Redirigiendo automáticamente en {countdown}s...
           </p>

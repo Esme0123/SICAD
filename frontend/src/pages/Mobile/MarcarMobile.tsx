@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Loader2, Key, User, Eye, EyeOff, Volume2 } from "lucide-react";
 import { marcarAsistenciaMovil, MarcarResponse } from "@/services/qr.service";
+import { anunciarAsistencia } from "@/utils/tts.utils";
 
 type Phase = "input" | "submitting" | "success" | "error";
 
@@ -50,6 +51,7 @@ export const MobileMarcar: React.FC = () => {
       const res = await marcarAsistenciaMovil(decodeURIComponent(qrToken), finalCode, password);
       if (res.ok) {
         setState({ phase: "success", response: res, errorMsg: "" });
+        anunciarAsistencia(res.empleado?.nombre || "Empleado");
         setTimeout(() => navigate("/app/inicio"), 2500);
       } else {
         setState({
@@ -178,6 +180,15 @@ export const MobileMarcar: React.FC = () => {
               )}
             </div>
             <p className="text-[10px] text-muted-foreground mt-2">Volviendo al inicio...</p>
+            {state.response?.empleado?.nombre && (
+              <button
+                onClick={() => anunciarAsistencia(state.response!.empleado!.nombre!)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Volume2 size={12} />
+                Reproducir anuncio
+              </button>
+            )}
           </div>
         )}
 

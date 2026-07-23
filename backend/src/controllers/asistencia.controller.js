@@ -505,8 +505,8 @@ async function marcarMovil(req, res) {
         const diaSemana = getDiaSemanaHoy();
 
         // Configuración de tolerancia
-        const config = await tx.configuracion.findUnique({ where: { id: 1 } });
-        const toleranciaMin = config?.tiempoToleranciaMinutos ?? 10;
+        const config = await tx.configuracionSistema.findUnique({ where: { id: 1 } });
+        const toleranciaMin = config?.tiempoTolerancia ?? 10;
 
         // Horarios de hoy en el periodo académico actual
         const horarios = await tx.horarioAsignado.findMany({
