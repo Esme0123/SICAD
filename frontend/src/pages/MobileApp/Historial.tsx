@@ -67,6 +67,26 @@ function formatHora(d: Date | null): string {
   return b.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Convierte "YYYY-MM-DD" a Date LOCAL evitando el desfase UTC.
+ *  new Date("2026-07-22") se interpreta como UTC 00:00 y en Bolivia
+ *  (-4h) se convierte en 21 de julio. Con esta función el día NO cambia. */
+function parseLocalDate(fechaStr: string): Date | null {
+  if (!fechaStr) return null;
+  const [year, month, day] = fechaStr.split('T')[0].split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatearFechaLocal(fechaStr: string, options?: Intl.DateTimeFormatOptions): string {
+  const d = parseLocalDate(fechaStr);
+  if (!d) return '';
+  return d.toLocaleDateString('es-BO', options || {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 function parsePeriod(value: string): { idx: number; year: number } | null {
   let m = value.match(/^(Verano|Invierno)\s(\d{4})$/);
   if (m) {
@@ -242,9 +262,7 @@ export const MobileHistorial: React.FC = () => {
 
       const headers = ["Fecha", "Hora Entrada", "Hora Salida", "Estado", "Periodo"];
       const body = data.map((m) => [
-        boDate(new Date(m.fecha)).toLocaleDateString("es-BO", {
-          day: "2-digit", month: "short", year: "numeric",
-        }),
+        formatearFechaLocal(m.fecha, { day: "2-digit", month: "short", year: "numeric" }),
         m.horaEntrada || "—",
         m.horaSalida || (m.salidaOmitida ? "Autom." : "—"),
         m.estado,
@@ -347,7 +365,7 @@ export const MobileHistorial: React.FC = () => {
       data.forEach((m, i) => {
         const r = ws.getRow(i + 7);
         const vals = [
-          boDate(new Date(m.fecha)).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" }),
+          formatearFechaLocal(m.fecha, { day: "2-digit", month: "short", year: "numeric" }),
           m.horaEntrada || "—",
           m.horaSalida || (m.salidaOmitida ? "Automática" : "—"),
           m.estado,
@@ -551,8 +569,8 @@ export const MobileHistorial: React.FC = () => {
           {dataFiltrada.map((m) => {
             const cfg = estadoConfig[m.estado] || estadoConfig.Puntual;
             const Icon = cfg.icon;
-            const f = boDate(new Date(m.fecha));
-            const hoyBool = fmtDateISO(f) === hoy;
+            const f = parseLocalDate(m.fecha);
+            const hoyBool = m.fecha === hoy;
 
             const borderClr = m.estado === "Puntual" ? "#10B981" :
               m.estado === "Tardanza" ? "#F59E0B" :
@@ -580,10 +598,9 @@ export const MobileHistorial: React.FC = () => {
                 <div className="flex items-start justify-between mb-2 pl-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                      {f.toLocaleDateString("es-BO", {
+                      {f ? f.toLocaleDateString("es-BO", {
                         weekday: "long", day: "numeric", month: "long",
-                      })}
-                    </p>
+                      }) : m.fecha}</p>
                     {hoyBool && (
                       <span className="text-[10px] font-semibold ml-1.5 px-1.5 py-0.5 rounded"
                         style={{ background: `${borderClr}20`, color: borderClr }}

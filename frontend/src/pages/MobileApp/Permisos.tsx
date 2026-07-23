@@ -555,7 +555,10 @@ interface DetallePermisoModalProps {
 function formatDateSafe(dateStr: string | undefined | null, options?: Intl.DateTimeFormatOptions): string {
   if (!dateStr) return "—";
   try {
-    const d = new Date(dateStr);
+    // Parse YYYY-MM-DD directamente para evitar desfase UTC
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+    if (!year || !month || !day) return "—";
+    const d = new Date(year, month - 1, day);
     if (isNaN(d.getTime())) return "—";
     return d.toLocaleDateString("es-BO", options);
   } catch {
