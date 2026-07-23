@@ -168,9 +168,10 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
   const formatDate = (iso: string) => {
     if (!iso) return "—";
     try {
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "—";
-      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+      // Parsear YYYY-MM-DD manualmente para evitar desfase UTC
+      const [year, month, day] = iso.split('T')[0].split('-').map(Number);
+      if (!year || !month || !day) return "—";
+      return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
     } catch { return "—"; }
   };
 
