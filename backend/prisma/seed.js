@@ -48,7 +48,27 @@ async function main() {
   });
   console.log(`Configuracion por defecto creada/verificada (id: ${config.id})`);
 
-  // 3. Catalogo de Periodos Reales
+  // 3. Gestiones Académicas (Periodos de Contrato)
+  const gestiones = [
+    { nombre: '1-2025', fechaInicio: new Date('2025-02-01T00:00:00'), fechaFin: new Date('2025-06-30T23:59:59') },
+    { nombre: 'Invierno 2025', fechaInicio: new Date('2025-07-01T00:00:00'), fechaFin: new Date('2025-07-31T23:59:59') },
+    { nombre: '2-2025', fechaInicio: new Date('2025-08-01T00:00:00'), fechaFin: new Date('2025-12-31T23:59:59') },
+    { nombre: '1-2026', fechaInicio: new Date('2026-02-01T00:00:00'), fechaFin: new Date('2026-06-30T23:59:59') },
+    { nombre: 'Invierno 2026', fechaInicio: new Date('2026-07-01T00:00:00'), fechaFin: new Date('2026-07-31T23:59:59') },
+    { nombre: '2-2026', fechaInicio: new Date('2026-08-01T00:00:00'), fechaFin: new Date('2026-12-31T23:59:59') },
+  ];
+
+  for (const g of gestiones) {
+    const existing = await prisma.gestionAcademica.findUnique({ where: { nombre: g.nombre } });
+    if (!existing) {
+      await prisma.gestionAcademica.create({ data: g });
+      console.log(`Gestión académica creada: ${g.nombre}`);
+    } else {
+      console.log(`Gestión académica ya existe: ${g.nombre}`);
+    }
+  }
+
+  // 4. Catalogo de Periodos Reales
   const periodosData = [
     { nombre: 'Bloque 1', horaInicio: '07:00', horaFin: '08:15' },
     { nombre: 'Bloque 2', horaInicio: '08:15', horaFin: '09:15' },

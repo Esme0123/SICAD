@@ -67,6 +67,32 @@ function formatHora(d: Date | null): string {
   return b.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 }
 
+function parsePeriod(value: string): { idx: number; year: number } | null {
+  let m = value.match(/^(Verano|Invierno)\s(\d{4})$/);
+  if (m) {
+    const idx = m[1] === 'Verano' ? 0 : 2;
+    return { idx, year: parseInt(m[2]) };
+  }
+  m = value.match(/^1-(\d{4})$/);
+  if (m) return { idx: 1, year: parseInt(m[1]) };
+  m = value.match(/^2-(\d{4})$/);
+  if (m) return { idx: 3, year: parseInt(m[2]) };
+  return null;
+}
+
+function periodoDateRange(periodo: string): { inicio: string; fin: string } | null {
+  const parsed = parsePeriod(periodo);
+  if (!parsed) return null;
+  const { idx, year } = parsed;
+  switch (idx) {
+    case 0: return { inicio: `${year}-01-01`, fin: `${year}-01-31` };
+    case 1: return { inicio: `${year}-02-01`, fin: `${year}-06-30` };
+    case 2: return { inicio: `${year}-07-01`, fin: `${year}-07-31` };
+    case 3: return { inicio: `${year}-08-01`, fin: `${year}-12-31` };
+    default: return null;
+  }
+}
+
 function boDateTime(): string {
   return new Date().toLocaleString("es-BO", {
     timeZone: BO_TZ,
@@ -150,12 +176,16 @@ export const MobileHistorial: React.FC = () => {
       }
       case "mes":
         return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
-      case "periodo":
-        return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
+      case "periodo": {
+        if (!selectedPeriodo) return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
+        const dr = periodoDateRange(selectedPeriodo);
+        if (!dr) return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
+        return `/asistencia/mi-historial?fechaInicio=${dr.inicio}&fechaFin=${dr.fin}&periodoAcademico=${encodeURIComponent(selectedPeriodo)}`;
+      }
       default:
         return `/asistencia/mi-historial`;
     }
-  }, [filtro, mes, anio]);
+  }, [filtro, mes, anio, selectedPeriodo]);
 
   const fetchHistorial = useCallback(async () => {
     if (!user) return;

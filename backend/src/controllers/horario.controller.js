@@ -2,7 +2,7 @@
 // Gestión del catálogo de Periodos y asignación de horarios a empleados
 
 const prisma = require('../config/db');
-const { obtenerPeriodoActual } = require('../utils/periodo.utils');
+const { obtenerPeriodoActual, obtenerOCrearGestionPorNombre } = require('../utils/periodo.utils');
 const { crearNotificacion } = require('./notificacion.controller');
 
 // ── GET /api/horarios/periodos ────────────────────────────────
@@ -71,6 +71,10 @@ async function getPeriodosAcademicos(req, res) {
 
 // ── Helper: asigna los periodos de un día a un usuario (sin notificación) ──
 async function asignarDia(uid, diaSemana, periodosIds, periodo) {
+  // Resolver gestionId según el nombre del periodo académico
+  const gestion = await obtenerOCrearGestionPorNombre(prisma, periodo);
+  const gestionId = gestion.id;
+
   return await prisma.$transaction(async (tx) => {
     await tx.horarioAsignado.deleteMany({
       where: { usuarioId: uid, diaSemana },
@@ -83,6 +87,7 @@ async function asignarDia(uid, diaSemana, periodosIds, periodo) {
           periodoId: parseInt(periodoId),
           diaSemana,
           periodoAcademico: periodo,
+          gestionId,
         })),
         skipDuplicates: true,
       });

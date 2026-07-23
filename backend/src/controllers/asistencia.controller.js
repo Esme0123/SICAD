@@ -867,8 +867,14 @@ async function miHistorial(req, res) {
 
     const ahoraBolivia = getBoliviaDate();
     let startDate, endDate;
+    let periodoFilter = null;
 
-    const { fechaInicio, fechaFin } = req.query;
+    const { fechaInicio, fechaFin, periodoAcademico } = req.query;
+
+    // Si se envía periodoAcademico, filtrar horarios por ese periodo
+    if (periodoAcademico) {
+      periodoFilter = periodoAcademico;
+    }
 
     if (fechaInicio && fechaFin) {
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
@@ -970,8 +976,19 @@ async function miHistorial(req, res) {
     }
 
     // ── Calcular ausentes: periodos sin marcación ──
+    // Filtrar horarios solo por los periodos académicos que abarca el rango
+    const periodosEnRango = [];
+    if (periodoFilter) {
+      periodosEnRango.push(periodoFilter);
+    } else {
+      const startP = obtenerPeriodoActual(startDate);
+      const endP = obtenerPeriodoActual(endDate);
+      periodosEnRango.push(startP);
+      if (startP !== endP) periodosEnRango.push(endP);
+    }
+
     const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuarioId },
+      where: { usuarioId, periodoAcademico: { in: periodosEnRango } },
       include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
