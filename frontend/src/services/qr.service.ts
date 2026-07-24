@@ -78,6 +78,7 @@ export interface QrDashboardData {
   totalAsistencias: number;
   atrasos: number;
   ultimoRegistro: {
+    id: number;
     nombre: string;
     codigo: string;
     hora: string;

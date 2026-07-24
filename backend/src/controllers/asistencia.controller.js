@@ -680,6 +680,7 @@ async function getQrDashboard(req, res) {
       const fmt = (d) =>
         getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       ultimoRegistro = {
+        id: ultimo.id,
         nombre: ultimo.usuario.nombre,
         codigo: ultimo.usuario.codigo || `CC-${String(ultimo.usuarioId).padStart(3, '0')}`,
         hora: fmt(horaMarcada),
@@ -925,19 +926,29 @@ async function miHistorial(req, res) {
       include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
-    // Build periodo name lookup: label -> nombre
-    const periodoNombreMap = new Map();
+    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+
+    // Build horario lookup per day: diaSemana -> [{ horaInicio, horaFin }]
+    const horarioPorDia = new Map();
     for (const h of horariosAsignados) {
-      const label = `${h.periodo.horaInicio}–${h.periodo.horaFin}`;
-      if (!periodoNombreMap.has(label)) {
-        periodoNombreMap.set(label, h.periodo.nombre);
-      }
+      if (!horarioPorDia.has(h.diaSemana)) horarioPorDia.set(h.diaSemana, []);
+      horarioPorDia.get(h.diaSemana).push({
+        horaInicio: h.periodo.horaInicio,
+        horaFin: h.periodo.horaFin,
+        nombre: h.periodo.nombre,
+      });
+    }
+
+    function getPeriodoHorario(fecha) {
+      const diaNum = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getDay();
+      const horarios = horarioPorDia.get(diasSemana[diaNum]);
+      if (!horarios || horarios.length === 0) return null;
+      return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
     }
 
     const data = asistencias.map((a) => {
       let estado = 'Puntual';
 
-      // Calcular estado desde horaEntrada + periodo si existe entrada
       if (a.horaEntrada && a.periodo) {
         const entradaMin = getBoliviaDate(a.horaEntrada).getHours() * 60 +
                            getBoliviaDate(a.horaEntrada).getMinutes();
@@ -955,14 +966,6 @@ async function miHistorial(req, res) {
         }
       }
 
-      // Mostrar nombre del periodo cuando no se almacenó la etiqueta horaria
-      let periodoLabel = a.periodo || null;
-      if (!periodoLabel && a.horaEntrada) {
-        periodoLabel = periodoNombreMap.get(
-          `${getBoliviaDate(a.horaEntrada).getHours().toString().padStart(2, '0')}:${getBoliviaDate(a.horaEntrada).getMinutes().toString().padStart(2, '0')}`
-        ) || null;
-      }
-
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
       const fechaStr = fd.toISOString().split('T')[0];
       return {
@@ -974,8 +977,8 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: periodoLabel,
-        periodoNombre: periodoNombreMap.get(periodoLabel) || null,
+        periodo: a.periodo || null,
+        periodoHorario: getPeriodoHorario(fd),
         observacion: a.observacion,
         salidaOmitida: a.salidaOmitida,
       };
@@ -1017,7 +1020,7 @@ async function miHistorial(req, res) {
           horaSalida: null,
           estado: 'Justificado',
           periodo: nombrePeriodos,
-          periodoNombre: null,
+          periodoHorario: getPeriodoHorario(pfecha),
           observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
           salidaOmitida: false,
         });
@@ -1031,7 +1034,6 @@ async function miHistorial(req, res) {
       fechasEnRango.push(new Date(d));
     }
 
-    const diasSemanaMap = { 0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sabado' };
     const ahoraBol = getBoliviaDate();
     const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
     const hoyStr = `${ahoraBol.getFullYear()}-${String(ahoraBol.getMonth() + 1).padStart(2, '0')}-${String(ahoraBol.getDate()).padStart(2, '0')}`;
@@ -1106,7 +1108,7 @@ async function miHistorial(req, res) {
           horaSalida: null,
           estado: 'Ausente',
           periodo: periodoLabel,
-          periodoNombre: h.periodo?.nombre || null,
+          periodoHorario: getPeriodoHorario(fecha),
           observacion: `Sin marcación en ${periodoLabel}`,
           salidaOmitida: false,
         });

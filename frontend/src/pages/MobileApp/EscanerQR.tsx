@@ -18,16 +18,24 @@ export const MobileEscanerQR: React.FC = () => {
 
     try {
       await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: { exact: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
     } catch {
-      // Permission denied or unavailable — continue anyway, flash might still work
+      // Fallback sin exact en caso de que el navegador no soporte el constraint
+      try {
+        await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+      } catch {
+        // Permission denied or unavailable
+      }
     }
 
     try {
       await scanner.start(
-        { facingMode: "environment" },
+        { facingMode: { exact: "environment" } },
         { fps: 10, qrbox: { width: 280, height: 280 } },
         (decodedText) => {
           let token = "";

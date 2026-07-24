@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { RefreshCw, Server, Volume2 } from "lucide-react";
@@ -35,11 +35,20 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   const [periodos, setPeriodos]         = useState<QrDashboardPeriod[]>([]);
   const [totalAsistencias, setTotalAsistencias] = useState<number>(0);
   const [atrasos, setAtrasos]           = useState<number>(0);
-  const [ultimoRegistro, setUltimoRegistro] = useState<{ nombre: string; codigo: string; hora: string; estado: string } | null>(null);
+  const [ultimoRegistro, setUltimoRegistro] = useState<{ id: number; nombre: string; codigo: string; hora: string; estado: string } | null>(null);
   const [estadoHoy, setEstadoHoy]       = useState<EstadoHoyResponse>({ periodos: [], totalAusentes: 0 });
+  const lastRegistroId = useRef<number | null>(null);
 
   const activePeriod = periodos.find(p => p.estado === "ACTIVO" || p.estado === "RETRASO");
   const ausentes = estadoHoy.totalAusentes;
+
+  // TTS solo cuando llega un registro NUEVO (nuevo id)
+  useEffect(() => {
+    if (ultimoRegistro?.id && ultimoRegistro.id !== lastRegistroId.current) {
+      lastRegistroId.current = ultimoRegistro.id;
+      anunciarAsistencia(ultimoRegistro.nombre);
+    }
+  }, [ultimoRegistro]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
