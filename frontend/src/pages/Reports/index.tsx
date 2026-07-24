@@ -24,9 +24,9 @@ import { exportAnalyticsPDF, exportAnalyticsExcel } from "@/utils/export.utils";
 const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F97316", "#06B6D4"];
 
 const PIE_COLORS: Record<string, string> = {
-  Puntual: "#2E7D32",
-  Tardanza: "#F9A825",
-  Ausente: "#C62828",
+  Puntual: "#10B981",
+  Tardanza: "#F59E0B",
+  Ausente: "#EF4444",
   Justificado: "#0EA5E9",
 };
 
@@ -92,6 +92,9 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
 
   // Estado para API
   const [analisisData, setAnalisisData] = useState<AnalisisResponse | null>(null);
+
+  // Estado para leyenda interactiva
+  const [activeState, setActiveState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
 
@@ -142,7 +145,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
   const reportData = useMemo(() => {
     if (!analisisData) {
       return {
-        chartDaily: [] as { d: string; pu: number; ta: number; a: number; j: number }[],
+        chartDaily: [] as { fecha: string; Puntual: number; Tardanza: number; Justificados: number; Ausentes: number }[],
         chartPie: [] as { name: string; value: number; col: string }[],
         chartPeriod: [] as { p: string; pct: number }[],
         chartAbsences: [] as { type: string; count: number; pct: number; col: string }[],
@@ -156,11 +159,11 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     const { kpis, graficoBarras, graficoDona, franjaHoraria, motivosPermiso } = analisisData;
 
     const chartDaily = graficoBarras.map((b) => ({
-      d: b.fecha,
-      pu: b.puntual,
-      ta: b.tardanza,
-      a: b.ausentes,
-      j: b.justificados,
+      fecha: b.fecha,
+      Puntual: b.puntual,
+      Tardanza: b.tardanza,
+      Justificados: b.justificados,
+      Ausentes: b.ausentes,
     }));
 
     const chartPie = [
@@ -397,14 +400,31 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={reportData.chartDaily} barSize={16} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-              <XAxis dataKey="d" tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={ttStyle} cursor={{ fill: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="pu" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="Puntual" stackId="a" animationDuration={1000} />
-              <Bar dataKey="ta" fill="#F9A825" radius={[4, 4, 0, 0]} name="Tardanza" stackId="a" animationDuration={1000} />
-              <Bar dataKey="j" fill="#0EA5E9" radius={[4, 4, 0, 0]} name="Justificados" stackId="a" animationDuration={1000} />
-              <Bar dataKey="a" fill="#C62828" radius={[4, 4, 0, 0]} name="Ausentes" stackId="a" animationDuration={1000} />
+              <Legend
+                wrapperStyle={{ fontSize: 11 }}
+                onClick={(e: any) => {
+                  setActiveState((prev) => (prev === e.value ? null : e.value));
+                }}
+              />
+              <Bar
+                dataKey="Puntual" fill="#10B981" radius={[4, 4, 0, 0]} name="Puntual" stackId="a" animationDuration={1000}
+                fillOpacity={activeState && activeState !== "Puntual" ? 0.2 : 1}
+              />
+              <Bar
+                dataKey="Tardanza" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Tardanza" stackId="a" animationDuration={1000}
+                fillOpacity={activeState && activeState !== "Tardanza" ? 0.2 : 1}
+              />
+              <Bar
+                dataKey="Justificados" fill="#0EA5E9" radius={[4, 4, 0, 0]} name="Justificados" stackId="a" animationDuration={1000}
+                fillOpacity={activeState && activeState !== "Justificados" ? 0.2 : 1}
+              />
+              <Bar
+                dataKey="Ausentes" fill="#EF4444" radius={[4, 4, 0, 0]} name="Ausentes" stackId="a" animationDuration={1000}
+                fillOpacity={activeState && activeState !== "Ausentes" ? 0.2 : 1}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -420,23 +440,33 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
                 <Pie data={reportData.chartPie} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" animationDuration={800}>
-                  {reportData.chartPie.map((e, i) => (
-                    <Cell key={i} fill={e.col} />
-                  ))}
+                  {reportData.chartPie.map((e, i) => {
+                    const dimmed = activeState && activeState !== e.name;
+                    return <Cell key={i} fill={e.col} fillOpacity={dimmed ? 0.2 : 1} />;
+                  })}
                 </Pie>
                 <Tooltip contentStyle={ttStyle} />
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2.5 mt-4">
-              {reportData.chartPie.map((c, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-3 h-3 rounded-full shadow-sm" style={{ background: c.col }} />
-                    <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-slate-600"}`}>{c.name}</span>
+              {reportData.chartPie.map((c, i) => {
+                const isActive = activeState === c.name;
+                const dimmed = activeState && !isActive;
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between cursor-pointer transition-opacity"
+                    style={{ opacity: dimmed ? 0.2 : 1 }}
+                    onClick={() => setActiveState((prev) => (prev === c.name ? null : c.name))}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-3 h-3 rounded-full shadow-sm" style={{ background: c.col }} />
+                      <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-slate-600"}`}>{c.name}</span>
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: c.col }}>{c.value}%</span>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: c.col }}>{c.value}%</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

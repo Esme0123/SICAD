@@ -59,6 +59,11 @@ app.get('/', (req, res) => {
   });
 });
 
+// ── Health check liviano para Render / uptime ──────────────
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date() });
+});
+
 // ── Rutas de la API ──────────────────────────────────────────
 // Autenticación
 app.use('/api/auth', authRoutes);
