@@ -26,8 +26,8 @@ const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F
 const PIE_COLORS: Record<string, string> = {
   Puntual: "#10B981",
   Tardanza: "#F59E0B",
-  Ausente: "#EF4444",
-  Justificado: "#0EA5E9",
+  Ausentes: "#EF4444",
+  Justificados: "#0EA5E9",
 };
 
 
@@ -156,7 +156,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
       };
     }
 
-    const { kpis, graficoBarras, graficoDona, franjaHoraria, motivosPermiso } = analisisData;
+    const { kpis, graficoBarras, franjaHoraria, motivosPermiso } = analisisData;
 
     const chartDaily = graficoBarras.map((b) => ({
       fecha: b.fecha,
@@ -166,12 +166,24 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
       Ausentes: b.ausentes,
     }));
 
-    const chartPie = [
-      { name: "Puntual", value: graficoDona.puntual, col: PIE_COLORS.Puntual },
-      { name: "Tardanza", value: graficoDona.tardanza, col: PIE_COLORS.Tardanza },
-      { name: "Ausente", value: graficoDona.ausente, col: PIE_COLORS.Ausente },
-      { name: "Justificado", value: graficoDona.justificado, col: PIE_COLORS.Justificado },
-    ];
+    const totals = chartDaily.reduce(
+      (acc, d) => ({
+        Puntual: acc.Puntual + d.Puntual,
+        Tardanza: acc.Tardanza + d.Tardanza,
+        Justificados: acc.Justificados + d.Justificados,
+        Ausentes: acc.Ausentes + d.Ausentes,
+      }),
+      { Puntual: 0, Tardanza: 0, Justificados: 0, Ausentes: 0 }
+    );
+    const totalGeneral = totals.Puntual + totals.Tardanza + totals.Justificados + totals.Ausentes;
+    const chartPie = totalGeneral > 0
+      ? [
+        { name: "Puntual", value: Math.round((totals.Puntual / totalGeneral) * 100), col: PIE_COLORS.Puntual },
+        { name: "Tardanza", value: Math.round((totals.Tardanza / totalGeneral) * 100), col: PIE_COLORS.Tardanza },
+        { name: "Justificados", value: Math.round((totals.Justificados / totalGeneral) * 100), col: PIE_COLORS.Justificados },
+        { name: "Ausentes", value: Math.round((totals.Ausentes / totalGeneral) * 100), col: PIE_COLORS.Ausentes },
+      ]
+      : [];
 
     const chartPeriod = franjaHoraria.map((f) => ({
       p: f.hora,
