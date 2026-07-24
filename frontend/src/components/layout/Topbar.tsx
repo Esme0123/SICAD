@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, Sun, Moon, CheckCheck, ChevronRight, X, FileText, Loader, Trash2 } from "lucide-react";
+import { Bell, Sun, Moon, CheckCheck, ChevronRight, X, FileText, Loader, Trash2, HelpCircle, Home, Users, CheckSquare, Calendar, QrCode, Settings as SettingsIcon, TrendingUp } from "lucide-react";
+import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -39,6 +40,67 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
   const [notifications, setNotifications] = useState<Notificacion[]>([]);
   const [showPanel, setShowPanel] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const navigateAdmin = useNavigate();
+
+  const adminGuideSteps: GuideStep[] = [
+    {
+      icon: <Home size={32} />,
+      title: "Dashboard",
+      description: "Visualiza las métricas de asistencia del día: total de empleados, puntuales, atrasos y ausentes. Todo en tiempo real desde un solo panel.",
+      color: "#0F4C97",
+      action: { label: "Ir a Dashboard", onClick: () => navigateAdmin("/dashboard") },
+    },
+    {
+      icon: <Users size={32} />,
+      title: "Gestión de Empleados",
+      description: "Administra el personal: registra nuevos empleados, edita información, activa o desactiva cuentas.",
+      color: "#16A34A",
+      action: { label: "Ir a Empleados", onClick: () => navigateAdmin("/employees") },
+    },
+    {
+      icon: <CheckSquare size={32} />,
+      title: "Aprobación de Permisos",
+      description: "Revisa y gestiona las solicitudes de permiso de los empleados. Puedes aprobar o rechazar cada solicitud y hacer seguimiento de su estado.",
+      color: "#F59E0B",
+      action: { label: "Ir a Permisos", onClick: () => navigateAdmin("/leaves") },
+    },
+    {
+      icon: <Calendar size={32} />,
+      title: "Horarios y Periodos",
+      description: "Asigna horarios y periodos académicos según la carga horaria de cada empleado. Define los días y franjas que debe cumplir.",
+      color: "#8B5CF6",
+      action: { label: "Ir a Periodos", onClick: () => navigateAdmin("/attendance/periods") },
+    },
+    {
+      icon: <QrCode size={32} />,
+      title: "Pantalla QR con Voz",
+      description: "Vista pública proyectable con el código QR activo para que los empleados escaneen y marquen asistencia. Incluye síntesis de voz automatizada.",
+      color: "#EC4899",
+      action: { label: "Ir a Pantalla QR", onClick: () => navigateAdmin("/attendance/qr") },
+    },
+    {
+      icon: <Calendar size={32} />,
+      title: "Historial de Marcaciones",
+      description: "Consulta, filtra y exporta los registros de asistencia de todos los empleados. Visualiza el detalle de cada marcación con hora exacta y estado.",
+      color: "#06B6D4",
+      action: { label: "Ir a Historial", onClick: () => navigateAdmin("/attendance/history") },
+    },
+    {
+      icon: <TrendingUp size={32} />,
+      title: "Reportes y Análisis",
+      description: "Accede a estadísticas detalladas de cumplimiento, gráficos de barras por periodo, distribución de estados y análisis de permisos por tipo.",
+      color: "#8B5CF6",
+      action: { label: "Ir a Reportes", onClick: () => navigateAdmin("/reports") },
+    },
+    {
+      icon: <SettingsIcon size={32} />,
+      title: "Configuración y Respaldos",
+      description: "Gestiona usuarios del sistema, roles, permisos y parámetros de la institución. Crea, descarga y restaura copias de seguridad .sql de la base de datos.",
+      color: "#DC2626",
+      action: { label: "Ir a Configuración", onClick: () => navigateAdmin("/settings") },
+    },
+  ];
 
   const token = localStorage.getItem("sicad_token");
 
@@ -310,6 +372,16 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
         </div>
 
         <button
+          onClick={() => setTourOpen(true)}
+          className="p-2 rounded-xl transition-colors cursor-pointer"
+          style={{ color: "#F4B400" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = dark ? "rgba(255,255,255,0.06)" : "rgb(241,245,249)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          title="Guía del sistema"
+        >
+          <HelpCircle size={17} />
+        </button>
+        <button
           onClick={onToggleDark}
           className={`p-2 rounded-xl transition-colors cursor-pointer ${dark ? "hover:bg-white/6 text-yellow-400" : "hover:bg-slate-100 text-slate-500"
             }`}
@@ -325,6 +397,10 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
           </div>
         </div>
       </div>
+
+      {tourOpen && (
+        <GuideModal steps={adminGuideSteps} onClose={() => setTourOpen(false)} variant="admin" />
+      )}
     </header>
   );
 };

@@ -16,14 +16,17 @@ export interface Kpis {
 
 export interface BarraItem {
   fecha: string;
-  presentes: number;
+  puntual: number;
+  tardanza: number;
   ausentes: number;
+  justificados: number;
 }
 
 export interface DonaData {
   puntual: number;
   tardanza: number;
   ausente: number;
+  justificado: number;
 }
 
 export interface FranjaItem {

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2, HelpCircle, Scan, Clock, ClipboardList, ShieldCheck, UserCircle } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Toaster } from "@/components/ui/sonner";
+import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -62,6 +64,41 @@ export const MobileLayout: React.FC = () => {
   const [notis, setNotis] = useState<Notificacion[]>([]);
   const [noLeidas, setNoLeidas] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  const mobileGuideSteps: GuideStep[] = [
+    {
+      icon: <Scan size={32} />,
+      title: "Inicio y Escaneo QR",
+      description: "Desde la pantalla de inicio, usa el botón \"Escanear QR\" para marcar tu entrada y salida. El código QR activo se muestra en la pantalla del Centro de Cómputo.",
+      color: "#10B981",
+      action: { label: "Probar Escáner", onClick: () => navigate("/app/escaner") },
+    },
+    {
+      icon: <Calendar size={32} />,
+      title: "Mis Horarios",
+      description: "Revisa tus horarios y materias asignadas por día. Selecciona el día de la semana para ver los bloques y exporta tu horario a PDF o Excel.",
+      color: "#3B82F6",
+    },
+    {
+      icon: <ClipboardList size={32} />,
+      title: "Historial de Asistencia",
+      description: "Consulta tu historial con filtros por día, semana, mes o periodo. Revisa si llegaste puntual, con atraso o si faltaste. Exporta a PDF o Excel.",
+      color: "#8B5CF6",
+    },
+    {
+      icon: <ShieldCheck size={32} />,
+      title: "Gestión de Permisos",
+      description: "Crea solicitudes de permiso seleccionando la fecha, los periodos a cubrir y el motivo. Adjunta archivos y verifica el estado de aprobación.",
+      color: "#F59E0B",
+    },
+    {
+      icon: <UserCircle size={32} />,
+      title: "Mi Perfil",
+      description: "Visualiza tu información personal, código de empleado y rol. También puedes cambiar tu contraseña desde la sección de perfil.",
+      color: "#EC4899",
+    },
+  ];
 
   useEffect(() => {
     const saved = localStorage.getItem("sicad_theme");
@@ -327,6 +364,29 @@ export const MobileLayout: React.FC = () => {
         </nav>
       )}
       <Toaster />
+
+      {/* Floating Guide Button */}
+      <motion.button
+        onClick={() => setGuideOpen(true)}
+        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.1 }}
+        className="fixed z-30 w-10 h-10 rounded-full flex items-center justify-center shadow-lg cursor-pointer border-0"
+        style={{
+          background: "linear-gradient(135deg, #F4B400, #EAA300)",
+          color: "#1E293B",
+          boxShadow: "0 2px 12px rgba(244, 180, 0, 0.4)",
+          bottom: "80px",
+          left: "16px",
+        }}
+        title="Guía de uso"
+      >
+        <HelpCircle size={18} />
+      </motion.button>
+
+      {guideOpen && (
+        <GuideModal steps={mobileGuideSteps} onClose={() => setGuideOpen(false)} variant="mobile" />
+      )}
     </div>
   );
 };
+

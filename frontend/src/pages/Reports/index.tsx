@@ -27,6 +27,7 @@ const PIE_COLORS: Record<string, string> = {
   Puntual: "#2E7D32",
   Tardanza: "#F9A825",
   Ausente: "#C62828",
+  Justificado: "#0EA5E9",
 };
 
 
@@ -141,7 +142,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
   const reportData = useMemo(() => {
     if (!analisisData) {
       return {
-        chartDaily: [] as { d: string; p: number; a: number }[],
+        chartDaily: [] as { d: string; pu: number; ta: number; a: number; j: number }[],
         chartPie: [] as { name: string; value: number; col: string }[],
         chartPeriod: [] as { p: string; pct: number }[],
         chartAbsences: [] as { type: string; count: number; pct: number; col: string }[],
@@ -156,14 +157,17 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
 
     const chartDaily = graficoBarras.map((b) => ({
       d: b.fecha,
-      p: b.presentes,
+      pu: b.puntual,
+      ta: b.tardanza,
       a: b.ausentes,
+      j: b.justificados,
     }));
 
     const chartPie = [
       { name: "Puntual", value: graficoDona.puntual, col: PIE_COLORS.Puntual },
       { name: "Tardanza", value: graficoDona.tardanza, col: PIE_COLORS.Tardanza },
       { name: "Ausente", value: graficoDona.ausente, col: PIE_COLORS.Ausente },
+      { name: "Justificado", value: graficoDona.justificado, col: PIE_COLORS.Justificado },
     ];
 
     const chartPeriod = franjaHoraria.map((f) => ({
@@ -385,7 +389,7 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
                 Asistencia del periodo
               </h3>
               <p className={`text-xs mt-0.5 ${dark ? "text-white/40" : "text-slate-500"}`}>
-                Presentes vs ausentes — {selectedPeriod}
+                Puntuales, justificados y ausentes — {selectedPeriod}
                 {searchQuery && ` (Filtrado por: ${searchQuery})`}
               </p>
             </div>
@@ -397,8 +401,10 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
               <YAxis tick={{ fontSize: 10, fill: dark ? "#94A3B8" : "#64748B" }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={ttStyle} cursor={{ fill: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="p" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="Presentes" animationDuration={1000} />
-              <Bar dataKey="a" fill="#64B5F6" radius={[4, 4, 0, 0]} name="Ausentes" animationDuration={1000} />
+              <Bar dataKey="pu" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="Puntual" stackId="a" animationDuration={1000} />
+              <Bar dataKey="ta" fill="#F9A825" radius={[4, 4, 0, 0]} name="Tardanza" stackId="a" animationDuration={1000} />
+              <Bar dataKey="j" fill="#0EA5E9" radius={[4, 4, 0, 0]} name="Justificados" stackId="a" animationDuration={1000} />
+              <Bar dataKey="a" fill="#C62828" radius={[4, 4, 0, 0]} name="Ausentes" stackId="a" animationDuration={1000} />
             </BarChart>
           </ResponsiveContainer>
         </div>

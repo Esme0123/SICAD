@@ -309,7 +309,7 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setDetailPermiso(leave)}
+                            onClick={() => { setDetailPermiso(leave); }}
                             className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer"
                             style={{ color: dark ? "#93C5FD" : "#3B82F6", background: dark ? "rgba(59,130,246,0.1)" : "rgba(59,130,246,0.08)" }}
                           >
@@ -353,12 +353,12 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
 
       {detailPermiso && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setDetailPermiso(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setDetailPermiso(null); } }}
         >
           <div className={`w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
             <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
               <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>Detalle del Permiso</h3>
-              <button onClick={() => setDetailPermiso(null)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
+              <button onClick={() => { setDetailPermiso(null); }} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
                 <X size={20} />
               </button>
             </div>
@@ -481,7 +481,7 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
 
             {/* Actions footer */}
             <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
-              <button onClick={() => setDetailPermiso(null)}
+              <button onClick={() => { setDetailPermiso(null); }}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${dark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"}`}
               >
                 Cerrar

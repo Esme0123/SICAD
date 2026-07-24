@@ -3,8 +3,6 @@ import api from "./api";
 export interface SystemSettings {
   toleranceTime: number;
   qrDuration: number;
-  openingHour: string;
-  closingHour: string;
   institutionName: string;
 }
 
@@ -41,8 +39,6 @@ export async function getSystemSettings(): Promise<SystemSettings> {
     institutionName: c.nombreInstitucion ?? "SICAD",
     toleranceTime: c.tiempoTolerancia ?? 10,
     qrDuration: c.duracionQR ?? 30,
-    openingHour: c.horaApertura ?? "06:00",
-    closingHour: c.horaCierre ?? "22:00",
   } as SystemSettings;
 }
 
@@ -51,8 +47,6 @@ export async function updateSystemSettings(settings: Partial<SystemSettings>): P
   if (settings.institutionName !== undefined) body.nombreInstitucion = settings.institutionName;
   if (settings.toleranceTime !== undefined) body.tiempoTolerancia = settings.toleranceTime;
   if (settings.qrDuration !== undefined) body.duracionQR = settings.qrDuration;
-  if (settings.openingHour !== undefined) body.horaApertura = settings.openingHour;
-  if (settings.closingHour !== undefined) body.horaCierre = settings.closingHour;
 
   const { data } = await api.patch<{ ok: boolean; data: any }>("/configuracion", body);
   if (!data.ok) throw new Error("Error al actualizar configuración");
@@ -126,6 +120,36 @@ export async function createBackup(): Promise<BackupInfo> {
   };
 }
 
+export async function downloadBackup(id: string): Promise<void> {
+  const token = localStorage.getItem("sicad_token");
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/respaldos/download/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Error al descargar respaldo");
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = id;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  a.remove();
+}
+
+export async function restoreBackup(file: File): Promise<void> {
+  const token = localStorage.getItem("sicad_token");
+  const formData = new FormData();
+  formData.append("backup", file);
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/respaldos/restore`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const json = await response.json();
+  if (!json.ok) throw new Error(json.message || "Error al restaurar respaldo");
+}
+
 export default {
   getSystemSettings,
   updateSystemSettings,
@@ -133,4 +157,6 @@ export default {
   getAuditLogs,
   getBackups,
   createBackup,
+  downloadBackup,
+  restoreBackup,
 };

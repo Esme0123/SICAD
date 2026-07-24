@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
+import { motion } from "motion/react";
 import {
   Clock, CheckCircle2, AlertTriangle, FileText, Download,
   ChevronLeft, ChevronRight, CalendarDays, List,
@@ -404,7 +405,12 @@ export const MobileHistorial: React.FC = () => {
   const showNav = filtro === "mes";
 
   return (
-    <div className="p-4 pb-24 space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="p-4 pb-24 space-y-4"
+    >
       {/* Header + Export */}
       <div className="flex items-center justify-between">
         <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
@@ -438,8 +444,9 @@ export const MobileHistorial: React.FC = () => {
           const Icon = filtrosIcon[key];
           const isActive = filtro === key;
           return (
-            <button
+            <motion.button
               key={key}
+              whileTap={{ scale: 0.95 }}
               onClick={() => { setFiltro(key); if (key === "periodo" && !selectedPeriodo && periodosAcademicos.length > 0) setSelectedPeriodo(periodosAcademicos[0]); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all flex-1 justify-center"
               style={{
@@ -451,7 +458,7 @@ export const MobileHistorial: React.FC = () => {
             >
               <Icon size={14} />
               <span>{filtrosLabel[key]}</span>
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -657,7 +664,7 @@ export const MobileHistorial: React.FC = () => {
           })}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

@@ -69,4 +69,44 @@ async function create(req, res) {
   }
 }
 
-module.exports = { getAll, create };
+async function download(req, res) {
+  try {
+    const { id } = req.params;
+    const filepath = path.join(RESPALDOS_DIR, id);
+
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({ ok: false, message: 'Archivo de respaldo no encontrado' });
+    }
+
+    res.download(filepath, id);
+  } catch (error) {
+    console.error('[respaldos.download]', error);
+    res.status(500).json({ ok: false, message: 'Error al descargar respaldo' });
+  }
+}
+
+async function restore(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: 'Debe enviar un archivo de respaldo' });
+    }
+
+    const filepath = req.file.path;
+
+    try {
+      execSync(
+        `psql "${env.DATABASE_URL}" < "${filepath}"`,
+        { timeout: 120000, shell: true }
+      );
+    } catch {
+      return res.status(500).json({ ok: false, message: 'Error al restaurar la base de datos. Verifique que el archivo sea un respaldo válido.' });
+    }
+
+    res.json({ ok: true, message: 'Base de datos restaurada exitosamente' });
+  } catch (error) {
+    console.error('[respaldos.restore]', error);
+    res.status(500).json({ ok: false, message: 'Error al restaurar respaldo' });
+  }
+}
+
+module.exports = { getAll, create, download, restore };

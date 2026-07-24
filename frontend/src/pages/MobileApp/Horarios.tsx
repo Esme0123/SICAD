@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
+import { motion } from "motion/react";
 import { Clock, Download, ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -310,7 +311,12 @@ export const MobileHorarios: React.FC = () => {
   }
 
   return (
-    <div className="p-4 pb-24 space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="p-4 pb-24 space-y-4"
+    >
       <div className="flex items-center justify-between">
         <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
           Mis Horarios
@@ -375,8 +381,9 @@ export const MobileHorarios: React.FC = () => {
           const isActive = selectedDay === i;
           const hasAssignments = (asignacionesPorDia[DIAS_LAB[i]]?.size || 0) > 0;
           return (
-            <button
+            <motion.button
               key={d + i}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setSelectedDay(i)}
               className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all"
               style={{
@@ -390,7 +397,7 @@ export const MobileHorarios: React.FC = () => {
               {!isActive && hasAssignments && (
                 <span className="block text-[8px] font-normal" style={{ color: "var(--muted-foreground)" }}>●</span>
               )}
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -492,7 +499,7 @@ export const MobileHorarios: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { User, Mail, Hash, BadgeCheck, Shield, Phone, Clock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Key } from "lucide-react";
 import { cambiarPassword as cambiarPasswordApi } from "@/services/employee.service";
 
@@ -85,7 +86,12 @@ export const MobilePerfil: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 space-y-4 pb-8">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="p-4 space-y-4 pb-8"
+    >
       <div className="relative overflow-hidden rounded-2xl p-6 flex flex-col items-center gap-3"
         style={{
           background: "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 60%, var(--color-secondary, #7C3AED)) 100%)",
@@ -239,6 +245,6 @@ export const MobilePerfil: React.FC = () => {
       >
         Cerrar sesión
       </button>
-    </div>
+    </motion.div>
   );
 };

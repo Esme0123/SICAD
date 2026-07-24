@@ -57,7 +57,7 @@ async function getAnalisis(req, res) {
         data: {
           kpis: { cumplimientoGeneral: 0, totalAsistencias: 0, promedioDiario: 0, permisosAprobados: 0 },
           graficoBarras: [],
-          graficoDona: { puntual: 0, tardanza: 0, ausente: 0 },
+          graficoDona: { puntual: 0, tardanza: 0, ausente: 0, justificado: 0 },
           franjaHoraria: [],
           motivosPermiso: [],
         },
@@ -80,7 +80,7 @@ async function getAnalisis(req, res) {
 
     const asistenciasObs = await prisma.asistencia.findMany({
       where: asistenciaWhere,
-      select: { observacion: true },
+      select: { fecha: true, observacion: true },
     });
 
     const puntualCount = asistenciasObs.filter(
@@ -104,25 +104,48 @@ async function getAnalisis(req, res) {
     });
 
     // ════════════════════════════════════════════════════════════════
-    // 2. gráficoBarras — agrupado por día
+    // 2. gráficoBarras — agrupado por día (4 estados)
     // ════════════════════════════════════════════════════════════════
-
-    const asistenciasByDay = await prisma.asistencia.groupBy({
-      by: ['fecha'],
-      where: asistenciaWhere,
-      _count: { id: true },
-      orderBy: { fecha: 'asc' },
-    });
 
     const totalEmpleados = usuarios.length;
 
-    const graficoBarras = asistenciasByDay.map((day) => {
-      const d = new Date(day.fecha);
+    // Per-day attendance breakdown (puntual vs tardanza)
+    const dayAttendance = {};
+    for (const a of asistenciasObs) {
+      const d = new Date(a.fecha);
       const diaSemana = DIAS[d.getDay()].substring(0, 3);
       const label = `${diaSemana} ${d.getDate()}`;
-      const presentes = day._count.id;
-      const ausentes = Math.max(0, totalEmpleados - presentes);
-      return { fecha: label, presentes, ausentes };
+      if (!dayAttendance[label]) dayAttendance[label] = { total: 0, tardanza: 0 };
+      dayAttendance[label].total++;
+      if (a.observacion && a.observacion.startsWith('Llegó')) {
+        dayAttendance[label].tardanza++;
+      }
+    }
+
+    // Per-day approved permisos
+    const permisosAprobadosPorDia = await prisma.permiso.groupBy({
+      by: ['fecha'],
+      where: {
+        fecha: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
+        estado: 'APROBADO',
+        ...userFilter,
+      },
+      _count: { id: true },
+    });
+    const justificadosMap = Object.fromEntries(
+      permisosAprobadosPorDia.map((p) => {
+        const d = new Date(p.fecha);
+        const diaSemana = DIAS[d.getDay()].substring(0, 3);
+        const label = `${diaSemana} ${d.getDate()}`;
+        return [label, p._count.id];
+      })
+    );
+
+    const graficoBarras = Object.entries(dayAttendance).map(([label, data]) => {
+      const puntual = data.total - data.tardanza;
+      const justificados = justificadosMap[label] || 0;
+      const ausentes = Math.max(0, totalEmpleados - data.total - justificados);
+      return { fecha: label, puntual, tardanza: data.tardanza, ausentes, justificados };
     });
 
     // ════════════════════════════════════════════════════════════════
@@ -140,13 +163,27 @@ async function getAnalisis(req, res) {
       _count: { id: true },
     });
     const presentesSet = new Set(empleadosConAsistencia.map((a) => a.usuarioId));
-    const ausenteCount = userIds.filter((id) => !presentesSet.has(id)).length;
 
-    const totalDona = puntualCount + tardanzaCount + ausenteCount;
+    const usuariosConPermiso = await prisma.permiso.findMany({
+      where: {
+        fecha: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
+        estado: 'APROBADO',
+        ...userFilter,
+      },
+      select: { usuarioId: true },
+      distinct: ['usuarioId'],
+    });
+    const justificadoSet = new Set(usuariosConPermiso.map((p) => p.usuarioId));
+
+    const ausenteCount = userIds.filter((id) => !presentesSet.has(id) && !justificadoSet.has(id)).length;
+    const justificadoCount = userIds.filter((id) => !presentesSet.has(id) && justificadoSet.has(id)).length;
+
+    const totalDona = puntualCount + tardanzaCount + ausenteCount + justificadoCount;
     const graficoDona = {
       puntual: totalDona > 0 ? Math.round((puntualCount / totalDona) * 100) : 0,
       tardanza: totalDona > 0 ? Math.round((tardanzaCount / totalDona) * 100) : 0,
       ausente: totalDona > 0 ? Math.round((ausenteCount / totalDona) * 100) : 0,
+      justificado: totalDona > 0 ? Math.round((justificadoCount / totalDona) * 100) : 0,
     };
 
     // ════════════════════════════════════════════════════════════════

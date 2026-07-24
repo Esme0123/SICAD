@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan } from "lucide-react";
 
@@ -21,7 +22,12 @@ export const MobileInicio: React.FC = () => {
   })();
 
   return (
-    <div className="p-4 space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="p-4 space-y-4"
+    >
       <div className="relative overflow-hidden rounded-2xl p-5"
         style={{
           background: "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 60%, var(--secondary, #7C3AED)) 100%)",
@@ -86,9 +92,11 @@ export const MobileInicio: React.FC = () => {
       <div className="bg-card border border-border rounded-2xl p-4">
         <h3 className="text-sm font-bold text-foreground mb-4">Acceso Rápido</h3>
         <div className="grid grid-cols-3 gap-3">
-          <button
+          <motion.button
             onClick={() => navigate("/app/horarios")}
-            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all cursor-pointer border"
             style={{
               background: "color-mix(in srgb, var(--primary) 6%, transparent)",
               borderColor: "color-mix(in srgb, var(--primary) 15%, transparent)",
@@ -100,25 +108,48 @@ export const MobileInicio: React.FC = () => {
               <Calendar size={20} style={{ color: "var(--primary)" }} />
             </div>
             <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Horarios</span>
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            data-tour="qr-btn"
             onClick={() => navigate("/app/escaner")}
-            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all cursor-pointer border-0 relative overflow-hidden"
             style={{
-              background: "color-mix(in srgb, var(--color-success, #10B981) 8%, transparent)",
-              borderColor: "color-mix(in srgb, var(--color-success, #10B981) 18%, transparent)",
+              background: "linear-gradient(135deg, #059669 0%, #10B981 50%, #34D399 100%)",
+              boxShadow: "0 4px 20px rgba(5, 150, 105, 0.35), 0 0 0 1px rgba(16, 185, 129, 0.15)",
             }}
           >
+            <div className="absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-20"
+              style={{ background: "rgba(255,255,255,0.3)" }}
+            />
+            <div className="absolute -bottom-3 -left-3 w-10 h-10 rounded-full opacity-20"
+              style={{ background: "rgba(255,255,255,0.3)" }}
+            />
             <div className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ background: "color-mix(in srgb, var(--color-success, #10B981) 18%, transparent)" }}
+              style={{ background: "rgba(255,255,255,0.2)" }}
             >
-              <Scan size={20} style={{ color: "var(--color-success, #10B981)" }} />
+              <Scan size={20} style={{ color: "#fff" }} />
             </div>
-            <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Escanear QR</span>
-          </button>
-          <button
+            <span className="text-[10px] font-semibold leading-tight text-center" style={{ color: "#fff" }}>Escanear QR</span>
+            <motion.div
+              className="absolute inset-0 rounded-xl"
+              style={{ boxShadow: "0 0 0 0 rgba(16, 185, 129, 0.5)" }}
+              animate={{
+                boxShadow: [
+                  "0 0 0 0 rgba(5, 150, 105, 0.4)",
+                  "0 0 0 10px rgba(5, 150, 105, 0)",
+                  "0 0 0 0 rgba(5, 150, 105, 0)",
+                ],
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            />
+          </motion.button>
+          <motion.button
             onClick={() => navigate("/app/permisos")}
-            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all active:scale-[0.97] cursor-pointer border"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            className="flex flex-col items-center gap-3 rounded-xl p-4 transition-all cursor-pointer border"
             style={{
               background: "color-mix(in srgb, var(--color-secondary, #7C3AED) 6%, transparent)",
               borderColor: "color-mix(in srgb, var(--color-secondary, #7C3AED) 15%, transparent)",
@@ -130,9 +161,9 @@ export const MobileInicio: React.FC = () => {
               <FileText size={20} style={{ color: "var(--color-secondary, #7C3AED)" }} />
             </div>
             <span className="text-[10px] font-semibold text-foreground leading-tight text-center">Permisos</span>
-          </button>
+          </motion.button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
