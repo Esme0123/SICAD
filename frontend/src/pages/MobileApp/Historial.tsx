@@ -23,6 +23,7 @@ interface Marcacion {
   horaSalida: string | null;
   estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente";
   periodo: string | null;
+  periodoNombre: string | null;
   observacion: string | null;
   salidaOmitida: boolean;
 }
@@ -652,10 +653,14 @@ export const MobileHistorial: React.FC = () => {
                     </div>
                   )}
 
-                  {m.periodo && (
+                  {(m.periodo || m.periodoNombre) && (
                     <div className="mt-2 flex items-center gap-1.5">
                       <Clock size={10} style={{ color: "var(--muted-foreground)" }} />
-                      <span className="text-[10px] font-mono" style={{ color: "var(--muted-foreground)" }}>{m.periodo}</span>
+                      <span className="text-[10px] font-mono" style={{ color: "var(--muted-foreground)" }}>
+                        {m.periodoNombre && !m.periodo
+                          ? m.periodoNombre
+                          : m.periodo?.replace('–', ' – ')}
+                      </span>
                     </div>
                   )}
                 </div>

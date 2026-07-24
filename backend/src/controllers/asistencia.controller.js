@@ -909,13 +909,58 @@ async function miHistorial(req, res) {
     const fmtTime = (d) =>
       d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
 
+    /** Extrae horaInicio (minutos) desde el string periodo "HH:MM–HH:MM" */
+    function periodoStartMinutes(periodoStr) {
+      if (!periodoStr) return null;
+      const parts = periodoStr.split('–');
+      if (!parts[0]) return null;
+      const [h, m] = parts[0].split(':').map(Number);
+      if (isNaN(h) || isNaN(m)) return null;
+      return h * 60 + m;
+    }
+
+    // Buscar horarios asignados para resolver nombre de periodo
+    const horariosAsignados = await prisma.horarioAsignado.findMany({
+      where: { usuarioId, periodoAcademico: obtenerPeriodoActual() },
+      include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
+    });
+
+    // Build periodo name lookup: label -> nombre
+    const periodoNombreMap = new Map();
+    for (const h of horariosAsignados) {
+      const label = `${h.periodo.horaInicio}–${h.periodo.horaFin}`;
+      if (!periodoNombreMap.has(label)) {
+        periodoNombreMap.set(label, h.periodo.nombre);
+      }
+    }
+
     const data = asistencias.map((a) => {
-      const obs = (a.observacion || '').toLowerCase();
       let estado = 'Puntual';
-      if (obs.startsWith('llegó') || obs.includes('tarde')) {
-        estado = 'Tardanza';
-      } else if (obs.includes('permiso') || obs.includes('justificado')) {
-        estado = 'Justificado';
+
+      // Calcular estado desde horaEntrada + periodo si existe entrada
+      if (a.horaEntrada && a.periodo) {
+        const entradaMin = getBoliviaDate(a.horaEntrada).getHours() * 60 +
+                           getBoliviaDate(a.horaEntrada).getMinutes();
+        const inicioMin = periodoStartMinutes(a.periodo);
+        if (inicioMin !== null) {
+          const tolerancia = a.minutosTolerancia ?? 10;
+          estado = (entradaMin - inicioMin) <= tolerancia ? 'Puntual' : 'Tardanza';
+        }
+      } else {
+        const obs = (a.observacion || '').toLowerCase();
+        if (obs.startsWith('llegó') || obs.includes('tarde')) {
+          estado = 'Tardanza';
+        } else if (obs.includes('permiso') || obs.includes('justificado')) {
+          estado = 'Justificado';
+        }
+      }
+
+      // Mostrar nombre del periodo cuando no se almacenó la etiqueta horaria
+      let periodoLabel = a.periodo || null;
+      if (!periodoLabel && a.horaEntrada) {
+        periodoLabel = periodoNombreMap.get(
+          `${getBoliviaDate(a.horaEntrada).getHours().toString().padStart(2, '0')}:${getBoliviaDate(a.horaEntrada).getMinutes().toString().padStart(2, '0')}`
+        ) || null;
       }
 
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
@@ -929,7 +974,8 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: a.periodo || null,
+        periodo: periodoLabel,
+        periodoNombre: periodoNombreMap.get(periodoLabel) || null,
         observacion: a.observacion,
         salidaOmitida: a.salidaOmitida,
       };
@@ -971,6 +1017,7 @@ async function miHistorial(req, res) {
           horaSalida: null,
           estado: 'Justificado',
           periodo: nombrePeriodos,
+          periodoNombre: null,
           observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
           salidaOmitida: false,
         });
@@ -978,12 +1025,6 @@ async function miHistorial(req, res) {
     }
 
     // ── Calcular ausentes: periodos sin marcación ──
-    // Misma lógica que NuevoPermisoModal: obtiene TODOS los horarios
-    // del usuario (sin filtro de periodoAcademico) y filtra por diaSemana.
-    const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuarioId },
-      include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
-    });
 
     const fechasEnRango = [];
     for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -1042,6 +1083,10 @@ async function miHistorial(req, res) {
         if (!cubierto) {
           cubierto = asistenciasDeHoy.some(a => a.periodo === null);
         }
+        // No marcar como Ausente si ya existe un registro con entrada
+        if (!cubierto) {
+          cubierto = asistenciasDeHoy.some(a => a.horaEntrada != null && a.periodo === periodoLabel);
+        }
         if (cubierto) continue;
 
         if (periodoIdsPermiso.has(h.periodo.id)) continue;
@@ -1061,6 +1106,7 @@ async function miHistorial(req, res) {
           horaSalida: null,
           estado: 'Ausente',
           periodo: periodoLabel,
+          periodoNombre: h.periodo?.nombre || null,
           observacion: `Sin marcación en ${periodoLabel}`,
           salidaOmitida: false,
         });

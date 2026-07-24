@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { X, Camera, CameraOff, Loader2 } from "lucide-react";
@@ -12,22 +12,29 @@ export const MobileEscanerQR: React.FC = () => {
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
 
-  useEffect(() => {
+  const startCamera = useCallback(async (retryCount = 0) => {
     const scanner = new Html5Qrcode(ESCANER_ID);
     scannerRef.current = scanner;
 
-    scanner
-      .start(
+    try {
+      await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+    } catch {
+      // Permission denied or unavailable — continue anyway, flash might still work
+    }
+
+    try {
+      await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 280, height: 280 } },
         (decodedText) => {
-          // Extraer qrToken de la URL escaneada
           let token = "";
           try {
             const url = new URL(decodedText);
             token = url.searchParams.get("qrToken") || url.searchParams.get("token") || "";
           } catch {
-            // Si no es URL válida, usar el texto directamente
             token = decodedText;
           }
           if (token) {
@@ -38,20 +45,25 @@ export const MobileEscanerQR: React.FC = () => {
           }
         },
         () => {},
-      )
-      .then(() => {
-        setCamOn(true);
-        setInit(false);
-      })
-      .catch((err) => {
+      );
+      setCamOn(true);
+      setInit(false);
+    } catch (err) {
+      if (retryCount < 2) {
+        setTimeout(() => startCamera(retryCount + 1), 1000);
+      } else {
         setError(`No se pudo iniciar la cámara: ${err}`);
         setInit(false);
-      });
-
-    return () => {
-      scanner.stop().catch(() => {});
-    };
+      }
+    }
   }, [navigate]);
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      scannerRef.current?.stop().catch(() => {});
+    };
+  }, [startCamera]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">

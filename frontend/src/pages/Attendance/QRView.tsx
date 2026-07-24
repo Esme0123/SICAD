@@ -41,13 +41,6 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
   const activePeriod = periodos.find(p => p.estado === "ACTIVO" || p.estado === "RETRASO");
   const ausentes = estadoHoy.totalAusentes;
 
-  // TTS automático cuando llega un nuevo registro
-  useEffect(() => {
-    if (ultimoRegistro?.nombre) {
-      anunciarAsistencia(ultimoRegistro.nombre);
-    }
-  }, [ultimoRegistro]);
-
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -204,10 +197,6 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             />
           ))}
         </motion.div>
-
-        <p className={`text-xs mt-4 ${dark ? "text-white/25" : "text-slate-400"}`}>
-          Toca el QR para simular un escaneo exitoso
-        </p>
 
         <div className="mt-6">
           <CircularTimer seconds={countdown} total={totalDuration} dark={dark} />
