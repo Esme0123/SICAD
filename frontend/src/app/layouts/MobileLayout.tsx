@@ -5,6 +5,7 @@ import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X,
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
+import { UCBLogo } from "@/components/common/UCBLogo";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -193,11 +194,7 @@ export const MobileLayout: React.FC = () => {
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
       >
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
-          >
-            S
-          </div>
+          <UCBLogo size={22} />
           <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>SICAD</span>
         </div>
         <div className="flex items-center gap-1">

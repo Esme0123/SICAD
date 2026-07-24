@@ -141,11 +141,20 @@ async function getAnalisis(req, res) {
       })
     );
 
-    const graficoBarras = Object.entries(dayAttendance).map(([label, data]) => {
-      const puntual = data.total - data.tardanza;
+    // Generate entries for ALL days in the range
+    const dateLabels = [];
+    const rangeStart = new Date(start.getTime());
+    const rangeEnd = new Date(end.getTime());
+    for (let dt = new Date(rangeStart); dt <= rangeEnd; dt.setDate(dt.getDate() + 1)) {
+      const diaSemana = DIAS[dt.getDay()].substring(0, 3);
+      dateLabels.push(`${diaSemana} ${dt.getDate()}`);
+    }
+
+    const graficoBarras = dateLabels.map((label) => {
+      const data = dayAttendance[label] || { total: 0, tardanza: 0 };
       const justificados = justificadosMap[label] || 0;
       const ausentes = Math.max(0, totalEmpleados - data.total - justificados);
-      return { fecha: label, puntual, tardanza: data.tardanza, ausentes, justificados };
+      return { fecha: label, puntual: data.total - data.tardanza, tardanza: data.tardanza, ausentes, justificados };
     });
 
     // ════════════════════════════════════════════════════════════════

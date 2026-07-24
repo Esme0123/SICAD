@@ -3,6 +3,7 @@ import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { User, Mail, Hash, BadgeCheck, Shield, Phone, Clock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Key } from "lucide-react";
+import { UCBLogo } from "@/components/common/UCBLogo";
 import { cambiarPassword as cambiarPasswordApi } from "@/services/employee.service";
 
 export const MobilePerfil: React.FC = () => {
@@ -97,6 +98,9 @@ export const MobilePerfil: React.FC = () => {
           background: "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 60%, var(--color-secondary, #7C3AED)) 100%)",
         }}
       >
+        <div className="absolute top-3 left-3 opacity-20">
+          <UCBLogo size={64} />
+        </div>
         <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10"
           style={{ background: "var(--primary-foreground)" }}
         />

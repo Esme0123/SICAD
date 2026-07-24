@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { loginMovil } from "@/services/employee.service";
 import { User, Key, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { UCBLogo } from "@/components/common/UCBLogo";
 
 export const MobileLogin: React.FC = () => {
   const { login } = useEmployeeAuth();
@@ -61,7 +62,7 @@ export const MobileLogin: React.FC = () => {
       >
         <div className="flex flex-col items-center gap-4 mb-8">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <span className="text-primary-foreground text-3xl font-black">S</span>
+            <UCBLogo size={40} />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-black text-foreground">SICAD</h1>

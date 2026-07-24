@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan } from "lucide-react";
+import { UCBLogo } from "@/components/common/UCBLogo";
 
 export const MobileInicio: React.FC = () => {
   const { user } = useEmployeeAuth();
@@ -40,8 +41,13 @@ export const MobileInicio: React.FC = () => {
         <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full opacity-10"
           style={{ background: "var(--primary-foreground)" }}
         />
-        <p className="text-lg font-bold relative">{greeting},</p>
-        <p className="text-2xl font-black mt-0.5 relative">{user?.nombre || "Empleado"}</p>
+        <div className="flex items-center justify-between relative">
+          <div>
+            <p className="text-lg font-bold">{greeting},</p>
+            <p className="text-2xl font-black mt-0.5">{user?.nombre || "Empleado"}</p>
+          </div>
+          <UCBLogo size={48} />
+        </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-4 text-primary-foreground/80 text-sm relative">
           <span className="flex items-center gap-1.5">
             <CalendarDays size={14} />
