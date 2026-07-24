@@ -12,59 +12,42 @@ export const MobileEscanerQR: React.FC = () => {
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
 
-  const startCamera = useCallback(async (retryCount = 0) => {
+  const onScanSuccess = useCallback((decodedText: string) => {
+    let token = "";
+    try {
+      const url = new URL(decodedText);
+      token = url.searchParams.get("qrToken") || url.searchParams.get("token") || "";
+    } catch {
+      token = decodedText;
+    }
+    if (token) {
+      scannerRef.current?.stop().catch(() => {});
+      navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
+    } else {
+      setError("QR inválido: no contiene token de marcación");
+    }
+  }, [navigate]);
+
+  const onScanError = useCallback(() => {}, []);
+
+  const startCamera = useCallback(async () => {
     const scanner = new Html5Qrcode(ESCANER_ID);
     scannerRef.current = scanner;
 
     try {
-      await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
-    } catch {
-      // Fallback sin exact en caso de que el navegador no soporte el constraint
-      try {
-        await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false,
-        });
-      } catch {
-        // Permission denied or unavailable
-      }
-    }
-
-    try {
       await scanner.start(
-        { facingMode: { exact: "environment" } },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
-        (decodedText) => {
-          let token = "";
-          try {
-            const url = new URL(decodedText);
-            token = url.searchParams.get("qrToken") || url.searchParams.get("token") || "";
-          } catch {
-            token = decodedText;
-          }
-          if (token) {
-            scanner.stop().catch(() => {});
-            navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
-          } else {
-            setError("QR inválido: no contiene token de marcación");
-          }
-        },
-        () => {},
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+        onScanError,
       );
       setCamOn(true);
       setInit(false);
     } catch (err) {
-      if (retryCount < 2) {
-        setTimeout(() => startCamera(retryCount + 1), 1000);
-      } else {
-        setError(`No se pudo iniciar la cámara: ${err}`);
-        setInit(false);
-      }
+      setError(`Error al iniciar cámara: ${err}`);
+      setInit(false);
     }
-  }, [navigate]);
+  }, [onScanSuccess, onScanError]);
 
   useEffect(() => {
     startCamera();

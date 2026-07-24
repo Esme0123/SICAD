@@ -337,16 +337,16 @@ async function marcar(req, res) {
       });
 
       if (permiso) {
-        estado = 'A tiempo';
+        estado = 'PUNTUAL';
         observacion = 'Cubierto por permiso';
       } else {
         const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
         const diferenciaMin = ahoraMin - inicioMin;
 
         if (diferenciaMin <= toleranciaMin) {
-          estado = 'A tiempo';
+          estado = 'PUNTUAL';
         } else {
-          estado = 'Atraso';
+          estado = 'TARDANZA';
           observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
         }
       }
@@ -396,7 +396,7 @@ async function marcar(req, res) {
       accion,
       estado,
       periodo: periodoLabel,
-      mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}${estado === 'Atraso' ? ' (con atraso)' : ''}`,
+      mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}${estado === 'TARDANZA' ? ' (con tardanza)' : ''}`,
       empleado: { id: resultado.usuario.id, nombre: resultado.usuario.nombre },
       data: resultado,
     });
@@ -559,16 +559,16 @@ async function marcarMovil(req, res) {
           });
 
           if (permiso) {
-            estado = 'A tiempo';
+            estado = 'PUNTUAL';
             observacion = 'Cubierto por permiso';
           } else {
             const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
             const diferenciaMin = ahoraMin - inicioMin;
 
             if (diferenciaMin <= toleranciaMin) {
-              estado = 'A tiempo';
+              estado = 'PUNTUAL';
             } else {
-              estado = 'Atraso';
+              estado = 'TARDANZA';
               observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
             }
           }
@@ -627,7 +627,7 @@ async function marcarMovil(req, res) {
       accion: resultadoTransaccion.accion,
       estado: resultadoTransaccion.estado,
       periodo: resultadoTransaccion.periodoLabel,
-      mensaje: `${resultadoTransaccion.accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultadoTransaccion.usuario.nombre}${resultadoTransaccion.estado === 'Atraso' ? ' (con atraso)' : ''}`,
+      mensaje: `${resultadoTransaccion.accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultadoTransaccion.usuario.nombre}${resultadoTransaccion.estado === 'TARDANZA' ? ' (con tardanza)' : ''}`,
       empleado: { id: resultadoTransaccion.usuario.id, nombre: resultadoTransaccion.usuario.nombre },
       data: resultadoTransaccion.resultado,
     });
@@ -904,6 +904,15 @@ async function miHistorial(req, res) {
         usuarioId,
         fecha: { gte: startDate, lte: endDate },
       },
+      include: {
+        usuario: {
+          include: {
+            horariosAsignados: {
+              include: { periodo: { select: { horaInicio: true, horaFin: true } } },
+            },
+          },
+        },
+      },
       orderBy: { fecha: 'desc' },
     });
 
@@ -922,7 +931,7 @@ async function miHistorial(req, res) {
 
     // Buscar horarios asignados para resolver nombre de periodo
     const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuarioId, periodoAcademico: obtenerPeriodoActual() },
+      where: { usuarioId },
       include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
@@ -947,20 +956,26 @@ async function miHistorial(req, res) {
     }
 
     const data = asistencias.map((a) => {
-      let estado = 'Puntual';
+      let estado = 'PUNTUAL';
 
-      if (a.horaEntrada && a.periodo) {
+      if (a.horaEntrada) {
         const entradaMin = getBoliviaDate(a.horaEntrada).getHours() * 60 +
                            getBoliviaDate(a.horaEntrada).getMinutes();
-        const inicioMin = periodoStartMinutes(a.periodo);
-        if (inicioMin !== null) {
+        const diaNum = new Date(a.fecha.getFullYear(), a.fecha.getMonth(), a.fecha.getDate()).getDay();
+        const diaSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'][diaNum];
+        const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
+        if (horariosDia.length > 0) {
+          const h = horariosDia[0];
+          const inicioMin = timeToMinutes(h.periodo.horaInicio);
           const tolerancia = a.minutosTolerancia ?? 10;
-          estado = (entradaMin - inicioMin) <= tolerancia ? 'Puntual' : 'Tardanza';
+          estado = (entradaMin - inicioMin) <= tolerancia ? 'PUNTUAL' : 'TARDANZA';
+        } else {
+          estado = 'PUNTUAL';
         }
       } else {
         const obs = (a.observacion || '').toLowerCase();
         if (obs.startsWith('llegó') || obs.includes('tarde')) {
-          estado = 'Tardanza';
+          estado = 'TARDANZA';
         } else if (obs.includes('permiso') || obs.includes('justificado')) {
           estado = 'Justificado';
         }
@@ -968,6 +983,7 @@ async function miHistorial(req, res) {
 
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
       const fechaStr = fd.toISOString().split('T')[0];
+      const periodoLabel = getPeriodoHorario(fd) || 'Turno General';
       return {
         id: a.id,
         fecha: fechaStr,
@@ -977,8 +993,7 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: a.periodo || null,
-        periodoHorario: getPeriodoHorario(fd),
+        periodo: periodoLabel,
         observacion: a.observacion,
         salidaOmitida: a.salidaOmitida,
       };
@@ -1070,7 +1085,7 @@ async function miHistorial(req, res) {
       // Obtener día de la semana usando el string YYYY-MM-DD a mediodía UTC
       const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
       if (diaNum === 0) continue; // Saltar domingos
-      const diaSemana = diasSemanaMap[diaNum];
+      const diaSemana = diasSemana[diaNum];
       const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
       if (horariosDia.length === 0) continue;
 
@@ -1122,8 +1137,8 @@ async function miHistorial(req, res) {
       data,
       resumen: {
         total: data.length,
-        puntual: data.filter((d) => d.estado === 'Puntual').length,
-        tardanza: data.filter((d) => d.estado === 'Tardanza').length,
+        puntual: data.filter((d) => d.estado === 'PUNTUAL').length,
+        tardanza: data.filter((d) => d.estado === 'TARDANZA').length,
         justificado: data.filter((d) => d.estado === 'Justificado').length,
         ausente: data.filter((d) => d.estado === 'Ausente').length,
       },
