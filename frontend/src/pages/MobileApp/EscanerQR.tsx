@@ -33,25 +33,61 @@ export const MobileEscanerQR: React.FC = () => {
   const onScanError = useCallback(() => {}, []);
 
   const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setPhotoMode(true);
-    try {
-      const scanner = new Html5Qrcode(ESCANER_ID);
-      scannerRef.current = scanner;
 
-      const decodedText = await scanner.scanFile(file, false);
-      onScanSuccess(decodedText);
-    } catch (err) {
-      setError(`No se pudo leer el QR de la foto: ${err}`);
+    // Redimensionar imagen a max 800px de ancho para facilitar detección QR
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 800;
+      const scale = MAX_WIDTH / img.width;
+      canvas.width = MAX_WIDTH;
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setError('No se pudo procesar la imagen');
+          setPhotoMode(false);
+          return;
+        }
+
+        const resizedFile = new File([blob], 'qr_resized.jpg', { type: 'image/jpeg' });
+
+        try {
+          const scanner = new Html5Qrcode(ESCANER_ID);
+          scannerRef.current = scanner;
+
+          const result = await scanner.scanFileV2(resizedFile);
+          onScanSuccess(result.decodedText);
+        } catch (err) {
+          setError('No se detectó un código QR claro en la foto. Intenta enfocar más cerca.');
+          setPhotoMode(false);
+        }
+      }, 'image/jpeg', 0.85);
+    };
+
+    img.onerror = () => {
+      setError('Error al cargar la imagen seleccionada');
       setPhotoMode(false);
-    }
+    };
+
+    img.src = URL.createObjectURL(rawFile);
   }, [onScanSuccess]);
 
   const startCamera = useCallback(async () => {
     try {
-      // 1. Obtener lista de cámaras reales del teléfono
+      // 1. Detener cualquier scanner previo antes de iniciar uno nuevo
+      if (scannerRef.current) {
+        try { await scannerRef.current.stop(); } catch { /* ignore */ }
+        scannerRef.current = null;
+      }
+
+      // 2. Obtener lista de cámaras reales del teléfono
       const devices = await Html5Qrcode.getCameras();
 
       if (!devices || devices.length === 0) {
@@ -60,7 +96,7 @@ export const MobileEscanerQR: React.FC = () => {
         return;
       }
 
-      // 2. Seleccionar cámara trasera por label o la última de la lista
+      // 3. Seleccionar cámara trasera por label o la última de la lista
       const backCamera = devices.find(d =>
         d.label.toLowerCase().includes('back') ||
         d.label.toLowerCase().includes('trasera') ||
@@ -69,7 +105,7 @@ export const MobileEscanerQR: React.FC = () => {
 
       const cameraId = backCamera.id;
 
-      // 3. Inicializar escáner con el ID exacto de la cámara
+      // 4. Inicializar escáner con el ID exacto de la cámara
       const scanner = new Html5Qrcode(ESCANER_ID);
       scannerRef.current = scanner;
 
@@ -82,7 +118,7 @@ export const MobileEscanerQR: React.FC = () => {
         onScanError,
       );
 
-      // 4. Forzar atributos obligatorios para móviles en el <video> montado por Html5Qrcode
+      // 5. Forzar atributos obligatorios para móviles en el <video> montado por Html5Qrcode
       const videoEl = document.querySelector(`#${ESCANER_ID} video`);
       if (videoEl) {
         videoEl.setAttribute("playsinline", "true");

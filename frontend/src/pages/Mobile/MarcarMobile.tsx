@@ -162,24 +162,58 @@ export const MobileMarcar: React.FC = () => {
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 350, delay: 0.1 }}
             >
-              {state.response.estado === "Atraso" ? (
-                <Clock size={56} className="text-warning" />
+              {state.response.estado === "TARDANZA" ? (
+                <Clock size={56} className="text-yellow-500" />
               ) : (
-                <CheckCircle size={56} className="text-success" />
+                <CheckCircle size={56} className="text-green-500" />
               )}
             </motion.div>
+
             <div className="text-center">
               <h2 className="text-xl font-bold text-foreground">
-                {state.response.accion === "SALIDA" ? "¡Salida registrada!" : "¡Entrada registrada!"}
+                ¡Asistencia Registrada!
               </h2>
-              <p className="text-xs text-muted-foreground mt-1.5">{state.response.mensaje}</p>
+
+              <div className="mt-3 flex justify-center">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold ${
+                    state.response.estado === "TARDANZA"
+                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      state.response.estado === "TARDANZA" ? "bg-yellow-500" : "bg-green-500"
+                    }`}
+                  />
+                  {state.response.estado === "TARDANZA" ? "TARDANZA" : "PUNTUAL"}
+                </span>
+              </div>
+
+              {state.response.horaEntrada && (
+                <p className="text-lg font-mono font-semibold mt-3 text-foreground">
+                  {state.response.horaEntrada}
+                </p>
+              )}
+
+              <p className="text-xs text-muted-foreground mt-2">{state.response.mensaje}</p>
+
+              {state.response.empleado?.nombre && (
+                <p className="text-sm font-medium mt-2 text-foreground">
+                  {state.response.empleado.nombre}
+                </p>
+              )}
+
               {state.response.periodo && (
                 <p className="text-xs font-mono mt-3 bg-muted rounded-lg px-3 py-1.5 text-foreground">
                   {state.response.periodo}
                 </p>
               )}
             </div>
+
             <p className="text-[10px] text-muted-foreground mt-2">Volviendo al inicio...</p>
+
             {state.response?.empleado?.nombre && (
               <button
                 onClick={() => anunciarAsistencia(state.response!.empleado!.nombre!)}

@@ -1,19 +1,36 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
-import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan } from "lucide-react";
+import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2 } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 
 export const MobileInicio: React.FC = () => {
-  const { user } = useEmployeeAuth();
+  const { user, isAuthenticated } = useEmployeeAuth();
   const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 size={32} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user || !isAuthenticated) {
+    return <Navigate replace to="/app/login" />;
+  }
 
   const greeting = (() => {
     const h = now.getHours();
@@ -68,23 +85,23 @@ export const MobileInicio: React.FC = () => {
               style={{ background: "color-mix(in srgb, var(--primary) 6%, transparent)", borderColor: "color-mix(in srgb, var(--primary) 15%, transparent)" }}
             >
               <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>CÓDIGO</p>
-              <p className="text-sm font-bold text-foreground mt-0.5">{user.codigo}</p>
+              <p className="text-sm font-bold text-foreground mt-0.5">{user?.codigo}</p>
             </div>
             <div className="rounded-xl p-3 border"
               style={{
-                background: user.activo
+                background: user?.activo
                   ? "color-mix(in srgb, var(--color-success, #10B981) 8%, transparent)"
                   : "color-mix(in srgb, var(--color-danger, #EF4444) 8%, transparent)",
-                borderColor: user.activo
+                borderColor: user?.activo
                   ? "color-mix(in srgb, var(--color-success, #10B981) 20%, transparent)"
                   : "color-mix(in srgb, var(--color-danger, #EF4444) 20%, transparent)",
               }}
             >
               <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>ESTADO</p>
               <p className={`text-sm font-bold mt-0.5 flex items-center gap-1 ${
-                user.activo ? "text-[var(--color-success,#10B981)]" : "text-[var(--color-danger,#EF4444)]"
+                user?.activo ? "text-[var(--color-success,#10B981)]" : "text-[var(--color-danger,#EF4444)]"
               }`}>
-                {user.activo ? (
+                {user?.activo ? (
                   <><CheckCircle2 size={12} /> Activo</>
                 ) : (
                   <><AlertCircle size={12} /> Inactivo</>
