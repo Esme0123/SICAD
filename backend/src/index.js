@@ -4,10 +4,12 @@
 // Carga y valida variables de entorno PRIMERO (falla rápido si faltan)
 const env = require('./config/env');
 
+const http = require('http');
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const { Server } = require('socket.io');
 
 // ── Rutas ────────────────────────────────────────────────────
 const qrRoutes = require('./routes/qr.routes');
@@ -25,10 +27,20 @@ const respaldosRoutes = require('./routes/respaldos.routes');
 const notificacionRoutes = require('./routes/notificacion.routes');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+});
 
 // ── Middlewares globales ─────────────────────────────────────
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+// Adjuntar io a cada request para que los controladores emitan eventos
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
 
 // Archivos estáticos (uploads)
 const uploadsDir = path.join(__dirname, '../uploads/permisos');
@@ -99,7 +111,7 @@ app.use((req, res) => {
 });
 
 // ── Arranque del servidor ────────────────────────────────────
-app.listen(env.PORT, '0.0.0.0', () => {
+server.listen(env.PORT, '0.0.0.0', () => {
   console.log(`[SICAD] Servidor iniciado en puerto ${env.PORT}`);
   console.log(`[SICAD] Entorno: ${env.NODE_ENV}`);
 });

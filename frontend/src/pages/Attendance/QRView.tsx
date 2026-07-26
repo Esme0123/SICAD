@@ -7,6 +7,7 @@ import { anunciarAsistencia } from "@/utils/tts.utils";
 import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
+import { getSocket, AsistenciaRegistradaEvent } from "@/services/socket";
 import { generateQRToken, getQrDashboard, getEstadoHoy, QrDashboardPeriod, EstadoHoyPeriodo, EstadoHoyResponse } from "@/services/qr.service";
 
 interface QRViewProps {
@@ -101,6 +102,28 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
     }, 30000);
     return () => clearInterval(id);
   }, []);
+
+  // Socket.io: escuchar evento en tiempo real cuando alguien marca
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handler = (event: AsistenciaRegistradaEvent) => {
+      anunciarAsistencia(event.empleadoNombre);
+
+      setUltimoRegistro({
+        id: Date.now(),
+        nombre: event.empleadoNombre,
+        codigo: "",
+        hora: event.horaEntradaStr,
+        estado: event.estado === 'TARDANZA' ? 'Atraso' : 'A tiempo',
+      });
+
+      fetchToken();
+    };
+
+    socket.on('asistencia_registrada', handler);
+    return () => { socket.off('asistencia_registrada', handler); };
+  }, [fetchToken]);
 
   useEffect(() => {
     if (countdown <= 0) {

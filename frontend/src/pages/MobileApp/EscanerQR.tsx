@@ -81,44 +81,23 @@ export const MobileEscanerQR: React.FC = () => {
 
   const startCamera = useCallback(async () => {
     try {
-      // 1. Detener cualquier scanner previo antes de iniciar uno nuevo
       if (scannerRef.current) {
         try { await scannerRef.current.stop(); } catch { /* ignore */ }
         scannerRef.current = null;
       }
 
-      // 2. Obtener lista de cámaras reales del teléfono
-      const devices = await Html5Qrcode.getCameras();
-
-      if (!devices || devices.length === 0) {
-        setError("No se detectó ninguna cámara en el dispositivo");
-        setInit(false);
-        return;
-      }
-
-      // 3. Seleccionar cámara trasera por label o la última de la lista
-      const backCamera = devices.find(d =>
-        d.label.toLowerCase().includes('back') ||
-        d.label.toLowerCase().includes('trasera') ||
-        d.label.toLowerCase().includes('environment')
-      ) || devices[devices.length - 1];
-
-      const cameraId = backCamera.id;
-
-      // 4. Inicializar escáner con el ID exacto de la cámara
       const scanner = new Html5Qrcode(ESCANER_ID);
       scannerRef.current = scanner;
 
       const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
       await scanner.start(
-        cameraId,
+        { facingMode: { ideal: "environment" } },
         config,
         onScanSuccess,
         onScanError,
       );
 
-      // 5. Forzar atributos obligatorios para móviles en el <video> montado por Html5Qrcode
       const videoEl = document.querySelector(`#${ESCANER_ID} video`);
       if (videoEl) {
         videoEl.setAttribute("playsinline", "true");
@@ -183,7 +162,7 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        <div id={ESCANER_ID} className={`w-full max-w-sm ${init || error || photoMode ? "hidden" : ""}`} style={{ width: '100%', minHeight: '320px', backgroundColor: '#000' }} />
+        <div id={ESCANER_ID} className={`w-full h-80 bg-black rounded-lg overflow-hidden relative ${init || error || photoMode ? "hidden" : ""}`} />
 
         {camOn && !error && (
           <>

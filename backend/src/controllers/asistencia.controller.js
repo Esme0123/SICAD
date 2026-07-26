@@ -196,6 +196,14 @@ async function registrar(req, res) {
       estado = 'Salida';
     }
 
+    if (req.io && accion === 'ENTRADA') {
+      req.io.emit('asistencia_registrada', {
+        empleadoNombre: resultado.usuario.nombre,
+        horaEntradaStr: toBoliviaTimeStr(resultado.horaEntrada),
+        estado,
+      });
+    }
+
     res.status(201).json({
       ok: true,
       accion,
@@ -461,6 +469,14 @@ async function marcar(req, res) {
       ? toBoliviaTimeStr(resultado.horaEntrada)
       : null;
 
+    if (req.io && accion === 'ENTRADA') {
+      req.io.emit('asistencia_registrada', {
+        empleadoNombre: resultado.usuario.nombre,
+        horaEntradaStr,
+        estado,
+      });
+    }
+
     res.status(201).json({
       ok: true,
       accion,
@@ -696,6 +712,14 @@ async function marcarMovil(req, res) {
     const horaEntradaStr = resultadoTransaccion.resultado?.horaEntrada
       ? toBoliviaTimeStr(resultadoTransaccion.resultado.horaEntrada)
       : null;
+
+    if (req.io && resultadoTransaccion.accion === 'ENTRADA') {
+      req.io.emit('asistencia_registrada', {
+        empleadoNombre: resultadoTransaccion.usuario.nombre,
+        horaEntradaStr,
+        estado: resultadoTransaccion.estado,
+      });
+    }
 
     res.status(201).json({
       ok: true,
