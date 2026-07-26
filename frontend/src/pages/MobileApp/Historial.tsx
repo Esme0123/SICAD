@@ -21,17 +21,18 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado";
+  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente";
   periodo: string | null;
   periodoHorario: string | null;
   observacion: string | null;
+  minutosRetraso: number | null;
   salidaOmitida: boolean;
 }
 
 interface HistorialResponse {
   ok: boolean;
   data: Marcacion[];
-  resumen: { total: number; puntual: number; tardanza: number; justificado: number };
+  resumen: { total: number; puntual: number; tardanza: number; justificado: number; ausente: number };
 }
 
 const meses = [
@@ -46,11 +47,11 @@ const filtrosLabel: Record<Filtro, string> = {
   hoy: "Hoy", semana: "Semana", mes: "Mes", periodo: "Periodo",
 };
 
-const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-  Puntual:    { icon: CheckCircle2, color: "text-success", bg: "bg-success/10" },
-  Tardanza:   { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10" },
-  Justificado: { icon: FileText, color: "text-primary", bg: "bg-primary/10" },
-  Ausente:    { icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
+const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg: string; border: string }> = {
+  Puntual:    { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
+  Tardanza:   { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/20", border: "border-amber-500/30" },
+  Justificado: { icon: FileText, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
+  Ausente:    { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" },
 };
 
 function boDate(date?: Date): Date {
@@ -497,7 +498,7 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
@@ -511,6 +512,7 @@ export const MobileHistorial: React.FC = () => {
             { key: "Puntual",    label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
             { key: "Tardanza",   label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
             { key: "Justificado", label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
+            { key: "Ausente",    label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
           ].map((s) => {
             const isActive = s.key !== null && filtroEstado === s.key;
             return (
@@ -589,6 +591,8 @@ export const MobileHistorial: React.FC = () => {
               m.estado === "Ausente" ? "#EF444408" :
               "#3B82F608";
 
+            const tardanzaMin = m.estado === "Tardanza" ? m.minutosRetraso : null;
+
             return (
               <div
                 key={m.id}
@@ -616,13 +620,7 @@ export const MobileHistorial: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border"
-                    style={{
-                      background: `${borderClr}15`,
-                      color: borderClr,
-                      borderColor: `${borderClr}30`,
-                    }}
-                  >
+                  <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
                     <Icon size={10} />
                     <span>{m.estado}</span>
                   </div>
@@ -636,7 +634,11 @@ export const MobileHistorial: React.FC = () => {
                         <span className="font-mono font-semibold" style={{ color: "var(--foreground)" }}>
                           {m.horaEntrada || "--:--"}
                         </span>
-                        <span className="opacity-60">entrada</span>
+                        {tardanzaMin !== null ? (
+                          <span className="text-amber-400 font-semibold">(+{tardanzaMin} min. retraso)</span>
+                        ) : (
+                          <span className="opacity-60">entrada</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#EF4444" }} />
@@ -652,11 +654,11 @@ export const MobileHistorial: React.FC = () => {
                     </div>
                   )}
 
-                  {m.periodoHorario && (
+                  {m.periodo && (
                     <div className="mt-2 flex items-center gap-1.5">
                       <Clock size={10} style={{ color: "var(--muted-foreground)" }} />
                       <span className="text-[10px] font-mono" style={{ color: "var(--muted-foreground)" }}>
-                        {m.periodoHorario}
+                        {m.periodo}
                       </span>
                     </div>
                   )}

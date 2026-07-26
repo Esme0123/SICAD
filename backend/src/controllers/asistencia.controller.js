@@ -1010,18 +1010,50 @@ async function miHistorial(req, res) {
     const fmtTime = (d) =>
       d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
 
+    // ── Cargar horarios asignados con su createdAt (fecha de asignaci�n) ──
+    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const horariosAsignados = await prisma.horarioAsignado.findMany({
+      where: { usuarioId },
+      include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
+    });
+
+    const horarioPorDia = new Map();
+    for (const h of horariosAsignados) {
+      if (!horarioPorDia.has(h.diaSemana)) horarioPorDia.set(h.diaSemana, []);
+      horarioPorDia.get(h.diaSemana).push({
+        id: h.id,
+        periodoId: h.periodo.id,
+        horaInicio: h.periodo.horaInicio,
+        horaFin: h.periodo.horaFin,
+        nombre: h.periodo.nombre,
+        createdAt: h.createdAt,
+      });
+    }
+
+    function getPeriodoHorario(fecha) {
+      const diaNum = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getDay();
+      const horarios = horarioPorDia.get(diasSemana[diaNum]);
+      if (!horarios || horarios.length === 0) return null;
+      return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
+    }
+
     const data = asistencias.map((a) => {
       let estado = 'PUNTUAL';
+      let minutosRetraso = null;
 
       if (a.horaEntrada) {
         const obs = (a.observacion || '').toLowerCase();
         if (obs.startsWith('llegó') || obs.includes('tarde')) {
           estado = 'TARDANZA';
+          const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
+          if (match) minutosRetraso = parseInt(match[1]);
         }
       } else {
         const obs = (a.observacion || '').toLowerCase();
         if (obs.startsWith('llegó') || obs.includes('tarde')) {
           estado = 'TARDANZA';
+          const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
+          if (match) minutosRetraso = parseInt(match[1]);
         } else if (obs.includes('permiso') || obs.includes('justificado')) {
           estado = 'Justificado';
         }
@@ -1038,8 +1070,9 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: a.periodo,
+        periodo: a.periodo || getPeriodoHorario(fd),
         observacion: a.observacion,
+        minutosRetraso,
         salidaOmitida: a.salidaOmitida,
       };
     });
@@ -1053,12 +1086,20 @@ async function miHistorial(req, res) {
       },
       include: {
         tipoPermiso: { select: { nombre: true } },
+        periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } },
       },
     });
 
+    const permisosPorFecha = new Map();
     for (const p of permisos) {
       const pfecha = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
       const fechaStr = pfecha.toISOString().split('T')[0];
+      const nombrePeriodos = p.periodos
+        .map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`)
+        .join(', ') || 'Permiso';
+
+      if (!permisosPorFecha.has(fechaStr)) permisosPorFecha.set(fechaStr, []);
+      permisosPorFecha.get(fechaStr).push({ id: p.id, nombrePeriodos, observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}` });
 
       const yaExiste = data.some(
         (d) => d.estado === 'Justificado' && d.fecha === fechaStr
@@ -1074,8 +1115,77 @@ async function miHistorial(req, res) {
           horaEntrada: null,
           horaSalida: null,
           estado: 'Justificado',
-          periodo: null,
+          periodo: nombrePeriodos,
           observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
+          minutosRetraso: null,
+          salidaOmitida: false,
+        });
+      }
+    }
+
+    // ── Calcular ausentes respetando la fecha de asignaci�n ──
+    const fechasEnRango = [];
+    for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
+      fechasEnRango.push(new Date(d));
+    }
+
+    const ahoraBol = getBoliviaDate();
+    const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
+    const hoyStr = `${ahoraBol.getFullYear()}-${String(ahoraBol.getMonth() + 1).padStart(2, '0')}-${String(ahoraBol.getDate()).padStart(2, '0')}`;
+
+    const asistenciaPorFecha = new Map();
+    for (const a of asistencias) {
+      const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+      const key = fd.toISOString().split('T')[0];
+      if (!asistenciaPorFecha.has(key)) asistenciaPorFecha.set(key, []);
+      asistenciaPorFecha.get(key).push(a);
+    }
+
+    for (const fecha of fechasEnRango) {
+      const fechaStr = fecha.toISOString().split('T')[0];
+      if (fechaStr > hoyStr) continue;
+
+      const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
+      if (diaNum === 0) continue;
+      const diaSemana = diasSemana[diaNum];
+      const horariosDia = horarioPorDia.get(diaSemana) || [];
+      if (horariosDia.length === 0) continue;
+
+      const asistenciasDeHoy = asistenciaPorFecha.get(fechaStr) || [];
+      const permisosDeHoy = permisosPorFecha.get(fechaStr) || [];
+      const esHoy = fechaStr === hoyStr;
+
+      for (const h of horariosDia) {
+        // NO generar ausencia para fechas anteriores a la asignaci�n del periodo
+        const fechaDate = new Date(fechaStr + 'T12:00:00Z');
+        if (fechaDate < h.createdAt) continue;
+
+        const periodoLabel = `${h.horaInicio}–${h.horaFin}`;
+
+        let cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
+        if (!cubierto) cubierto = asistenciasDeHoy.some(a => a.horaEntrada != null && a.periodo === periodoLabel);
+        if (cubierto) continue;
+
+        const cubiertoPermiso = permisosDeHoy.some(p => p.nombrePeriodos.includes(h.horaInicio));
+        if (cubiertoPermiso) continue;
+
+        if (esHoy) {
+          const [hFin, mFin] = h.horaFin.split(':').map(Number);
+          if (ahoraMin < hFin * 60 + mFin) continue;
+        }
+
+        data.push({
+          id: `ausente-${fechaStr}-${h.id}`,
+          fecha: fechaStr,
+          fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
+            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          }),
+          horaEntrada: null,
+          horaSalida: null,
+          estado: 'Ausente',
+          periodo: periodoLabel,
+          observacion: `Sin marcaci�n en ${periodoLabel}`,
+          minutosRetraso: null,
           salidaOmitida: false,
         });
       }
@@ -1091,11 +1201,12 @@ async function miHistorial(req, res) {
         puntual: data.filter((d) => d.estado === 'PUNTUAL').length,
         tardanza: data.filter((d) => d.estado === 'TARDANZA').length,
         justificado: data.filter((d) => d.estado === 'Justificado').length,
+        ausente: data.filter((d) => d.estado === 'Ausente').length,
       },
     });
   } catch (error) {
     console.error('[asistencia.miHistorial]', error);
-    res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+    res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
   }
 }
 

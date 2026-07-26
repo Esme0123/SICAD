@@ -61,10 +61,12 @@ export const MobileEscanerQR: React.FC = () => {
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setCamOn(true);
-          setInit(false);
-          animationId = requestAnimationFrame(scanFrame);
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => console.error("Error al reproducir video:", e));
+            setCamOn(true);
+            setInit(false);
+            animationId = requestAnimationFrame(scanFrame);
+          };
         }
       } catch (err) {
         console.error("Error al acceder a la cámara:", err);
@@ -74,10 +76,12 @@ export const MobileEscanerQR: React.FC = () => {
           });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            await videoRef.current.play();
-            setCamOn(true);
-            setInit(false);
-            animationId = requestAnimationFrame(scanFrame);
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().catch(e => console.error("Error al reproducir video:", e));
+              setCamOn(true);
+              setInit(false);
+              animationId = requestAnimationFrame(scanFrame);
+            };
           }
         } catch (err2) {
           setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
