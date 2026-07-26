@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Html5Qrcode } from "html5-qrcode";
+import jsQR from "jsqr";
 import { X, Camera, CameraOff, Loader2, Image } from "lucide-react";
-
-const ESCANER_ID = "qr-scanner-element";
 
 export const MobileEscanerQR: React.FC = () => {
   const navigate = useNavigate();
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
@@ -23,12 +22,79 @@ export const MobileEscanerQR: React.FC = () => {
       token = decodedText;
     }
     if (token) {
-      scannerRef.current?.stop().catch(() => {});
       navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
     } else {
       setError("QR inválido: no contiene token de marcación");
     }
   }, [navigate]);
+
+  const scanFrame = useCallback(() => {
+    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code && code.data) {
+          onScanSuccess(code.data);
+          return;
+        }
+      }
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      requestAnimationFrame(scanFrame);
+    }
+  }, [onScanSuccess]);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let animationId: number;
+
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          setCamOn(true);
+          setInit(false);
+          animationId = requestAnimationFrame(scanFrame);
+        }
+      } catch (err) {
+        console.error("Error al acceder a la cámara:", err);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+          });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
+            setCamOn(true);
+            setInit(false);
+            animationId = requestAnimationFrame(scanFrame);
+          }
+        } catch (err2) {
+          setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
+          setInit(false);
+        }
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [scanFrame]);
 
   const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
@@ -36,9 +102,8 @@ export const MobileEscanerQR: React.FC = () => {
 
     setPhotoMode(true);
 
-    // Redimensionar imagen a max 800px de ancho para facilitar detección QR
     const img = new Image();
-    img.onload = async () => {
+    img.onload = () => {
       const canvas = document.createElement('canvas');
       const MAX_WIDTH = 800;
       const scale = MAX_WIDTH / img.width;
@@ -46,100 +111,23 @@ export const MobileEscanerQR: React.FC = () => {
       canvas.height = Math.round(img.height * scale);
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setError('No se pudo procesar la imagen');
-          setPhotoMode(false);
+      const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+      if (imageData) {
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code && code.data) {
+          onScanSuccess(code.data);
           return;
         }
-
-        const resizedFile = new File([blob], 'qr_resized.jpg', { type: 'image/jpeg' });
-
-        try {
-          const scanner = new Html5Qrcode(ESCANER_ID);
-          scannerRef.current = scanner;
-
-          const result = await scanner.scanFileV2(resizedFile);
-          onScanSuccess(result.decodedText);
-        } catch (err) {
-          setError('No se detectó un código QR claro en la foto. Intenta enfocar más cerca.');
-          setPhotoMode(false);
-        }
-      }, 'image/jpeg', 0.85);
+      }
+      setError('No se detectó un código QR claro en la foto. Intenta enfocar más cerca.');
+      setPhotoMode(false);
     };
-
     img.onerror = () => {
       setError('Error al cargar la imagen seleccionada');
       setPhotoMode(false);
     };
-
     img.src = URL.createObjectURL(rawFile);
   }, [onScanSuccess]);
-
-  const startCamera = useCallback(async () => {
-    try {
-      if (scannerRef.current) {
-        try { await scannerRef.current.stop(); } catch { /* ignore */ }
-        scannerRef.current = null;
-      }
-
-      const scanner = new Html5Qrcode(ESCANER_ID);
-      scannerRef.current = scanner;
-
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-      try {
-        await scanner.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => { onScanSuccess(decodedText); },
-          () => {},
-        );
-
-        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
-        if (videoEl) {
-          videoEl.setAttribute("playsinline", "true");
-          videoEl.setAttribute("muted", "true");
-          videoEl.setAttribute("autoplay", "true");
-        }
-
-        setCamOn(true);
-        setInit(false);
-      } catch (err) {
-        console.error("Error al iniciar cámara trasera:", err);
-        await scanner.start(
-          { facingMode: "user" },
-          config,
-          (decodedText) => { onScanSuccess(decodedText); },
-          () => {},
-        ).catch(e => {
-          setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
-          setInit(false);
-        });
-
-        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
-        if (videoEl) {
-          videoEl.setAttribute("playsinline", "true");
-          videoEl.setAttribute("muted", "true");
-          videoEl.setAttribute("autoplay", "true");
-        }
-
-        setCamOn(true);
-        setInit(false);
-      }
-    } catch (err) {
-      setError(`Error al iniciar cámara: ${err}`);
-      setInit(false);
-    }
-  }, [onScanSuccess]);
-
-  useEffect(() => {
-    startCamera();
-    return () => {
-      scannerRef.current?.stop().catch(() => {});
-    };
-  }, [startCamera]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
@@ -183,7 +171,16 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        <div id={ESCANER_ID} className={`w-full h-80 bg-black rounded-lg overflow-hidden relative ${init || error || photoMode ? "hidden" : ""}`} />
+        <div className="relative w-full h-80 bg-black rounded-lg overflow-hidden">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            playsInline
+            muted
+            autoPlay
+          />
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
 
         {camOn && !error && (
           <>

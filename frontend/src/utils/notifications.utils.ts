@@ -1,9 +1,12 @@
-export const enviarNotificacionSistema = (titulo: string, cuerpo: string) => {
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(titulo, {
-      body: cuerpo,
-      icon: "/icon-192x192.png",
-    });
+export const enviarNotificacionSistema = async (titulo: string, cuerpo: string) => {
+  if ('serviceWorker' in navigator && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.ready;
+      registration.showNotification(titulo, {
+        body: cuerpo,
+        icon: '/sicad-icon-192.svg',
+      });
+    }
   }
 };
 

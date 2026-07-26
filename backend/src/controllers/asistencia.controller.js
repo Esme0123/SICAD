@@ -1004,73 +1004,19 @@ async function miHistorial(req, res) {
         usuarioId,
         fecha: { gte: startDate, lte: endDate },
       },
-      include: {
-        usuario: {
-          include: {
-            horariosAsignados: {
-              include: { periodo: { select: { horaInicio: true, horaFin: true } } },
-            },
-          },
-        },
-      },
       orderBy: { fecha: 'desc' },
     });
 
     const fmtTime = (d) =>
       d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
 
-    /** Extrae horaInicio (minutos) desde el string periodo "HH:MM–HH:MM" */
-    function periodoStartMinutes(periodoStr) {
-      if (!periodoStr) return null;
-      const parts = periodoStr.split('–');
-      if (!parts[0]) return null;
-      const [h, m] = parts[0].split(':').map(Number);
-      if (isNaN(h) || isNaN(m)) return null;
-      return h * 60 + m;
-    }
-
-    // Buscar horarios asignados para resolver nombre de periodo
-    const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuarioId },
-      include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
-    });
-
-    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
-
-    // Build horario lookup per day: diaSemana -> [{ horaInicio, horaFin }]
-    const horarioPorDia = new Map();
-    for (const h of horariosAsignados) {
-      if (!horarioPorDia.has(h.diaSemana)) horarioPorDia.set(h.diaSemana, []);
-      horarioPorDia.get(h.diaSemana).push({
-        horaInicio: h.periodo.horaInicio,
-        horaFin: h.periodo.horaFin,
-        nombre: h.periodo.nombre,
-      });
-    }
-
-    function getPeriodoHorario(fecha) {
-      const diaNum = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getDay();
-      const horarios = horarioPorDia.get(diasSemana[diaNum]);
-      if (!horarios || horarios.length === 0) return null;
-      return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
-    }
-
     const data = asistencias.map((a) => {
       let estado = 'PUNTUAL';
 
       if (a.horaEntrada) {
-        const entradaMin = getBoliviaDate(a.horaEntrada).getHours() * 60 +
-                           getBoliviaDate(a.horaEntrada).getMinutes();
-        const diaNum = new Date(a.fecha.getFullYear(), a.fecha.getMonth(), a.fecha.getDate()).getDay();
-        const diaSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'][diaNum];
-        const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
-        if (horariosDia.length > 0) {
-          const h = horariosDia[0];
-          const inicioMin = timeToMinutes(h.periodo.horaInicio);
-          const tolerancia = a.minutosTolerancia ?? 10;
-          estado = (entradaMin - inicioMin) <= tolerancia ? 'PUNTUAL' : 'TARDANZA';
-        } else {
-          estado = 'PUNTUAL';
+        const obs = (a.observacion || '').toLowerCase();
+        if (obs.startsWith('llegó') || obs.includes('tarde')) {
+          estado = 'TARDANZA';
         }
       } else {
         const obs = (a.observacion || '').toLowerCase();
@@ -1083,7 +1029,6 @@ async function miHistorial(req, res) {
 
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
       const fechaStr = fd.toISOString().split('T')[0];
-      const periodoLabel = getPeriodoHorario(fd) || 'Turno General';
       return {
         id: a.id,
         fecha: fechaStr,
@@ -1093,7 +1038,7 @@ async function miHistorial(req, res) {
         horaEntrada: fmtTime(a.horaEntrada),
         horaSalida: fmtTime(a.horaSalida),
         estado,
-        periodo: periodoLabel,
+        periodo: a.periodo,
         observacion: a.observacion,
         salidaOmitida: a.salidaOmitida,
       };
@@ -1108,18 +1053,13 @@ async function miHistorial(req, res) {
       },
       include: {
         tipoPermiso: { select: { nombre: true } },
-        periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } },
       },
     });
 
     for (const p of permisos) {
       const pfecha = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
       const fechaStr = pfecha.toISOString().split('T')[0];
-      const nombrePeriodos = p.periodos
-        .map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`)
-        .join(', ') || '—';
 
-      // Evitar duplicar si ya existe una asistencia Justificado para esa fecha
       const yaExiste = data.some(
         (d) => d.estado === 'Justificado' && d.fecha === fechaStr
       );
@@ -1134,97 +1074,8 @@ async function miHistorial(req, res) {
           horaEntrada: null,
           horaSalida: null,
           estado: 'Justificado',
-          periodo: nombrePeriodos,
-          periodoHorario: getPeriodoHorario(pfecha),
+          periodo: null,
           observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
-          salidaOmitida: false,
-        });
-      }
-    }
-
-    // ── Calcular ausentes: periodos sin marcación ──
-
-    const fechasEnRango = [];
-    for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
-      fechasEnRango.push(new Date(d));
-    }
-
-    const ahoraBol = getBoliviaDate();
-    const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
-    const hoyStr = `${ahoraBol.getFullYear()}-${String(ahoraBol.getMonth() + 1).padStart(2, '0')}-${String(ahoraBol.getDate()).padStart(2, '0')}`;
-
-    // Build asistencia lookup per date: dateStr -> array of asistencias
-    // Usamos el string YYYY-MM-DD directamente desde fd.toISOString (UTC midnight)
-    // que es exactamente la fecha que @db.Date almacena.
-    const asistenciaPorFecha = new Map();
-    for (const a of asistencias) {
-      const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-      const key = fd.toISOString().split('T')[0];
-      if (!asistenciaPorFecha.has(key)) asistenciaPorFecha.set(key, []);
-      asistenciaPorFecha.get(key).push(a);
-    }
-
-    // Build permiso lookup per date: dateStr -> Set of periodoIds
-    const permisoPorFecha = new Map();
-    for (const p of permisos) {
-      const fd = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
-      const key = fd.toISOString().split('T')[0];
-      if (!permisoPorFecha.has(key)) permisoPorFecha.set(key, new Set());
-      for (const pp of p.periodos) {
-        permisoPorFecha.get(key).add(pp.periodoId);
-      }
-    }
-
-    for (const fecha of fechasEnRango) {
-      // Extraer YYYY-MM-DD desde el Date de mediodía local.
-      // Como se creó con new Date(y, m-1, d, 12, 0, 0), toISOString
-      // da siempre el mismo día en UTC (ej: 2026-07-21T16:00:00Z -> "2026-07-21").
-      const fechaStr = fecha.toISOString().split('T')[0];
-      if (fechaStr > hoyStr) continue;
-
-      // Obtener día de la semana usando el string YYYY-MM-DD a mediodía UTC
-      const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
-      if (diaNum === 0) continue; // Saltar domingos
-      const diaSemana = diasSemana[diaNum];
-      const horariosDia = horariosAsignados.filter(h => h.diaSemana === diaSemana);
-      if (horariosDia.length === 0) continue;
-
-      const asistenciasDeHoy = asistenciaPorFecha.get(fechaStr) || [];
-      const periodoIdsPermiso = permisoPorFecha.get(fechaStr) || new Set();
-      const esHoy = fechaStr === hoyStr;
-
-      for (const h of horariosDia) {
-        const periodoLabel = `${h.periodo.horaInicio}–${h.periodo.horaFin}`;
-
-        let cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
-        if (!cubierto) {
-          cubierto = asistenciasDeHoy.some(a => a.periodo === null);
-        }
-        // No marcar como Ausente si ya existe un registro con entrada
-        if (!cubierto) {
-          cubierto = asistenciasDeHoy.some(a => a.horaEntrada != null && a.periodo === periodoLabel);
-        }
-        if (cubierto) continue;
-
-        if (periodoIdsPermiso.has(h.periodo.id)) continue;
-
-        if (esHoy) {
-          const [hFin, mFin] = h.periodo.horaFin.split(':').map(Number);
-          if (ahoraMin < hFin * 60 + mFin) continue;
-        }
-
-        data.push({
-          id: `ausente-${fechaStr}-${h.id}`,
-          fecha: fechaStr,
-          fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
-            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          }),
-          horaEntrada: null,
-          horaSalida: null,
-          estado: 'Ausente',
-          periodo: periodoLabel,
-          periodoHorario: getPeriodoHorario(fecha),
-          observacion: `Sin marcación en ${periodoLabel}`,
           salidaOmitida: false,
         });
       }
@@ -1240,7 +1091,6 @@ async function miHistorial(req, res) {
         puntual: data.filter((d) => d.estado === 'PUNTUAL').length,
         tardanza: data.filter((d) => d.estado === 'TARDANZA').length,
         justificado: data.filter((d) => d.estado === 'Justificado').length,
-        ausente: data.filter((d) => d.estado === 'Ausente').length,
       },
     });
   } catch (error) {

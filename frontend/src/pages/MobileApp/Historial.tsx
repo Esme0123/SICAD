@@ -21,7 +21,7 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente";
+  estado: "Puntual" | "Tardanza" | "Justificado";
   periodo: string | null;
   periodoHorario: string | null;
   observacion: string | null;
@@ -31,7 +31,7 @@ interface Marcacion {
 interface HistorialResponse {
   ok: boolean;
   data: Marcacion[];
-  resumen: { total: number; puntual: number; tardanza: number; justificado: number; ausente: number };
+  resumen: { total: number; puntual: number; tardanza: number; justificado: number };
 }
 
 const meses = [
@@ -497,7 +497,7 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
@@ -511,7 +511,6 @@ export const MobileHistorial: React.FC = () => {
             { key: "Puntual",    label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
             { key: "Tardanza",   label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
             { key: "Justificado", label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
-            { key: "Ausente",    label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
           ].map((s) => {
             const isActive = s.key !== null && filtroEstado === s.key;
             return (
