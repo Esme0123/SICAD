@@ -31,6 +31,18 @@ export const MobileEscanerQR: React.FC = () => {
   const onScanError = useCallback(() => {}, []);
 
   const startCamera = useCallback(async () => {
+    try {
+      // 1. Forzar petición de permiso nativo del navegador
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      stream.getTracks().forEach(track => track.stop());
+    } catch (permErr) {
+      setError(`Permiso de cámara denegado: ${permErr}`);
+      setInit(false);
+      return;
+    }
+
     const scanner = new Html5Qrcode(ESCANER_ID);
     scannerRef.current = scanner;
 
@@ -43,6 +55,15 @@ export const MobileEscanerQR: React.FC = () => {
         onScanSuccess,
         onScanError,
       );
+
+      // 2. Forzar atributos obligatorios para móviles en el <video> que monta Html5Qrcode
+      const videoEl = document.querySelector(`#${ESCANER_ID} video`);
+      if (videoEl) {
+        videoEl.setAttribute("playsinline", "true");
+        videoEl.setAttribute("muted", "true");
+        videoEl.setAttribute("autoplay", "true");
+      }
+
       setCamOn(true);
       setInit(false);
     } catch {
@@ -53,6 +74,14 @@ export const MobileEscanerQR: React.FC = () => {
           onScanSuccess,
           onScanError,
         );
+
+        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
+        if (videoEl) {
+          videoEl.setAttribute("playsinline", "true");
+          videoEl.setAttribute("muted", "true");
+          videoEl.setAttribute("autoplay", "true");
+        }
+
         setCamOn(true);
         setInit(false);
       } catch (err) {

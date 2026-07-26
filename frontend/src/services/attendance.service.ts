@@ -66,12 +66,7 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       ? new Date(a.horaSalida).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" })
       : null;
 
-    let status: AttendanceStatus = "Puntual";
-    if (a.estado) {
-      status = a.estado === "TARDANZA" ? "Tardanza" : "Puntual";
-    } else if (a.observacion && a.observacion.startsWith("Llegó")) {
-      status = "Tardanza";
-    }
+    const status: AttendanceStatus = a.estado === "TARDANZA" ? "Tardanza" : "Puntual";
 
     const dateStr = entrada.toLocaleDateString("es-BO", {
       day: "2-digit", month: "2-digit", year: "numeric",

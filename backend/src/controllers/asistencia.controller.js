@@ -212,14 +212,18 @@ async function getAll(req, res) {
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],
     });
 
-    const data = asistencias.map((a) => {
-      let estado;
-      if (a.observacion && a.observacion.startsWith('Llegó')) {
-        estado = 'TARDANZA';
+    const data = asistencias.map(a => {
+      let estadoReal;
+
+      if (a.horaEntrada && (a.observacion?.toLowerCase().includes('llegó tarde') || a.observacion?.toLowerCase().includes('atraso'))) {
+        estadoReal = 'TARDANZA';
+      } else if (a.horaEntrada) {
+        estadoReal = 'PUNTUAL';
       } else {
-        estado = 'PUNTUAL';
+        estadoReal = 'AUSENTE';
       }
-      return { ...a, estado };
+
+      return { ...a, estado: estadoReal };
     });
 
     res.json({ ok: true, data });
