@@ -122,6 +122,7 @@ async function registrar(req, res) {
 
     let resultado;
     let accion;
+    let estado = 'PUNTUAL';
 
     let periodoLabel = null;
     if (horarioHoy?.periodo) {
@@ -129,11 +130,28 @@ async function registrar(req, res) {
     }
 
     if (!asistenciaAbierta) {
+      const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+      const toleranciaMin = config?.tiempoTolerancia ?? 10;
+
+      let observacionEntrada = null;
+
+      if (horarioHoy?.periodo) {
+        const inicioMin = timeToMinutes(horarioHoy.periodo.horaInicio);
+        const ahoraMin = getBoliviaTimeMinutes(ahora);
+        const diferenciaMin = ahoraMin - inicioMin;
+        if (diferenciaMin > toleranciaMin) {
+          estado = 'TARDANZA';
+          observacionEntrada = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+        }
+      }
+
       resultado = await prisma.asistencia.create({
         data: {
           usuarioId: uid,
           fecha: dateOnly(ahora),
           horaEntrada: ahora,
+          minutosTolerancia: toleranciaMin,
+          observacion: observacionEntrada,
           periodo: periodoLabel,
         },
         include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
@@ -146,11 +164,13 @@ async function registrar(req, res) {
         include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
       });
       accion = 'SALIDA';
+      estado = 'Salida';
     }
 
     res.status(201).json({
       ok: true,
       accion,
+      estado,
       mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}`,
       empleado: { id: resultado.usuario.id, nombre: resultado.usuario.nombre, codigo: resultado.usuario.codigo },
       tieneHorario: !!horarioHoy,
@@ -185,12 +205,24 @@ async function getAll(req, res) {
         horaEntrada: true,
         horaSalida: true,
         observacion: true,
+        periodo: true,
+        minutosTolerancia: true,
         usuario: { select: { id: true, nombre: true, codigo: true, ci: true } },
       },
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],
     });
 
-    res.json({ ok: true, data: asistencias });
+    const data = asistencias.map((a) => {
+      let estado;
+      if (a.observacion && a.observacion.startsWith('Llegó')) {
+        estado = 'TARDANZA';
+      } else {
+        estado = 'PUNTUAL';
+      }
+      return { ...a, estado };
+    });
+
+    res.json({ ok: true, data });
   } catch (error) {
     console.error('[asistencia.getAll]', error);
     res.status(500).json({ ok: false, message: 'Error al obtener asistencias' });

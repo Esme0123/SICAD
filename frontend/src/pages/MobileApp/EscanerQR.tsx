@@ -34,18 +34,31 @@ export const MobileEscanerQR: React.FC = () => {
     const scanner = new Html5Qrcode(ESCANER_ID);
     scannerRef.current = scanner;
 
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
     try {
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        config,
         onScanSuccess,
         onScanError,
       );
       setCamOn(true);
       setInit(false);
-    } catch (err) {
-      setError(`Error al iniciar cámara: ${err}`);
-      setInit(false);
+    } catch {
+      try {
+        await scanner.start(
+          { video: true },
+          config,
+          onScanSuccess,
+          onScanError,
+        );
+        setCamOn(true);
+        setInit(false);
+      } catch (err) {
+        setError(`Error al iniciar cámara: ${err}`);
+        setInit(false);
+      }
     }
   }, [onScanSuccess, onScanError]);
 
@@ -91,7 +104,7 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        <div id={ESCANER_ID} className={`w-full max-w-sm ${init || error ? "hidden" : ""}`} />
+        <div id={ESCANER_ID} className={`w-full max-w-sm ${init || error ? "hidden" : ""}`} style={{ width: '100%', minHeight: '320px', backgroundColor: '#000' }} />
 
         {camOn && !error && (
           <>

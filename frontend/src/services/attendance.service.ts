@@ -47,6 +47,7 @@ interface AsistenciaBackend {
   horaSalida?: string | null;
   observacion?: string | null;
   periodo?: string | null;
+  estado?: string | null;
   usuario?: { id: number; nombre: string; codigo?: string; ci?: string };
 }
 
@@ -66,10 +67,10 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       : null;
 
     let status: AttendanceStatus = "Puntual";
-    if (a.observacion && a.observacion.startsWith("Llegó")) {
+    if (a.estado) {
+      status = a.estado === "TARDANZA" ? "Tardanza" : "Puntual";
+    } else if (a.observacion && a.observacion.startsWith("Llegó")) {
       status = "Tardanza";
-    } else if (!a.horaSalida) {
-      status = "Ausente";
     }
 
     const dateStr = entrada.toLocaleDateString("es-BO", {
