@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { RefreshCw, Server, Volume2 } from "lucide-react";
 import { QRCodeDisplay } from "./components/QRCodeDisplay";
 import { anunciarAsistencia } from "@/utils/tts.utils";
+import { enviarNotificacionSistema } from "@/utils/notifications.utils";
 import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
@@ -108,6 +109,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
     const socket = getSocket();
 
     const handler = (event: AsistenciaRegistradaEvent) => {
+      enviarNotificacionSistema("Asistencia registrada", event.empleadoNombre);
       anunciarAsistencia(event.empleadoNombre);
 
       setUltimoRegistro({

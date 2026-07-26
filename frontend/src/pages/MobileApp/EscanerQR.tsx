@@ -30,8 +30,6 @@ export const MobileEscanerQR: React.FC = () => {
     }
   }, [navigate]);
 
-  const onScanError = useCallback(() => {}, []);
-
   const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
     if (!rawFile) return;
@@ -91,27 +89,50 @@ export const MobileEscanerQR: React.FC = () => {
 
       const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-      await scanner.start(
-        { facingMode: { ideal: "environment" } },
-        config,
-        onScanSuccess,
-        onScanError,
-      );
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText) => { onScanSuccess(decodedText); },
+          () => {},
+        );
 
-      const videoEl = document.querySelector(`#${ESCANER_ID} video`);
-      if (videoEl) {
-        videoEl.setAttribute("playsinline", "true");
-        videoEl.setAttribute("muted", "true");
-        videoEl.setAttribute("autoplay", "true");
+        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
+        if (videoEl) {
+          videoEl.setAttribute("playsinline", "true");
+          videoEl.setAttribute("muted", "true");
+          videoEl.setAttribute("autoplay", "true");
+        }
+
+        setCamOn(true);
+        setInit(false);
+      } catch (err) {
+        console.error("Error al iniciar cámara trasera:", err);
+        await scanner.start(
+          { facingMode: "user" },
+          config,
+          (decodedText) => { onScanSuccess(decodedText); },
+          () => {},
+        ).catch(e => {
+          setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
+          setInit(false);
+        });
+
+        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
+        if (videoEl) {
+          videoEl.setAttribute("playsinline", "true");
+          videoEl.setAttribute("muted", "true");
+          videoEl.setAttribute("autoplay", "true");
+        }
+
+        setCamOn(true);
+        setInit(false);
       }
-
-      setCamOn(true);
-      setInit(false);
     } catch (err) {
       setError(`Error al iniciar cámara: ${err}`);
       setInit(false);
     }
-  }, [onScanSuccess, onScanError]);
+  }, [onScanSuccess]);
 
   useEffect(() => {
     startCamera();

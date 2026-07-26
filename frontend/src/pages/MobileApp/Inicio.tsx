@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2 } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
+import { solicitarPermisoNotificaciones } from "@/utils/notifications.utils";
 
 export const MobileInicio: React.FC = () => {
   const { user, isAuthenticated } = useEmployeeAuth();
@@ -18,6 +19,10 @@ export const MobileInicio: React.FC = () => {
 
   useEffect(() => {
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    solicitarPermisoNotificaciones().catch(() => {});
   }, []);
 
   if (loading) {
