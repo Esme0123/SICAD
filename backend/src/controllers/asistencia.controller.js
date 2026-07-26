@@ -64,6 +64,43 @@ function getBoliviaTimeMinutes(date = new Date()) {
   return bd.getHours() * 60 + bd.getMinutes();
 }
 
+/**
+ * Formatea un Date a string "HH:mm" en hora Bolivia.
+ */
+function toBoliviaTimeStr(date) {
+  const bd = getBoliviaDate(date);
+  return `${String(bd.getHours()).padStart(2, '0')}:${String(bd.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Extrae la hora de inicio "HH:mm" del label de periodo "HH:mm–HH:mm".
+ */
+function extraerHoraInicio(periodoStr) {
+  if (!periodoStr) return null;
+  return periodoStr.split('–')[0] || null;
+}
+
+/**
+ * Calcula PUNTUAL vs TARDANZA comparando matemáticamente la hora de entrada
+ * contra el inicio del periodo más la tolerancia.
+ *
+ * @param {string} horaEntradaStr  - "HH:mm" en hora Bolivia
+ * @param {string} horaInicioPeriodoStr - "HH:mm" del inicio del periodo
+ * @param {number} toleranciaMinutos - minutos de tolerancia (default 20)
+ * @returns {'PUNTUAL' | 'TARDANZA'}
+ */
+function calcularEstadoAsistencia(horaEntradaStr, horaInicioPeriodoStr, toleranciaMinutos = 20) {
+  if (!horaEntradaStr || !horaInicioPeriodoStr) return 'PUNTUAL';
+
+  const [hEnt, mEnt] = horaEntradaStr.split(':').map(Number);
+  const [hIni, mIni] = horaInicioPeriodoStr.split(':').map(Number);
+
+  const minutosEntrada = hEnt * 60 + mEnt;
+  const minutosInicioLimite = (hIni * 60 + mIni) + Number(toleranciaMinutos);
+
+  return minutosEntrada > minutosInicioLimite ? 'TARDANZA' : 'PUNTUAL';
+}
+
 // ── Endpoints ────────────────────────────────────────────────
 
 /**
@@ -131,18 +168,11 @@ async function registrar(req, res) {
 
     if (!asistenciaAbierta) {
       const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
-      const toleranciaMin = config?.tiempoTolerancia ?? 10;
-
-      let observacionEntrada = null;
+      const toleranciaMin = config?.tiempoTolerancia ?? 20;
 
       if (horarioHoy?.periodo) {
-        const inicioMin = timeToMinutes(horarioHoy.periodo.horaInicio);
-        const ahoraMin = getBoliviaTimeMinutes(ahora);
-        const diferenciaMin = ahoraMin - inicioMin;
-        if (diferenciaMin > toleranciaMin) {
-          estado = 'TARDANZA';
-          observacionEntrada = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
-        }
+        const horaEntradaStr = toBoliviaTimeStr(ahora);
+        estado = calcularEstadoAsistencia(horaEntradaStr, horarioHoy.periodo.horaInicio, toleranciaMin);
       }
 
       resultado = await prisma.asistencia.create({
@@ -151,7 +181,6 @@ async function registrar(req, res) {
           fecha: dateOnly(ahora),
           horaEntrada: ahora,
           minutosTolerancia: toleranciaMin,
-          observacion: observacionEntrada,
           periodo: periodoLabel,
         },
         include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
@@ -212,18 +241,19 @@ async function getAll(req, res) {
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],
     });
 
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const toleranciaGlobal = config?.tiempoTolerancia ?? 20;
+
     const data = asistencias.map(a => {
-      let estadoReal;
+      const horaEntradaStr = a.horaEntrada ? toBoliviaTimeStr(a.horaEntrada) : null;
+      const horaInicioStr = extraerHoraInicio(a.periodo);
+      const tolerancia = a.minutosTolerancia ?? toleranciaGlobal;
 
-      if (a.horaEntrada && (a.observacion?.toLowerCase().includes('llegó tarde') || a.observacion?.toLowerCase().includes('atraso'))) {
-        estadoReal = 'TARDANZA';
-      } else if (a.horaEntrada) {
-        estadoReal = 'PUNTUAL';
-      } else {
-        estadoReal = 'AUSENTE';
-      }
+      const estado = horaEntradaStr && horaInicioStr
+        ? calcularEstadoAsistencia(horaEntradaStr, horaInicioStr, tolerancia)
+        : (horaEntradaStr ? 'PUNTUAL' : 'AUSENTE');
 
-      return { ...a, estado: estadoReal };
+      return { ...a, estado };
     });
 
     res.json({ ok: true, data });

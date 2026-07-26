@@ -32,31 +32,38 @@ export const MobileEscanerQR: React.FC = () => {
 
   const startCamera = useCallback(async () => {
     try {
-      // 1. Forzar petición de permiso nativo del navegador
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      stream.getTracks().forEach(track => track.stop());
-    } catch (permErr) {
-      setError(`Permiso de cámara denegado: ${permErr}`);
-      setInit(false);
-      return;
-    }
+      // 1. Obtener lista de cámaras reales del teléfono
+      const devices = await Html5Qrcode.getCameras();
 
-    const scanner = new Html5Qrcode(ESCANER_ID);
-    scannerRef.current = scanner;
+      if (!devices || devices.length === 0) {
+        setError("No se detectó ninguna cámara en el dispositivo");
+        setInit(false);
+        return;
+      }
 
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      // 2. Seleccionar cámara trasera por label o la última de la lista
+      const backCamera = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('trasera') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1];
 
-    try {
+      const cameraId = backCamera.id;
+
+      // 3. Inicializar escáner con el ID exacto de la cámara
+      const scanner = new Html5Qrcode(ESCANER_ID);
+      scannerRef.current = scanner;
+
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
       await scanner.start(
-        { facingMode: "environment" },
+        cameraId,
         config,
         onScanSuccess,
         onScanError,
       );
 
-      // 2. Forzar atributos obligatorios para móviles en el <video> que monta Html5Qrcode
+      // 4. Forzar atributos obligatorios para móviles en el <video> montado por Html5Qrcode
       const videoEl = document.querySelector(`#${ESCANER_ID} video`);
       if (videoEl) {
         videoEl.setAttribute("playsinline", "true");
@@ -66,28 +73,9 @@ export const MobileEscanerQR: React.FC = () => {
 
       setCamOn(true);
       setInit(false);
-    } catch {
-      try {
-        await scanner.start(
-          { video: true },
-          config,
-          onScanSuccess,
-          onScanError,
-        );
-
-        const videoEl = document.querySelector(`#${ESCANER_ID} video`);
-        if (videoEl) {
-          videoEl.setAttribute("playsinline", "true");
-          videoEl.setAttribute("muted", "true");
-          videoEl.setAttribute("autoplay", "true");
-        }
-
-        setCamOn(true);
-        setInit(false);
-      } catch (err) {
-        setError(`Error al iniciar cámara: ${err}`);
-        setInit(false);
-      }
+    } catch (err) {
+      setError(`Error al iniciar cámara: ${err}`);
+      setInit(false);
     }
   }, [onScanSuccess, onScanError]);
 
