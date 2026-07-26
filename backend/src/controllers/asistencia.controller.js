@@ -457,10 +457,15 @@ async function marcar(req, res) {
       estado = 'Salida';
     }
 
+    const horaEntradaStr = resultado?.horaEntrada
+      ? toBoliviaTimeStr(resultado.horaEntrada)
+      : null;
+
     res.status(201).json({
       ok: true,
       accion,
       estado,
+      horaEntrada: horaEntradaStr,
       periodo: periodoLabel,
       mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}${estado === 'TARDANZA' ? ' (con tardanza)' : ''}`,
       empleado: { id: resultado.usuario.id, nombre: resultado.usuario.nombre },
@@ -688,10 +693,15 @@ async function marcarMovil(req, res) {
     const userAgent = req.headers['user-agent'];
     console.log(`[AUDIT] Asistencia móvil: UsuarioId=${resultadoTransaccion.usuario.id}, Codigo=${codigo}, Acción=${resultadoTransaccion.accion}, Estado=${resultadoTransaccion.estado}, IP=${ip}, UserAgent=${userAgent}, Fecha=${new Date().toISOString()}`);
 
+    const horaEntradaStr = resultadoTransaccion.resultado?.horaEntrada
+      ? toBoliviaTimeStr(resultadoTransaccion.resultado.horaEntrada)
+      : null;
+
     res.status(201).json({
       ok: true,
       accion: resultadoTransaccion.accion,
       estado: resultadoTransaccion.estado,
+      horaEntrada: horaEntradaStr,
       periodo: resultadoTransaccion.periodoLabel,
       mensaje: `${resultadoTransaccion.accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultadoTransaccion.usuario.nombre}${resultadoTransaccion.estado === 'TARDANZA' ? ' (con tardanza)' : ''}`,
       empleado: { id: resultadoTransaccion.usuario.id, nombre: resultadoTransaccion.usuario.nombre },

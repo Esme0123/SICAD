@@ -166,7 +166,7 @@ export const ScanProcessor: React.FC = () => {
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 350, delay: 0.1 }}
             >
-              {state.response.estado === "Atraso" ? (
+              {state.response.estado === "TARDANZA" ? (
                 <Clock size={56} className="text-yellow-500" />
               ) : state.response.accion === "SALIDA" ? (
                 <CheckCircle size={56} className="text-primary" />
@@ -174,22 +174,54 @@ export const ScanProcessor: React.FC = () => {
                 <CheckCircle size={56} className="text-green-500" />
               )}
             </motion.div>
+
             <div className="text-center">
               <h2 className="text-xl font-bold text-slate-800 dark:text-white">
-                {state.response.accion === "SALIDA"
-                  ? "¡Salida registrada!"
-                  : state.response.estado === "Atraso"
-                  ? "Entrada con atraso"
-                  : "¡Entrada registrada!"}
+                ¡Asistencia Registrada!
               </h2>
-              <p className="text-xs text-slate-500 dark:text-white/40 mt-1.5">{state.response.mensaje}</p>
+
+              {/* Estado badge */}
+              <div className="mt-3 flex justify-center">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold ${
+                    state.response.estado === "TARDANZA"
+                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      state.response.estado === "TARDANZA" ? "bg-yellow-500" : "bg-green-500"
+                    }`}
+                  />
+                  {state.response.estado === "TARDANZA" ? "TARDANZA" : "PUNTUAL"}
+                </span>
+              </div>
+
+              {/* Hora de marcado */}
+              {state.response.horaEntrada && (
+                <p className="text-lg font-mono font-semibold mt-3 text-slate-700 dark:text-white/80">
+                  {state.response.horaEntrada}
+                </p>
+              )}
+
+              <p className="text-xs text-slate-500 dark:text-white/40 mt-2">{state.response.mensaje}</p>
+
+              {state.response.empleado?.nombre && (
+                <p className="text-sm font-medium mt-2 text-slate-600 dark:text-white/60">
+                  {state.response.empleado.nombre}
+                </p>
+              )}
+
               {state.response.periodo && (
                 <p className="text-xs font-mono mt-3 bg-slate-100 dark:bg-white/5 rounded-lg px-3 py-1.5 text-slate-600 dark:text-white/70">
                   {state.response.periodo}
                 </p>
               )}
             </div>
+
             <p className="text-[10px] text-slate-400 mt-2">Redirigiendo...</p>
+
             {state.response?.empleado?.nombre && (
               <button
                 onClick={() => anunciarAsistencia(state.response!.empleado!.nombre!)}
@@ -234,9 +266,11 @@ function mapEstadoToMarkType(
   estado: MarcarResponse["estado"]
 ): "entrada" | "atraso" | "permiso" | "salida" | "ausente" {
   switch (estado) {
-    case "A tiempo": return "entrada";
-    case "Atraso":   return "atraso";
-    case "Salida":   return "salida";
-    default:         return "entrada";
+    case "PUNTUAL":   return "entrada";
+    case "TARDANZA":  return "atraso";
+    case "A tiempo":  return "entrada";
+    case "Atraso":    return "atraso";
+    case "Salida":    return "salida";
+    default:          return "entrada";
   }
 }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from "react";
+import React, { createContext, useContext } from "react";
 import { useEmployeeAuthStore } from "../hooks/useEmployeeAuthStore";
 
 interface EmployeeUser {
@@ -25,13 +25,6 @@ const EmployeeAuthContext = createContext<EmployeeAuthContextType | undefined>(u
 
 export const EmployeeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token, setUser, setToken, clearAuth } = useEmployeeAuthStore();
-
-  useEffect(() => {
-    const savedToken = localStorage.getItem("sicad_emp_token");
-    if (savedToken && !token) {
-      setToken(savedToken);
-    }
-  }, [token, setToken]);
 
   const login = (newToken: string, newUser: EmployeeUser) => {
     setToken(newToken);

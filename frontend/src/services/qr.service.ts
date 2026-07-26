@@ -18,7 +18,8 @@ export interface QRTokenResponse {
 export interface MarcarResponse {
   ok:       boolean;
   accion:   "ENTRADA" | "SALIDA";
-  estado:   "A tiempo" | "Atraso" | "Salida" | "Fuera de horario";
+  estado:   "PUNTUAL" | "TARDANZA" | "Salida" | "A tiempo" | "Atraso" | "Fuera de horario";
+  horaEntrada?: string | null;
   periodo:  string | null;
   mensaje:  string;
   empleado: { id: number; nombre: string };

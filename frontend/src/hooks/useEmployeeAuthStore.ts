@@ -21,10 +21,27 @@ interface EmployeeAuthState {
   clearAuth: () => void;
 }
 
+function loadFromStorage(): { token: string | null; user: EmployeeUser | null } {
+  try {
+    const token = localStorage.getItem("sicad_emp_token");
+    const raw = localStorage.getItem("sicad_emp_user");
+    const user = raw ? JSON.parse(raw) : null;
+    return { token, user };
+  } catch {
+    return { token: null, user: null };
+  }
+}
+
 export const useEmployeeAuthStore = create<EmployeeAuthState>((set) => ({
-  user: null,
-  token: null,
-  setUser: (user) => set({ user }),
+  ...loadFromStorage(),
+  setUser: (user) => {
+    if (user) {
+      localStorage.setItem("sicad_emp_user", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("sicad_emp_user");
+    }
+    set({ user });
+  },
   setToken: (token) => {
     if (token) {
       localStorage.setItem("sicad_emp_token", token);
@@ -35,6 +52,7 @@ export const useEmployeeAuthStore = create<EmployeeAuthState>((set) => ({
   },
   clearAuth: () => {
     localStorage.removeItem("sicad_emp_token");
+    localStorage.removeItem("sicad_emp_user");
     set({ user: null, token: null });
   },
 }));

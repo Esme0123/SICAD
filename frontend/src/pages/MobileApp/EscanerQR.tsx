@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
-import { X, Camera, CameraOff, Loader2 } from "lucide-react";
+import { X, Camera, CameraOff, Loader2, Image } from "lucide-react";
 
 const ESCANER_ID = "qr-scanner-element";
 
@@ -11,6 +11,8 @@ export const MobileEscanerQR: React.FC = () => {
   const [error, setError] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
+  const [photoMode, setPhotoMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onScanSuccess = useCallback((decodedText: string) => {
     let token = "";
@@ -29,6 +31,23 @@ export const MobileEscanerQR: React.FC = () => {
   }, [navigate]);
 
   const onScanError = useCallback(() => {}, []);
+
+  const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhotoMode(true);
+    try {
+      const scanner = new Html5Qrcode(ESCANER_ID);
+      scannerRef.current = scanner;
+
+      const decodedText = await scanner.scanFile(file, false);
+      onScanSuccess(decodedText);
+    } catch (err) {
+      setError(`No se pudo leer el QR de la foto: ${err}`);
+      setPhotoMode(false);
+    }
+  }, [onScanSuccess]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -113,6 +132,13 @@ export const MobileEscanerQR: React.FC = () => {
             <CameraOff size={40} className="text-red-400" />
             <p className="text-sm text-white/80">{error}</p>
             <button
+              onClick={() => { fileInputRef.current?.click(); }}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/15 text-white text-sm font-semibold hover:bg-white/25 transition-colors cursor-pointer"
+            >
+              <Image size={16} />
+              Tomar foto al QR
+            </button>
+            <button
               onClick={() => navigate("/app/inicio")}
               className="px-6 py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/20 transition-colors"
             >
@@ -121,7 +147,7 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        <div id={ESCANER_ID} className={`w-full max-w-sm ${init || error ? "hidden" : ""}`} style={{ width: '100%', minHeight: '320px', backgroundColor: '#000' }} />
+        <div id={ESCANER_ID} className={`w-full max-w-sm ${init || error || photoMode ? "hidden" : ""}`} style={{ width: '100%', minHeight: '320px', backgroundColor: '#000' }} />
 
         {camOn && !error && (
           <>
@@ -133,14 +159,32 @@ export const MobileEscanerQR: React.FC = () => {
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-primary rounded-br" />
               </div>
             </div>
-            <div className="absolute bottom-8 left-0 right-0 text-center">
+            <div className="absolute bottom-16 left-0 right-0 text-center">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/70 text-xs">
                 <Camera size={14} />
                 Apunta el QR al centro de la pantalla
               </div>
             </div>
+            <div className="absolute bottom-4 left-0 right-0 text-center">
+              <button
+                onClick={() => { fileInputRef.current?.click(); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white/50 text-[10px] hover:bg-white/10 hover:text-white/70 transition-colors cursor-pointer"
+              >
+                <Image size={11} />
+                ¿No funciona la cámara? Usar foto
+              </button>
+            </div>
           </>
         )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhotoCapture}
+          className="hidden"
+        />
       </div>
     </div>
   );
