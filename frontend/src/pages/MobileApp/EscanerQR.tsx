@@ -156,6 +156,7 @@ export const MobileEscanerQR: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setError("");
     setIsLoading(true);
     try {
       const qrResult = await scanImageFile(file);

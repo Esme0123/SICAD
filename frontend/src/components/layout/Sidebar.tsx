@@ -43,9 +43,18 @@ const navItems: { id: NavId; label: string; path: string; icon: React.ReactNode 
   { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} /> },
 ];
 
+const NAV_PERMISSIONS: Record<string, NavId[]> = {
+  ADMIN: ["dashboard", "employees", "leaves", "periods", "qr", "history", "reports", "settings"],
+  COORDINADOR: ["dashboard", "employees", "leaves", "periods", "qr", "history", "reports"],
+  EMPLEADO: [],
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
+
+  const role = user?.role || "EMPLEADO";
+  const allowedIds = NAV_PERMISSIONS[role] || [];
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
@@ -93,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => (
+        {navItems.filter((item) => allowedIds.includes(item.id)).map((item) => (
           <NavLink
             key={item.id}
             to={item.path}
@@ -144,11 +153,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
                 style={{ background: COLORS.secondary, color: COLORS.primary }}
               >
-                A
+                {user?.name?.charAt(0).toUpperCase() || "U"}
               </div>
               <div className="leading-none">
-                <p className="text-white text-xs font-semibold">Admin UCB</p>
-                <p className="text-white/35 text-[10px] mt-0.5">Administrador</p>
+                <p className="text-white text-xs font-semibold">{user?.name || "Usuario"}</p>
+                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{role.toLowerCase()}</p>
               </div>
             </div>
           </div>

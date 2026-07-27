@@ -59,11 +59,10 @@ async function create(req, res) {
       return res.status(400).json({ ok: false, message: 'nombre y email son requeridos' });
     }
 
-    // Buscar el último usuario registrado con código 'CC-'
     const ultimoUsuario = await prisma.usuario.findFirst({
       where: {
         codigo: {
-          startsWith: 'CC-',
+          startsWith: 'US-',
         },
       },
       orderBy: {
@@ -71,13 +70,13 @@ async function create(req, res) {
       },
     });
 
-    let nuevoCodigo = 'CC-001';
+    let nuevoCodigo = 'US-001';
     if (ultimoUsuario && ultimoUsuario.codigo) {
-      const match = ultimoUsuario.codigo.match(/CC-(\d+)/);
+      const match = ultimoUsuario.codigo.match(/US-(\d+)/);
       if (match) {
         const numero = parseInt(match[1], 10);
         const siguiente = numero + 1;
-        nuevoCodigo = `CC-${String(siguiente).padStart(3, '0')}`;
+        nuevoCodigo = `US-${String(siguiente).padStart(3, '0')}`;
       }
     }
 

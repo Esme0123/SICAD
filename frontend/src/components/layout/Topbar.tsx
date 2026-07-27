@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bell, Sun, Moon, CheckCheck, ChevronRight, X, FileText, Loader, Trash2, HelpCircle, Home, Users, CheckSquare, Calendar, QrCode, Settings as SettingsIcon, TrendingUp } from "lucide-react";
 import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
+import { useAuth } from "@/context/AuthContext";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -34,6 +35,7 @@ const screenMeta: Record<string, { title: string; subtitle: string }> = {
 export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
   const [notifCount, setNotifCount] = useState(0);
@@ -391,9 +393,9 @@ export const Topbar: React.FC<TopbarProps> = ({ dark, onToggleDark }) => {
         <div className="flex items-center gap-2 pl-1">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-            style={{ background: "#6A1B9A" }} // Morado UCB
+            style={{ background: "#6A1B9A" }}
           >
-            A
+            {user?.name?.charAt(0).toUpperCase() || "U"}
           </div>
         </div>
       </div>
