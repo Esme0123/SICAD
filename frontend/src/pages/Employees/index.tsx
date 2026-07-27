@@ -100,7 +100,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
     const matchesSearch =
       emp.name.toLowerCase().includes(searchTerm) ||
       emp.code.toLowerCase().includes(searchTerm) ||
-      (emp.ci && emp.ci.toLowerCase().includes(searchTerm));
+      (emp.ci && emp.ci.toLowerCase().includes(searchTerm)) ||
+      (emp.email && emp.email.toLowerCase().includes(searchTerm));
 
     const dynStatus = getDynamicStatus(emp);
     const matchesStatus =

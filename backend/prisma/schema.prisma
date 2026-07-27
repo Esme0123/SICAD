@@ -299,6 +299,7 @@ model ConfiguracionSistema {
 enum RolSistema {
   ADMIN
   COORDINADOR
+  KIOSKO
 }
 
 model UsuarioSistema {

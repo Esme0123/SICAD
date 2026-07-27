@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { loginMovil } from "@/services/employee.service";
+import { marcarAsistencia } from "@/services/qr.service";
 import { User, Key, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 
@@ -10,6 +11,14 @@ export const MobileLogin: React.FC = () => {
   const { login } = useEmployeeAuth();
   const navigate = useNavigate();
   const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qrToken = params.get("token");
+    if (qrToken) {
+      sessionStorage.setItem("pending_qr_token", qrToken);
+    }
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -46,7 +55,20 @@ export const MobileLogin: React.FC = () => {
       const res = await loginMovil({ codigo: finalCode, password });
       if (res.ok) {
         login(res.token, res.usuario);
-        navigate("/app/inicio", { replace: true });
+        const pendingQr = sessionStorage.getItem("pending_qr_token");
+        if (pendingQr) {
+          sessionStorage.removeItem("pending_qr_token");
+          try {
+            await marcarAsistencia(pendingQr);
+            alert("¡Asistencia registrada con éxito!");
+            navigate("/app/historial", { replace: true });
+          } catch {
+            alert("Error al registrar la asistencia del QR.");
+            navigate("/app/inicio", { replace: true });
+          }
+        } else {
+          navigate("/app/inicio", { replace: true });
+        }
       } else {
         setError(res.message || "Error al iniciar sesión");
       }
