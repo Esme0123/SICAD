@@ -36,7 +36,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
   const [formValues, setFormValues] = useState({
     nombre: "",
     email: "",
-    rol: "COORDINADOR" as "ADMIN" | "COORDINADOR",
+    rol: "COORDINADOR" as "ADMIN" | "COORDINADOR" | "KIOSKO",
     codigo: "",
     ci: "",
     celular: "",
@@ -718,7 +718,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
                     <select
                       value={formValues.rol}
                       onChange={(e) =>
-                        setFormValues({ ...formValues, rol: e.target.value as "ADMIN" | "COORDINADOR" })
+                        setFormValues({ ...formValues, rol: e.target.value as "ADMIN" | "COORDINADOR" | "KIOSKO" })
                       }
                       className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${
                         dark
@@ -728,6 +728,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
                     >
                       <option value="COORDINADOR">Coordinador</option>
                       <option value="ADMIN">Administrador</option>
+                      <option value="KIOSKO">Kiosco (Tótem QR)</option>
                     </select>
                   </div>
                 </div>

@@ -61,7 +61,7 @@ async function create(req, res) {
         nombre,
         email,
         passwordHash,
-        rol,
+        rol: rol.toUpperCase(),
         ...(codigo !== undefined && { codigo }),
         ...(ci !== undefined && { ci }),
         ...(celular !== undefined && { celular }),
@@ -98,7 +98,7 @@ async function update(req, res) {
       }
       data.email = email;
     }
-    if (rol !== undefined) data.rol = rol;
+    if (rol !== undefined) data.rol = rol.toUpperCase();
     if (activo !== undefined) data.activo = activo;
     if (codigo !== undefined) data.codigo = codigo;
     if (ci !== undefined) data.ci = ci;

@@ -296,7 +296,7 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
                 {[
                   {
                     role: "ADMIN",
@@ -329,6 +329,20 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
                     restricted: [
                       "Modificar configuración del sistema",
                       "Gestionar usuarios del sistema",
+                    ],
+                  },
+                  {
+                    role: "KIOSKO",
+                    label: "Kiosco (Tótem QR)",
+                    color: "#8B5CF6",
+                    letter: "K",
+                    permissions: [
+                      "Exhibición continua de Pantalla QR para marcación rápida",
+                    ],
+                    restricted: [
+                      "Acceso a Dashboard",
+                      "Gestión de Usuarios",
+                      "Reportes y Configuración",
                     ],
                   },
                   {

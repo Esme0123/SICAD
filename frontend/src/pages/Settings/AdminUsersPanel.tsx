@@ -27,7 +27,7 @@ export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => 
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [form, setForm] = useState({ nombre: "", email: "", password: "", rol: "COORDINADOR" as "ADMIN" | "COORDINADOR" });
+  const [form, setForm] = useState({ nombre: "", email: "", password: "", rol: "COORDINADOR" as "ADMIN" | "COORDINADOR" | "KIOSKO" });
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -141,8 +141,8 @@ export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => 
     setMenuOpenId(null);
   };
 
-  const rolColor = (r: string) => r === "ADMIN" ? "#E63946" : "#0F4C97";
-  const rolLabel = (r: string) => r === "ADMIN" ? "Administrador" : "Coordinador";
+  const rolColor = (r: string) => r === "ADMIN" ? "#E63946" : r === "KIOSKO" ? "#8B5CF6" : "#0F4C97";
+  const rolLabel = (r: string) => r === "ADMIN" ? "Administrador" : r === "KIOSKO" ? "Kiosco" : "Coordinador";
 
   return (
     <div>
@@ -278,11 +278,12 @@ export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => 
                     </label>
                     <select
                       value={form.rol}
-                      onChange={(e) => setForm({ ...form, rol: e.target.value as "ADMIN" | "COORDINADOR" })}
+                      onChange={(e) => setForm({ ...form, rol: e.target.value as "ADMIN" | "COORDINADOR" | "KIOSKO" })}
                       className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-all ${dark ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
                     >
                       <option value="COORDINADOR">Coordinador</option>
                       <option value="ADMIN">Administrador</option>
+                      <option value="KIOSKO">Kiosco (Tótem QR)</option>
                     </select>
                   </div>
                 </>
