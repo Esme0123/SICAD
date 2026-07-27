@@ -1,16 +1,34 @@
-self.addEventListener('push', function(event) {
-  const data = event.data ? event.data.json() : {};
-  const title = data.titulo || "SICAD";
-  const options = {
-    body: data.mensaje || "Tienes una nueva notificación.",
-    icon: "/sicad-icon-192.svg",
-    badge: "/sicad-icon-192.svg",
-    vibrate: [200, 100, 200]
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
-self.addEventListener('notificationclick', function(event) {
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('push', function (event) {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const title = data.titulo || 'Notificación SICAD';
+    const options = {
+      body: data.mensaje || '',
+      icon: '/sicad-icon-192.svg',
+      badge: '/sicad-icon-192.svg',
+      vibrate: [200, 100, 200],
+      data: { url: data.url || '/' }
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (err) {
+    console.error('Error procesando evento push:', err);
+  }
+});
+
+self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/app/inicio'));
+  event.waitUntil(
+    clients.openWindow(event.notification.data.url || '/')
+  );
 });

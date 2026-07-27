@@ -1,0 +1,43 @@
+{
+  "id": "app.sicad.asistencia",
+  "name": "SICAD - Control de Asistencia",
+  "short_name": "SICAD",
+  "description": "Sistema de Control de Asistencia Docente - App Móvil de Empleados",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/sicad-icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/sicad-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/sicad-icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "App Móvil SICAD"
+    },
+    {
+      "src": "/sicad-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "App Móvil SICAD Panel"
+    }
+  ]
+}
