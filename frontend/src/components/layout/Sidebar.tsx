@@ -17,50 +17,29 @@ import { useAuth } from "@/context/AuthContext";
 import { COLORS } from "@/theme/colors";
 import api from "@/services/api";
 
-type NavId =
-  | "dashboard"
-  | "employees"
-  | "leaves"
-  | "periods"
-  | "qr"
-  | "history"
-  | "reports"
-  | "settings";
-
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
-const navItems: { id: NavId; label: string; path: string; icon: React.ReactNode }[] = [
-  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: <Home size={18} /> },
-  { id: "employees", label: "Empleados", path: "/employees", icon: <Users size={18} /> },
-  { id: "leaves", label: "Permisos", path: "/leaves", icon: <Users size={18} /> },
-  { id: "periods", label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} /> },
-  { id: "qr", label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} /> },
-  { id: "history", label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} /> },
-  { id: "reports", label: "Reportes", path: "/reports", icon: <BarChart2 size={18} /> },
-  { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} /> },
-];
-
-const MENU_ITEMS: { id: NavId; label: string; path: string; icon: React.ReactNode; roles: string[] }[] = [
-  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: <Home size={18} />, roles: ["ADMIN", "COORDINADOR"] },
-  { id: "employees", label: "Empleados", path: "/employees", icon: <Users size={18} />, roles: ["ADMIN", "COORDINADOR"] },
-  { id: "leaves", label: "Permisos", path: "/leaves", icon: <Users size={18} />, roles: ["ADMIN", "COORDINADOR"] },
-  { id: "periods", label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} />, roles: ["ADMIN"] },
-  { id: "qr", label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} />, roles: ["ADMIN", "COORDINADOR", "KIOSKO"] },
-  { id: "history", label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} />, roles: ["ADMIN", "COORDINADOR"] },
-  { id: "reports", label: "Reportes", path: "/reports", icon: <BarChart2 size={18} />, roles: ["ADMIN", "COORDINADOR"] },
-  { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} />, roles: ["ADMIN"] },
+const allMenuItems = [
+  { label: "Dashboard", path: "/dashboard", icon: <Home size={18} /> },
+  { label: "Empleados", path: "/employees", icon: <Users size={18} /> },
+  { label: "Permisos", path: "/leaves", icon: <Users size={18} /> },
+  { label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} /> },
+  { label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} /> },
+  { label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} /> },
+  { label: "Reportes", path: "/reports", icon: <BarChart2 size={18} /> },
+  { label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} />, adminOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const userRole = (user?.rol || user?.role || "EMPLEADO").toUpperCase();
-  const isAdmin = userRole.includes("ADMIN");
-  const filteredItems = MENU_ITEMS.filter((item) => isAdmin || item.roles.includes(userRole));
+  const rol = (user?.rol || "ADMIN").toUpperCase();
+  const isAdmin = rol === "ADMIN";
+  const menuItems = allMenuItems.filter((item) => isAdmin || !item.adminOnly);
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
@@ -106,11 +85,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         </AnimatePresence>
       </div>
 
-        {/* Navigation */}
+      {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {filteredItems.map((item) => (
+        {menuItems.map((item) => (
           <NavLink
-            key={item.id}
+            key={item.path}
             to={item.path}
             className={({ isActive }) =>
               `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm text-left ${isActive
@@ -163,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               </div>
               <div className="leading-none">
                 <p className="text-white text-xs font-semibold">{user?.name || "Usuario"}</p>
-                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{userRole.toLowerCase()}</p>
+                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{rol.toLowerCase()}</p>
               </div>
             </div>
           </div>

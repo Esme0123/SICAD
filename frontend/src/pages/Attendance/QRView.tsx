@@ -204,7 +204,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             </div>
           ) : (
             <QRCodeDisplay
-              value={`${window.location.origin}/app/marcar?qrToken=${encodeURIComponent(token)}`}
+              value={`https://sicad-m2ra.vercel.app/app/login?token=${encodeURIComponent(token)}`}
               size={230}
               color={qrColor}
             />
