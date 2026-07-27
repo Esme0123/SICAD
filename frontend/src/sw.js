@@ -17,14 +17,14 @@ self.addEventListener('push', function (event) {
     const title = data.titulo || 'Notificación SICAD';
     const options = {
       body: data.mensaje || '',
-      icon: '/sicad-icon-192.svg',
-      badge: '/sicad-icon-192.svg',
+      icon: '/icon-192x192.png',
+      badge: '/icon-192x192.png',
       vibrate: [200, 100, 200],
       data: { url: data.url || '/' },
     };
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {
-    console.error('Error procesando evento push:', err);
+    console.error('Error en Push Notification:', err);
   }
 });
 

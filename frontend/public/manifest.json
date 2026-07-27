@@ -3,17 +3,22 @@
   "name": "SICAD - Control de Asistencia",
   "short_name": "SICAD",
   "description": "Sistema de Control de Asistencia Docente - App Móvil de Empleados",
-  "lang": "es",
+  "lang": "es-419",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
   "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "theme_color": "#f59e0b",
   "orientation": "portrait",
-  "categories": ["education", "productivity"],
+  "categories": ["education", "productivity", "utilities"],
+  "iarc_rating_id": "e84b3a5d-4de6-4246-9e0d-0382218413f1",
   "prefer_related_applications": false,
+  "related_applications": [],
+  "scope_extensions": [
+    { "origin": "*.vercel.app" }
+  ],
   "launch_handler": {
     "client_mode": "focus-existing"
   },
@@ -37,30 +42,45 @@
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "App Móvil SICAD"
+      "label": "Vista Móvil Escáner SICAD"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Panel SICAD"
+      "label": "Panel Principal SICAD"
     }
   ],
   "shortcuts": [
     {
       "name": "Escanear QR",
       "short_name": "Escanear",
-      "description": "Marcar entrada o salida con el código QR",
+      "description": "Marcar asistencia escaneando código QR",
       "url": "/app/escanear",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "Mi Historial",
       "short_name": "Historial",
-      "description": "Ver reporte de asistencias",
+      "description": "Ver marcaciones y asistencias",
       "url": "/app/historial",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+sicad",
+      "url": "/?qr=%s"
     }
   ]
 }

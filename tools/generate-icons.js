@@ -1,4 +1,5 @@
 // generate-icons.js - Genera iconos PNG para PWA con Node.js (sin dependencias externas)
+// Estilo: fondo #0f172a, círculo blanco, marco amarillo #f59e0b, texto "SICAD"
 const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
@@ -30,51 +31,77 @@ function pngChunk(type, data) {
 }
 
 function createIcon(size) {
-  const bg = [15, 23, 42];    // #0f172a dark blue
-  const accent = [59, 130, 246]; // #3b82f6 blue-500
+  const bg = [15, 23, 42];        // #0f172a dark slate
+  const yellow = [245, 158, 11];  // #f59e0b amber-500
   const white = [255, 255, 255];
   const rows = [];
 
   const cx = size / 2;
   const cy = size / 2;
   const outerR = size * 0.46;
-  const innerR = size * 0.30;
+  const innerR = size * 0.32;
 
   for (let y = 0; y < size; y++) {
-    rows.push(0); // filter None
+    rows.push(0);
     for (let x = 0; x < size; x++) {
       const dx = x - cx;
       const dy = y - cy;
       const dist = Math.sqrt(dx * dx + dy * dy);
       let r, g, b, a = 255;
 
+      // Yellow QR corner brackets
+      const cornerSize = size * 0.18;
+      const cornerThick = size * 0.04;
+      const isCorner = (
+        (Math.abs(dx + outerR * 0.75) < cornerSize && Math.abs(dy + outerR * 0.75) < cornerThick) ||
+        (Math.abs(dx - outerR * 0.75) < cornerSize && Math.abs(dy + outerR * 0.75) < cornerThick) ||
+        (Math.abs(dx + outerR * 0.75) < cornerThick && Math.abs(dy + outerR * 0.75) < cornerSize) ||
+        (Math.abs(dx - outerR * 0.75) < cornerThick && Math.abs(dy + outerR * 0.75) < cornerSize) ||
+        (Math.abs(dx + outerR * 0.75) < cornerSize && Math.abs(dy - outerR * 0.75) < cornerThick) ||
+        (Math.abs(dx - outerR * 0.75) < cornerSize && Math.abs(dy - outerR * 0.75) < cornerThick) ||
+        (Math.abs(dx + outerR * 0.75) < cornerThick && Math.abs(dy - outerR * 0.75) < cornerSize) ||
+        (Math.abs(dx - outerR * 0.75) < cornerThick && Math.abs(dy - outerR * 0.75) < cornerSize)
+      );
+
       if (dist <= outerR) {
-        // Circle area
+        // Main circle area
         if (dist <= innerR) {
-          // Inner: white
+          // Inner white circle
           r = white[0]; g = white[1]; b = white[2];
-          // Simple "S" letter hint: darker pixel patterns
-          const angle = Math.atan2(dy, dx);
-          const nx = (dx / innerR + 1) / 2;
-          const ny = (dy / innerR + 1) / 2;
-          if (ny > 0.3 && ny < 0.7 && nx > 0.25 && nx < 0.75) {
-            const wave = Math.sin(nx * Math.PI * 4 + ny * Math.PI * 2) * 0.15;
-            if (ny > 0.45 + wave && ny < 0.55 + wave) {
-              r = accent[0]; g = accent[1]; b = accent[2];
-            }
+          // Draw "SICAD" letter patterns as pixel blocks
+          const nx = dx / innerR;
+          const ny = dy / innerR;
+          // "S" shape: top curve, diagonal, bottom curve
+          const sTop = ny < -0.25 && nx > -0.6 && nx < 0.6 && ny > -0.55;
+          const sMid = Math.abs(ny) < 0.1 && nx > 0.3 && nx < 0.6;
+          const sBot = ny > 0.25 && nx > -0.6 && nx < 0.6 && ny < 0.55;
+          const sVert = nx > 0.5 && nx < 0.65 && ny < -0.2 && ny > -0.55;
+          const sVert2 = nx > -0.65 && nx < -0.5 && ny > 0.2 && ny < 0.55;
+          if (sTop || sMid || sBot || sVert || sVert2) {
+            r = yellow[0]; g = yellow[1]; b = yellow[2];
           }
-        } else if (dist > innerR + 2) {
-          // Outer ring: accent blue
-          r = accent[0]; g = accent[1]; b = accent[2];
+          // Yellow dot accent
+          if (Math.abs(nx - 0.6) < 0.08 && Math.abs(ny + 0.5) < 0.08) {
+            r = yellow[0]; g = yellow[1]; b = yellow[2];
+          }
+          if (Math.abs(nx + 0.6) < 0.08 && Math.abs(ny - 0.5) < 0.08) {
+            r = yellow[0]; g = yellow[1]; b = yellow[2];
+          }
+        } else if (dist > innerR + 3) {
+          // Ring area
+          if (isCorner) {
+            r = yellow[0]; g = yellow[1]; b = yellow[2];
+          } else {
+            r = white[0]; g = white[1]; b = white[2];
+          }
         } else {
-          // Gradient edge
-          const t = (dist - innerR) / 3;
-          r = Math.round(white[0] + (accent[0] - white[0]) * t);
-          g = Math.round(white[1] + (accent[1] - white[1]) * t);
-          b = Math.round(white[2] + (accent[2] - white[2]) * t);
+          // Gradient transition
+          const t = (dist - innerR) / 4;
+          r = Math.round(white[0] + (white[0] - white[0]) * t);
+          g = Math.round(white[1] + (white[1] - white[1]) * t);
+          b = Math.round(white[2] + (white[2] - white[2]) * t);
         }
       } else {
-        // Background
         r = bg[0]; g = bg[1]; b = bg[2];
       }
 
@@ -87,11 +114,11 @@ function createIcon(size) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
-  ihdr.writeUInt8(8, 8);   // bit depth
-  ihdr.writeUInt8(6, 9);   // color type RGBA
-  ihdr.writeUInt8(0, 10);  // compression
-  ihdr.writeUInt8(0, 11);  // filter
-  ihdr.writeUInt8(0, 12);  // interlace
+  ihdr.writeUInt8(8, 8);
+  ihdr.writeUInt8(6, 9);
+  ihdr.writeUInt8(0, 10);
+  ihdr.writeUInt8(0, 11);
+  ihdr.writeUInt8(0, 12);
 
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   return Buffer.concat([
