@@ -18,7 +18,8 @@ async function generateQR(req, res) {
 
     const exp = Date.now() + (duracion * 1000);
     const payload = JSON.stringify({ nonce, exp, terminal: 'main', version: '1' });
-    const signature = crypto.createHmac('sha256', process.env.QR_SECRET_KEY).update(payload).digest('hex');
+    const QR_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
+    const signature = crypto.createHmac('sha256', QR_SECRET).update(payload).digest('hex');
 
     // Guardar nonce en la base de datos
     await prisma.qrNonce.create({

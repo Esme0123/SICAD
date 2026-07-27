@@ -11,7 +11,7 @@
 //   4. El backend valida la firma y la expiración del token recibido.
 
 const crypto = require('crypto');
-const { QR_SECRET_KEY, QR_VALIDITY_SECONDS } = require('../config/env');
+const { JWT_SECRET, QR_VALIDITY_SECONDS } = require('../config/env');
 
 /**
  * Genera un token QR firmado con HMAC SHA-256.
@@ -26,7 +26,7 @@ function generateQRToken() {
 
   // Firma HMAC SHA-256 del payload
   const signature = crypto
-    .createHmac('sha256', QR_SECRET_KEY)
+    .createHmac('sha256', JWT_SECRET)
     .update(payloadB64)
     .digest('base64url');
 
@@ -48,7 +48,7 @@ function verifyQRToken(token) {
 
     // Re-firmar y comparar con timing-safe para evitar timing attacks
     const expectedSignature = crypto
-      .createHmac('sha256', QR_SECRET_KEY)
+      .createHmac('sha256', JWT_SECRET)
       .update(payloadB64)
       .digest('base64url');
 

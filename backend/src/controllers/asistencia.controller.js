@@ -101,6 +101,122 @@ function calcularEstadoAsistencia(horaEntradaStr, horaInicioPeriodoStr, toleranc
   return minutosEntrada > minutosInicioLimite ? 'TARDANZA' : 'PUNTUAL';
 }
 
+// ── Bloques Continuos ────────────────────────────────────────
+
+/**
+ * Agrupa periodos consecutivos en Bloques Continuos.
+ * Dos periodos son consecutivos si horaFin del primero === horaInicio del siguiente.
+ * @param {Array} horarios - Array de { periodo: { horaInicio, horaFin, id, nombre } }
+ * @returns {Array<{ horarios: Array, horaInicio: string, horaFin: string }>}
+ */
+function agruparBloquesContinuos(horarios) {
+  if (!horarios || horarios.length === 0) return [];
+  const sorted = [...horarios].sort((a, b) =>
+    timeToMinutes(a.periodo.horaInicio) - timeToMinutes(b.periodo.horaInicio)
+  );
+  const bloques = [];
+  let bloqueActual = { horarios: [sorted[0]], horaInicio: sorted[0].periodo.horaInicio, horaFin: sorted[0].periodo.horaFin };
+  for (let i = 1; i < sorted.length; i++) {
+    const anterior = sorted[i - 1];
+    const actual = sorted[i];
+    if (anterior.periodo.horaFin === actual.periodo.horaInicio) {
+      bloqueActual.horarios.push(actual);
+      bloqueActual.horaFin = actual.periodo.horaFin;
+    } else {
+      bloques.push(bloqueActual);
+      bloqueActual = { horarios: [actual], horaInicio: actual.periodo.horaInicio, horaFin: actual.periodo.horaFin };
+    }
+  }
+  bloques.push(bloqueActual);
+  return bloques;
+}
+
+/**
+ * Encuentra el bloque activo y el periodo activo dentro del bloque
+ * considerando tolerancia de 20 min antes del inicio.
+ * @param {Array} bloques - Bloques continuos
+ * @param {number} ahoraMin - Minutos actuales desde medianoche
+ * @param {number} toleranciaMin - Minutos de tolerancia
+ * @returns {{ bloque: Object|null, periodoActivo: Object|null, posicion: number }}
+ */
+function encontrarBloqueYPeriodoActivo(bloques, ahoraMin, toleranciaMin = 20) {
+  for (const bloque of bloques) {
+    const inicioBloqueMin = timeToMinutes(bloque.horaInicio) - toleranciaMin;
+    const finBloqueMin = timeToMinutes(bloque.horaFin);
+    if (ahoraMin >= inicioBloqueMin && ahoraMin <= finBloqueMin) {
+      for (let i = 0; i < bloque.horarios.length; i++) {
+        const h = bloque.horarios[i];
+        const inicioPeriodoMin = timeToMinutes(h.periodo.horaInicio) - toleranciaMin;
+        const finPeriodoMin = timeToMinutes(h.periodo.horaFin);
+        if (ahoraMin >= inicioPeriodoMin && ahoraMin <= finPeriodoMin) {
+          return { bloque, periodoActivo: h, posicion: i };
+        }
+      }
+      // Si está en el bloque pero no dentro de un periodo específico (entre periodos)
+      const ultimo = bloque.horarios[bloque.horarios.length - 1];
+      return { bloque, periodoActivo: ultimo, posicion: bloque.horarios.length - 1 };
+    }
+  }
+  return { bloque: null, periodoActivo: null, posicion: -1 };
+}
+
+/**
+ * Verifica si un periodo específico dentro de un bloque está cubierto por un permiso APROBADO.
+ */
+async function periodoEstaJustificado(usuarioId, fecha, periodoId, tx) {
+  const db = tx || prisma;
+  const permiso = await db.permiso.findFirst({
+    where: {
+      usuarioId,
+      estado: 'APROBADO',
+      fecha: dateOnly(fecha),
+      periodos: { some: { periodoId } },
+    },
+  });
+  return !!permiso;
+}
+
+/**
+ * Calcula el bloque activo considerando justificaciones.
+ * Si el primer periodo del bloque está justificado, el bloque activo
+ * comienza desde el siguiente periodo no justificado.
+ */
+async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMin, tx) {
+  const bloques = agruparBloquesContinuos(horarios);
+  let encontrado = encontrarBloqueYPeriodoActivo(bloques, ahoraMin, 20);
+  if (!encontrado.bloque) {
+    return { estado: 'Fuera de horario', periodoLabel: null, observacion: null, bloque: null, periodoActivo: null };
+  }
+
+  // Verificar justificaciones dentro del bloque
+  const ahora = new Date();
+  for (let i = 0; i < encontrado.bloque.horarios.length; i++) {
+    const h = encontrado.bloque.horarios[i];
+    const justificado = await periodoEstaJustificado(usuarioId, ahora, h.periodo.id, tx);
+    if (justificado) {
+      // Si el periodo activo está justificado, todo el bloque está cubierto
+      if (i === encontrado.posicion) {
+        return { estado: 'PUNTUAL', periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: h };
+      }
+      continue;
+    }
+    // Primer periodo no justificado → desde aquí se evalúa entrada
+    const inicioMin = timeToMinutes(h.periodo.horaInicio);
+    const diferenciaMin = ahoraMin - inicioMin;
+    let estado = 'TARDANZA';
+    let observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
+    if (diferenciaMin <= toleranciaMin) {
+      estado = 'PUNTUAL';
+      observacion = null;
+    }
+    return { estado, periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, observacion, bloque: encontrado.bloque, periodoActivo: h };
+  }
+
+  // Todos los periodos del bloque están justificados
+  const ultimo = encontrado.bloque.horarios[encontrado.bloque.horarios.length - 1];
+  return { estado: 'PUNTUAL', periodoLabel: `${ultimo.periodo.horaInicio}–${ultimo.periodo.horaFin}`, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: ultimo };
+}
+
 // ── Endpoints ────────────────────────────────────────────────
 
 /**
@@ -140,10 +256,11 @@ async function registrar(req, res) {
     const { start, end } = getDayRange(ahora);
     const diaSemana = getDiaSemanaHoy();
 
-    // 4. Verificar horario asignado para hoy en el periodo académico actual
-    const horarioHoy = await prisma.horarioAsignado.findFirst({
+    // 4. Verificar horarios asignados para hoy en el periodo académico actual
+    const horariosHoy = await prisma.horarioAsignado.findMany({
       where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
       include: { periodo: true },
+      orderBy: { periodo: { horaInicio: 'asc' } },
     });
 
     // 5. Buscar asistencia abierta del día
@@ -160,19 +277,19 @@ async function registrar(req, res) {
     let resultado;
     let accion;
     let estado = 'PUNTUAL';
-
+    let observacion = null;
     let periodoLabel = null;
-    if (horarioHoy?.periodo) {
-      periodoLabel = `${horarioHoy.periodo.horaInicio}–${horarioHoy.periodo.horaFin}`;
-    }
+    const ahoraMin = getBoliviaTimeMinutes(ahora);
 
     if (!asistenciaAbierta) {
       const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
       const toleranciaMin = config?.tiempoTolerancia ?? 20;
 
-      if (horarioHoy?.periodo) {
-        const horaEntradaStr = toBoliviaTimeStr(ahora);
-        estado = calcularEstadoAsistencia(horaEntradaStr, horarioHoy.periodo.horaInicio, toleranciaMin);
+      if (horariosHoy.length > 0) {
+        const bloqueInfo = await calcularBloqueYEstado(uid, horariosHoy, ahoraMin, toleranciaMin);
+        estado = bloqueInfo.estado;
+        observacion = bloqueInfo.observacion;
+        periodoLabel = bloqueInfo.periodoLabel;
       }
 
       resultado = await prisma.asistencia.create({
@@ -181,6 +298,7 @@ async function registrar(req, res) {
           fecha: dateOnly(ahora),
           horaEntrada: ahora,
           minutosTolerancia: toleranciaMin,
+          observacion: observacion,
           periodo: periodoLabel,
         },
         include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
@@ -372,58 +490,10 @@ async function marcar(req, res) {
     let periodoLabel = null;
 
     if (horarios.length > 0) {
-      const reachable = horarios.filter((h) => {
-        const im = timeToMinutes(h.periodo.horaInicio);
-        const fm = timeToMinutes(h.periodo.horaFin);
-        return ahoraMin >= im - 30 && ahoraMin <= fm;
-      });
-
-      let periodoActivo;
-
-      if (reachable.length > 0) {
-        periodoActivo = reachable.find((h) => {
-          const im = timeToMinutes(h.periodo.horaInicio);
-          const fm = timeToMinutes(h.periodo.horaFin);
-          return ahoraMin >= im && ahoraMin <= fm;
-        }) ?? reachable.reduce((a, b) =>
-          Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
-          Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
-        );
-      } else {
-        periodoActivo = horarios.reduce((a, b) =>
-          Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
-          Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
-        );
-      }
-
-      periodoLabel = `${periodoActivo.periodo.horaInicio}–${periodoActivo.periodo.horaFin}`;
-
-      const permiso = await prisma.permiso.findFirst({
-        where: {
-          usuarioId: uid,
-          estado: 'APROBADO',
-          fecha: dateOnly(ahora),
-          OR: [
-            { periodos: { some: { periodoId: periodoActivo.periodoId } } },
-            { periodos: { none: {} } },
-          ],
-        },
-      });
-
-      if (permiso) {
-        estado = 'PUNTUAL';
-        observacion = 'Cubierto por permiso';
-      } else {
-        const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
-        const diferenciaMin = ahoraMin - inicioMin;
-
-        if (diferenciaMin <= toleranciaMin) {
-          estado = 'PUNTUAL';
-        } else {
-          estado = 'TARDANZA';
-          observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
-        }
-      }
+      const bloqueInfo = await calcularBloqueYEstado(uid, horarios, ahoraMin, toleranciaMin);
+      estado = bloqueInfo.estado;
+      observacion = bloqueInfo.observacion;
+      periodoLabel = bloqueInfo.periodoLabel;
     }
 
     // 5. Registrar entrada o salida
@@ -529,8 +599,9 @@ async function marcarMovil(req, res) {
       return res.status(400).json({ ok: false, message: 'Payload mal formado' });
     }
 
+    const QR_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.QR_SECRET_KEY)
+      .createHmac('sha256', QR_SECRET)
       .update(payload)
       .digest('hex');
 
@@ -607,58 +678,10 @@ async function marcarMovil(req, res) {
         let periodoLabel = null;
 
         if (horarios.length > 0) {
-          const reachable = horarios.filter((h) => {
-            const im = timeToMinutes(h.periodo.horaInicio);
-            const fm = timeToMinutes(h.periodo.horaFin);
-            return ahoraMin >= im - 30 && ahoraMin <= fm;
-          });
-
-          let periodoActivo;
-
-          if (reachable.length > 0) {
-            periodoActivo = reachable.find((h) => {
-              const im = timeToMinutes(h.periodo.horaInicio);
-              const fm = timeToMinutes(h.periodo.horaFin);
-              return ahoraMin >= im && ahoraMin <= fm;
-            }) ?? reachable.reduce((a, b) =>
-              Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
-              Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
-            );
-          } else {
-            periodoActivo = horarios.reduce((a, b) =>
-              Math.abs(timeToMinutes(a.periodo.horaInicio) - ahoraMin) <
-              Math.abs(timeToMinutes(b.periodo.horaInicio) - ahoraMin) ? a : b
-            );
-          }
-
-          periodoLabel = `${periodoActivo.periodo.horaInicio}–${periodoActivo.periodo.horaFin}`;
-
-          const permiso = await tx.permiso.findFirst({
-            where: {
-              usuarioId: usuario.id,
-              estado: 'APROBADO',
-              fecha: dateOnly(ahora),
-              OR: [
-                { periodos: { some: { periodoId: periodoActivo.periodoId } } },
-                { periodos: { none: {} } },
-              ],
-            },
-          });
-
-          if (permiso) {
-            estado = 'PUNTUAL';
-            observacion = 'Cubierto por permiso';
-          } else {
-            const inicioMin = timeToMinutes(periodoActivo.periodo.horaInicio);
-            const diferenciaMin = ahoraMin - inicioMin;
-
-            if (diferenciaMin <= toleranciaMin) {
-              estado = 'PUNTUAL';
-            } else {
-              estado = 'TARDANZA';
-              observacion = `Llegó ${diferenciaMin} min tarde (tolerancia: ${toleranciaMin} min)`;
-            }
-          }
+          const bloqueInfo = await calcularBloqueYEstado(usuario.id, horarios, ahoraMin, toleranciaMin, tx);
+          estado = bloqueInfo.estado;
+          observacion = bloqueInfo.observacion;
+          periodoLabel = bloqueInfo.periodoLabel;
         }
 
         // Registrar entrada o salida
@@ -880,6 +903,50 @@ async function getEstadoHoy(req, res) {
     const TOLERANCIA = 5;
     let totalAusentes = 0;
 
+    // Pre-cargar todos los horarios asignados hoy para construir bloques continuos por usuario
+    const todosAsignadosHoy = await prisma.horarioAsignado.findMany({
+      where: { diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
+      select: { usuarioId: true, periodoId: true, periodo: { select: { horaInicio: true, horaFin: true } } },
+      orderBy: [{ usuarioId: 'asc' }, { periodo: { horaInicio: 'asc' } }],
+    });
+
+    // Índice: usuarioId → { bloques: Array<{ inicio, fin, periodoIds }> }
+    const bloquesPorUsuario = new Map();
+    for (const asig of todosAsignadosHoy) {
+      if (!bloquesPorUsuario.has(asig.usuarioId)) {
+        bloquesPorUsuario.set(asig.usuarioId, []);
+      }
+      const bloques = bloquesPorUsuario.get(asig.usuarioId);
+      const inicio = timeToMinutes(asig.periodo.horaInicio);
+      const fin = timeToMinutes(asig.periodo.horaFin);
+      const ultimo = bloques.length > 0 ? bloques[bloques.length - 1] : null;
+      if (ultimo && ultimo.fin === inicio) {
+        ultimo.fin = fin;
+        ultimo.periodoIds.push(asig.periodoId);
+      } else {
+        bloques.push({ inicio, fin, periodoIds: [asig.periodoId] });
+      }
+    }
+
+    // Índice: periodoId → set de usuarioIds que marcaron (por bloque)
+    const marcaronPorPeriodo = new Map();
+    for (const [usuarioId, bloques] of bloquesPorUsuario) {
+      const mins = entradaPorUsuario.get(usuarioId);
+      if (!mins) continue;
+      for (const bloque of bloques) {
+        let cubierto = false;
+        for (const m of mins) {
+          if (m >= (bloque.inicio - 20) && m <= bloque.fin) { cubierto = true; break; }
+        }
+        if (cubierto) {
+          for (const pid of bloque.periodoIds) {
+            if (!marcaronPorPeriodo.has(pid)) marcaronPorPeriodo.set(pid, new Set());
+            marcaronPorPeriodo.get(pid).add(usuarioId);
+          }
+        }
+      }
+    }
+
     const resultado = await Promise.all(
       periodos.map(async (p) => {
         const [hI, mI] = p.horaInicio.split(':').map(Number);
@@ -888,7 +955,6 @@ async function getEstadoHoy(req, res) {
         const finMin = hF * 60 + mF;
         const toleranciaFin = inicioMin + TOLERANCIA;
 
-        // Estado del periodo basado en hora actual (5 min de tolerancia)
         let estado;
         if (ahoraMin < inicioMin) {
           estado = 'PENDIENTE';
@@ -902,7 +968,6 @@ async function getEstadoHoy(req, res) {
 
         const isActive = estado === 'ACTIVO' || estado === 'RETRASO';
 
-        // Total de empleados asignados para este periodo hoy (solo gestión activa)
         const totalEmpleados = await prisma.horarioAsignado.count({
           where: { periodoId: p.id, diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
         });
@@ -914,26 +979,9 @@ async function getEstadoHoy(req, res) {
           };
         }
 
-        // Asignados de este periodo (solo gestión activa)
-        const asignados = await prisma.horarioAsignado.findMany({
-          where: { periodoId: p.id, diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
-          select: { usuarioId: true },
-        });
-
-        // Cuántos marcaron dentro del rango del periodo
-        let marcaron = 0;
-        for (const asig of asignados) {
-          const mins = entradaPorUsuario.get(asig.usuarioId);
-          if (mins) {
-            for (const m of mins) {
-              if (m >= inicioMin && m <= finMin) { marcaron++; break; }
-            }
-          }
-        }
-
+        const marcaron = marcaronPorPeriodo.has(p.id) ? marcaronPorPeriodo.get(p.id).size : 0;
         const ausentes = totalEmpleados - marcaron;
 
-        // Solo contar ausentes si el periodo ya terminó
         if (estado === 'FINALIZADO') {
           totalAusentes += ausentes;
         }
@@ -1155,15 +1203,18 @@ async function miHistorial(req, res) {
       const permisosDeHoy = permisosPorFecha.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
 
-      for (const h of horariosDia) {
-        // NO generar ausencia para fechas anteriores a la asignaci�n del periodo
-        const fechaDate = new Date(fechaStr + 'T12:00:00Z');
-        if (fechaDate < h.createdAt) continue;
+      // Verificar si TODOS los periodos del día están cubiertos
+      let todosCubiertos = true;
+      let periodosPendientes = [];
+      const fechaDate = new Date(fechaStr + 'T12:00:00Z');
 
+      for (const h of horariosDia) {
+        if (fechaDate < h.createdAt) continue;
         const periodoLabel = `${h.horaInicio}–${h.horaFin}`;
 
-        let cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
-        if (!cubierto) cubierto = asistenciasDeHoy.some(a => a.horaEntrada != null && a.periodo === periodoLabel);
+        let cubierto = asistenciasDeHoy.some(a => {
+          return a.periodo === periodoLabel || (a.horaEntrada != null && a.periodo === periodoLabel);
+        });
         if (cubierto) continue;
 
         const cubiertoPermiso = permisosDeHoy.some(p => p.nombrePeriodos.includes(h.horaInicio));
@@ -1174,8 +1225,13 @@ async function miHistorial(req, res) {
           if (ahoraMin < hFin * 60 + mFin) continue;
         }
 
+        todosCubiertos = false;
+        periodosPendientes.push(periodoLabel);
+      }
+
+      if (!todosCubiertos && periodosPendientes.length > 0) {
         data.push({
-          id: `ausente-${fechaStr}-${h.id}`,
+          id: `ausente-${fechaStr}`,
           fecha: fechaStr,
           fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
             timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -1183,8 +1239,8 @@ async function miHistorial(req, res) {
           horaEntrada: null,
           horaSalida: null,
           estado: 'Ausente',
-          periodo: periodoLabel,
-          observacion: `Sin marcaci�n en ${periodoLabel}`,
+          periodo: periodosPendientes.join(', '),
+          observacion: `Sin marcación en ${periodosPendientes.join(', ')}`,
           minutosRetraso: null,
           salidaOmitida: false,
         });
