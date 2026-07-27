@@ -171,7 +171,7 @@ export const MobileMarcar: React.FC = () => {
 
             <div className="text-center">
               <h2 className="text-xl font-bold text-foreground">
-                ¡Asistencia Registrada!
+                {state.response.accion === "SALIDA" ? "Salida registrada con éxito" : "Entrada registrada con éxito"}
               </h2>
 
               <div className="mt-3 flex justify-center">

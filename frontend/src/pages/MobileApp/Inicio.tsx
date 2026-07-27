@@ -51,7 +51,9 @@ export const MobileInicio: React.FC = () => {
       transition={{ duration: 0.3 }}
       className="p-4 space-y-4"
     >
-      <div className="relative overflow-hidden rounded-2xl p-5"
+      <div
+        onClick={() => navigate('/app/perfil')}
+        className="relative overflow-hidden rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity"
         style={{
           background: "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 60%, var(--secondary, #7C3AED)) 100%)",
           color: "var(--primary-foreground)",

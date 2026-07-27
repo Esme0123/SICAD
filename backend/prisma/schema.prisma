@@ -59,6 +59,7 @@ model Usuario {
   asistencias       Asistencia[]
   permisos          Permiso[]
   notificaciones    Notificacion[]
+  pushSubscriptions PushSubscription[]
 
   @@map("usuarios")
 }
@@ -367,5 +368,24 @@ model Notificacion {
   createdAt DateTime @default(now())
 
   @@map("notificaciones")
+}
+
+// ============================================================
+// PUSH SUBSCRIPTION
+// Suscripciones Web Push para notificaciones en segundo plano
+// ============================================================
+
+model PushSubscription {
+  id            Int    @id @default(autoincrement())
+  usuarioId     Int
+  usuario       Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  endpoint      String
+  p256dh        String
+  auth          String
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@unique([usuarioId, endpoint])
+  @@map("push_subscriptions")
 }
 

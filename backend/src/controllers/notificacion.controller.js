@@ -1,12 +1,17 @@
 // src/controllers/notificacion.controller.js
 
 const prisma = require('../config/db');
+const { enviarNotificacionPush } = require('../services/notification.service');
 
 async function crearNotificacion({ titulo, mensaje, usuarioId, permisoId, paraRol }) {
   try {
-    return await prisma.notificacion.create({
+    const notificacion = await prisma.notificacion.create({
       data: { titulo, mensaje, usuarioId, permisoId, paraRol },
     });
+    if (usuarioId) {
+      enviarNotificacionPush({ titulo, mensaje, usuarioId }).catch(() => {});
+    }
+    return notificacion;
   } catch (error) {
     console.error('[notificacion.crear]', error);
   }

@@ -1038,20 +1038,20 @@ async function miHistorial(req, res) {
     }
 
     const data = asistencias.map((a) => {
-      let estado = 'PUNTUAL';
+      let estado = 'Puntual';
       let minutosRetraso = null;
 
       if (a.horaEntrada) {
         const obs = (a.observacion || '').toLowerCase();
         if (obs.startsWith('llegó') || obs.includes('tarde')) {
-          estado = 'TARDANZA';
+          estado = 'Tardanza';
           const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
           if (match) minutosRetraso = parseInt(match[1]);
         }
       } else {
         const obs = (a.observacion || '').toLowerCase();
         if (obs.startsWith('llegó') || obs.includes('tarde')) {
-          estado = 'TARDANZA';
+          estado = 'Tardanza';
           const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
           if (match) minutosRetraso = parseInt(match[1]);
         } else if (obs.includes('permiso') || obs.includes('justificado')) {
@@ -1198,8 +1198,8 @@ async function miHistorial(req, res) {
       data,
       resumen: {
         total: data.length,
-        puntual: data.filter((d) => d.estado === 'PUNTUAL').length,
-        tardanza: data.filter((d) => d.estado === 'TARDANZA').length,
+        puntual: data.filter((d) => d.estado === 'Puntual').length,
+        tardanza: data.filter((d) => d.estado === 'Tardanza').length,
         justificado: data.filter((d) => d.estado === 'Justificado').length,
         ausente: data.filter((d) => d.estado === 'Ausente').length,
       },

@@ -21,7 +21,7 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente";
+  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente" | "Salida" | "Fuera de horario";
   periodo: string | null;
   periodoHorario: string | null;
   observacion: string | null;

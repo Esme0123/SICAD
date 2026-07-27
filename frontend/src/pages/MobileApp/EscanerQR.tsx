@@ -1,19 +1,24 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
-import { X, Camera, CameraOff, Loader2, Image } from "lucide-react";
+import { X, Camera, CameraOff, Loader2, Image, CheckCircle, Clock, XCircle } from "lucide-react";
+import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
+import { marcarAsistencia } from "@/services/qr.service";
+import { anunciarAsistencia } from "@/utils/tts.utils";
 
 export const MobileEscanerQR: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useEmployeeAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
   const [photoMode, setPhotoMode] = useState(false);
+  const [resultado, setResultado] = useState<{ tipo: "success" | "error"; accion?: string; estado?: string; mensaje: string; hora?: string; periodo?: string; empleadoNombre?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const onScanSuccess = useCallback((decodedText: string) => {
+  const onScanSuccess = useCallback(async (decodedText: string) => {
     let token = "";
     try {
       const url = new URL(decodedText);
@@ -21,12 +26,33 @@ export const MobileEscanerQR: React.FC = () => {
     } catch {
       token = decodedText;
     }
-    if (token) {
-      navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
-    } else {
+    if (!token) {
       setError("QR inválido: no contiene token de marcación");
+      return;
     }
-  }, [navigate]);
+    if (isAuthenticated && user) {
+      try {
+        const res = await marcarAsistencia(token);
+        setResultado({
+          tipo: "success",
+          accion: res.accion,
+          estado: res.estado,
+          mensaje: res.accion === "ENTRADA" ? "Entrada registrada con éxito" : "Salida registrada con éxito",
+          hora: res.horaEntrada || undefined,
+          periodo: res.periodo || undefined,
+          empleadoNombre: res.empleado?.nombre,
+        });
+        anunciarAsistencia(res.empleado?.nombre || "Empleado");
+        setTimeout(() => setResultado(null), 3000);
+      } catch (err: any) {
+        const msg = err?.response?.data?.message ?? err?.message ?? "Error al registrar";
+        setResultado({ tipo: "error", mensaje: msg });
+        setTimeout(() => setResultado(null), 3000);
+      }
+    } else {
+      navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const scanFrame = useCallback(() => {
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
@@ -185,6 +211,30 @@ export const MobileEscanerQR: React.FC = () => {
           />
           <canvas ref={canvasRef} className="hidden" />
         </div>
+
+        {resultado && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 rounded-lg">
+            <div className="flex flex-col items-center gap-3 p-6 text-center">
+              {resultado.tipo === "success" ? (
+                <>
+                  {resultado.estado === "TARDANZA" ? (
+                    <Clock size={48} className="text-amber-400" />
+                  ) : (
+                    <CheckCircle size={48} className="text-emerald-400" />
+                  )}
+                  <p className="text-white font-bold text-base">{resultado.mensaje}</p>
+                  {resultado.hora && <p className="text-white/70 font-mono text-sm">{resultado.hora}</p>}
+                  {resultado.periodo && <p className="text-white/50 text-[10px] font-mono">{resultado.periodo}</p>}
+                </>
+              ) : (
+                <>
+                  <XCircle size={48} className="text-red-400" />
+                  <p className="text-white font-bold text-sm">{resultado.mensaje}</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {camOn && !error && (
           <>
