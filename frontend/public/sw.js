@@ -1,23 +1,24 @@
-const CACHE_NAME = 'sicad-cache-v1';
-const STATIC_ASSETS = [
+const CACHE_NAME = 'sicad-v1-cache';
+const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192x192.png',
-  '/icon-512x512.png'
+  '/icon-512x512.png',
+  '/sicad-icon-192.svg'
 ];
 
-// 1. INSTALACIÓN DE CACHÉ
+// Instalación: Precargar recursos clave
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
-// 2. ACTIVACIÓN Y LIMPIEZA
+// Activación: Limpieza de cachés antiguas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -29,17 +30,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 3. ESTRATEGIA DE RED / CACHÉ (RESPETANDO API Y QR EN TIEMPO REAL)
+// Estrategia Fetch: Servir desde Caché si no hay Red (Offline)
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // NO cachear peticiones POST/PUT, llamadas a API o Supabase (para no interferir con la cámara ni lecturas de QR)
   if (event.request.method !== 'GET' || url.pathname.startsWith('/api') || url.hostname.includes('supabase')) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
+    caches.match(event.request).then((response) => {
+      if (response) {
+        // Devuelve caché y actualiza en segundo plano (Stale-while-revalidate)
         fetch(event.request)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
@@ -47,9 +50,8 @@ self.addEventListener('fetch', (event) => {
             }
           })
           .catch(() => {});
-        return cachedResponse;
+        return response;
       }
-
       return fetch(event.request).then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
@@ -58,14 +60,16 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         return networkResponse;
       });
+    }).catch(() => {
+      // Fallback offline si no hay red
+      return caches.match('/');
     })
   );
 });
 
-// 4. NOTIFICACIONES PUSH EN SEGUNDO PLANO
-self.addEventListener('push', function (event) {
+// Notificaciones Push
+self.addEventListener('push', (event) => {
   if (!event.data) return;
-
   try {
     const data = event.data.json();
     const title = data.titulo || 'Notificación SICAD';
@@ -76,16 +80,13 @@ self.addEventListener('push', function (event) {
       vibrate: [200, 100, 200],
       data: { url: data.url || '/' }
     };
-
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {
-    console.error('Error en Push Notification:', err);
+    console.error('Error procesando Push:', err);
   }
 });
 
-self.addEventListener('notificationclick', function (event) {
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url || '/')
-  );
+  event.waitUntil(clients.openWindow(event.notification.data.url || '/'));
 });
