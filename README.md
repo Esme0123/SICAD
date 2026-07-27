@@ -72,6 +72,9 @@ JWT_SECRET="tu_secreto_jwt"
 NODE_ENV=development
 QR_SECRET_KEY="cambia-esta-clave-en-produccion"
 QR_VALIDITY_SECONDS=30
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:admin@sicad.app
 ```
 
 ---

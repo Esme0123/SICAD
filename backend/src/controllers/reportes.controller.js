@@ -90,8 +90,13 @@ async function getAnalisis(req, res) {
     const cumplimientoGeneral =
       totalAsistencias > 0 ? Math.round((puntualCount / totalAsistencias) * 100) : 0;
 
-    const daysDiff =
-      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const daysDiff = (() => {
+      let count = 0;
+      for (let d = new Date(start.getTime()); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0) count++;
+      }
+      return count || 1;
+    })();
     const promedioDiario =
       daysDiff > 0 ? Math.round((totalAsistencias / daysDiff) * 10) / 10 : 0;
 
@@ -146,6 +151,7 @@ async function getAnalisis(req, res) {
     const rangeStart = new Date(start.getTime());
     const rangeEnd = new Date(end.getTime());
     for (let dt = new Date(rangeStart); dt <= rangeEnd; dt.setDate(dt.getDate() + 1)) {
+      if (dt.getDay() === 0) continue;
       const diaSemana = DIAS[dt.getDay()].substring(0, 3);
       dateLabels.push(`${diaSemana} ${dt.getDate()}`);
     }

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
 import { X, Camera, CameraOff, Loader2, Image, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
-import { marcarAsistencia } from "@/services/qr.service";
+import { marcarAsistenciaConAuth } from "@/services/qr.service";
 import { anunciarAsistencia } from "@/utils/tts.utils";
 
 export const MobileEscanerQR: React.FC = () => {
@@ -32,7 +32,8 @@ export const MobileEscanerQR: React.FC = () => {
     }
     if (isAuthenticated && user) {
       try {
-        const res = await marcarAsistencia(token);
+        const jwt = localStorage.getItem("sicad_emp_token") || "";
+        const res = await marcarAsistenciaConAuth(token, jwt);
         setResultado({
           tipo: "success",
           accion: res.accion,

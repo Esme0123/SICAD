@@ -40,11 +40,22 @@ export async function generateQRToken(): Promise<QRTokenResponse> {
 
 /**
  * Marca asistencia enviando el token QR escaneado.
- * POST /api/asistencias/marcar
- * El bearer token del empleado debe estar ya en el header (via api interceptor).
+ * POST /api/asistencias/marcar (usa el interceptor de api — token admin)
  */
 export async function marcarAsistencia(token: string): Promise<MarcarResponse> {
   const { data } = await api.post<MarcarResponse>("/asistencias/marcar", { token });
+  return data;
+}
+
+/**
+ * Marca asistencia con el JWT del empleado autenticado, pasándolo
+ * explícitamente en el header (el interceptor de api usa sicad_token, no sicad_emp_token).
+ * POST /api/asistencia/marcar
+ */
+export async function marcarAsistenciaConAuth(qrToken: string, jwt: string): Promise<MarcarResponse> {
+  const { data } = await publicApi.post<MarcarResponse>("/asistencia/marcar", { token: qrToken }, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
   return data;
 }
 
