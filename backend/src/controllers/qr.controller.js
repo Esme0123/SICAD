@@ -2,41 +2,36 @@
 // Controlador para la generación y verificación de tokens QR de asistencia.
 
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
+const { JWT_SECRET } = require('../config/env');
+
+const QR_JWT_SECRET = JWT_SECRET || 'secret_fallback_key';
 
 /**
  * GET /api/qr/generate
- * Genera un token QR temporal firmado. El frontend lo renderiza como código QR visual.
+ * Genera un token QR temporal firmado con JWT. El frontend lo renderiza como código QR visual.
  */
 async function generateQR(req, res) {
   try {
     const nonce = crypto.randomBytes(16).toString('hex');
 
-    // Obtener configuración para la duración del QR (default 30 segundos)
     const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
     const duracion = config?.duracionQR ?? 30;
 
-    const exp = Date.now() + (duracion * 1000);
-    const payload = JSON.stringify({ nonce, exp, terminal: 'main', version: '1' });
-    const QR_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
-    const signature = crypto.createHmac('sha256', QR_SECRET).update(payload).digest('hex');
+    const exp = Math.floor(Date.now() / 1000) + duracion;
+    const payload = { nonce, exp, terminal: 'main', version: '1' };
+    const token = jwt.sign(payload, QR_JWT_SECRET, { expiresIn: duracion });
 
-    // Guardar nonce en la base de datos
     await prisma.qrNonce.create({
-      data: {
-        nonce,
-        expiresAt: new Date(exp)
-      }
+      data: { nonce, expiresAt: new Date(exp * 1000) },
     });
-
-    const payloadB64 = Buffer.from(payload).toString('base64');
-    const token = `${payloadB64}.${signature}`;
 
     res.json({
       ok: true,
       token,
-      expiresAt: Math.floor(exp / 1000),
-      expiresAtISO: new Date(exp).toISOString(),
+      expiresAt: exp,
+      expiresAtISO: new Date(exp * 1000).toISOString(),
     });
   } catch (error) {
     console.error('[qr.generateQR]', error);
@@ -51,12 +46,9 @@ async function generateQR(req, res) {
  */
 function verifyQR(req, res) {
   const { token } = req.body;
-
   if (!token) {
     return res.status(400).json({ ok: false, message: 'Token requerido' });
   }
-
-  // Mantenemos una verificación básica si es necesaria para compatibilidad, o retornamos error si se prefiere usar marcar-movil.
   res.status(501).json({ ok: false, message: 'Por favor use marcar-movil para registrar la asistencia.' });
 }
 

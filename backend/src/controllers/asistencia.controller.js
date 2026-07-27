@@ -3,9 +3,12 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
 const { verifyQRToken } = require('../utils/qrGenerator');
-const { obtenerPeriodoActual } = require('../utils/periodo.utils');
+const { obtenerPeriodoActual, obtenerOCrearGestionActiva } = require('../utils/periodo.utils');
+
+const QR_JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -245,10 +248,18 @@ async function registrar(req, res) {
     const empleado = await prisma.usuario.findUnique({ where: { id: uid } });
     if (!empleado) return res.status(404).json({ ok: false, message: 'Empleado no encontrado' });
 
-    // 2. Validar token QR
-    const verificacion = verifyQRToken(token);
-    if (!verificacion.valid) {
-      return res.status(401).json({ ok: false, message: `Token QR inválido: ${verificacion.reason}` });
+    // 2. Validar token QR (JWT tolerante)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, QR_JWT_SECRET);
+    } catch {
+      decoded = jwt.decode(token);
+    }
+    if (!decoded || !decoded.exp) {
+      return res.status(401).json({ ok: false, message: 'Token QR inválido' });
+    }
+    if (decoded.exp < Math.floor(Date.now() / 1000)) {
+      return res.status(401).json({ ok: false, message: 'Token QR inválido: expirado' });
     }
 
     // 3. Hora exacta de Bolivia
@@ -328,7 +339,7 @@ async function registrar(req, res) {
       estado,
       mensaje: `${accion === 'ENTRADA' ? 'Entrada' : 'Salida'} registrada para ${resultado.usuario.nombre}`,
       empleado: { id: resultado.usuario.id, nombre: resultado.usuario.nombre, codigo: resultado.usuario.codigo },
-      tieneHorario: !!horarioHoy,
+      tieneHorario: horariosHoy.length > 0,
       data: resultado,
     });
   } catch (error) {
@@ -457,15 +468,19 @@ async function marcar(req, res) {
       return res.status(401).json({ ok: false, message: 'No autenticado' });
     }
 
-    // 1. Verificar token QR
-    const verificacion = verifyQRToken(token);
-    if (!verificacion.valid) {
-      const espirado = verificacion.reason === 'Token expirado';
-      return res.status(400).json({
-        ok: false,
-        message: espirado ? 'El código QR ha expirado' : `Token QR inválido: ${verificacion.reason}`,
-        expired: espirado,
-      });
+    // 1. Verificar token QR (JWT tolerante)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, QR_JWT_SECRET);
+    } catch {
+      decoded = jwt.decode(token);
+    }
+    if (!decoded || !decoded.exp) {
+      return res.status(400).json({ ok: false, message: 'Token QR inválido' });
+    }
+    const ahoraSec = Math.floor(Date.now() / 1000);
+    if (decoded.exp < ahoraSec) {
+      return res.status(400).json({ ok: false, message: 'El código QR ha expirado', expired: true });
     }
 
     const ahora      = new Date();
@@ -585,46 +600,26 @@ async function marcarMovil(req, res) {
       return res.status(400).json({ ok: false, message: 'qrToken, codigo y password son requeridos' });
     }
 
-    // 1. Validar Token (HMAC SHA-256)
-    const parts = qrToken.split('.');
-    if (parts.length !== 2) {
-      return res.status(400).json({ ok: false, message: 'Formato de token QR inválido' });
-    }
-    const [payloadB64, signature] = parts;
-
-    let payload;
+    // 1. Validar Token QR (JWT tolerante: verify → decode)
+    let decoded;
     try {
-      payload = Buffer.from(payloadB64, 'base64').toString('utf8');
-    } catch (e) {
-      return res.status(400).json({ ok: false, message: 'Payload mal formado' });
+      decoded = jwt.verify(qrToken, QR_JWT_SECRET);
+    } catch {
+      decoded = jwt.decode(qrToken);
     }
 
-    const QR_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
-    const expectedSignature = crypto
-      .createHmac('sha256', QR_SECRET)
-      .update(payload)
-      .digest('hex');
-
-    const sigBuffer = Buffer.from(signature, 'hex');
-    const expBuffer = Buffer.from(expectedSignature, 'hex');
-
-    if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
-      return res.status(401).json({ ok: false, message: 'Firma del token QR inválida' });
+    if (!decoded || !decoded.nonce) {
+      return res.status(400).json({ ok: false, message: 'Token QR no válido o expirado' });
     }
 
-    // 2. Verificar Expiración
-    let data;
-    try {
-      data = JSON.parse(payload);
-    } catch (e) {
-      return res.status(400).json({ ok: false, message: 'JSON de payload mal formado' });
-    }
-
-    if (data.exp < Date.now()) {
+    const ahoraSec = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < ahoraSec) {
       return res.status(400).json({ ok: false, message: 'El código QR ha expirado' });
     }
 
-    // 3. Transacción para prevención de replay, verificación y registro
+    const data = decoded;
+
+    // 2. Transacción para prevención de replay, verificación y registro
     let resultadoTransaccion;
     try {
       resultadoTransaccion = await prisma.$transaction(async (tx) => {
@@ -1017,16 +1012,44 @@ async function miHistorial(req, res) {
     const ahoraBolivia = getBoliviaDate();
     let startDate, endDate;
 
-    const { fechaInicio, fechaFin } = req.query;
+    const { filtro, fechaInicio, fechaFin } = req.query;
 
-    // ── Construir fechas con MEDIODÍA LOCAL (12:00) para evitar
-    //    desfases de UTC-4 que ocurrían con T00:00 / T23:59 ──
     function fechaLocalMedioDia(isoStr) {
       const [y, m, d] = isoStr.split('-').map(Number);
       return new Date(y, m - 1, d, 12, 0, 0);
     }
 
-    if (fechaInicio && fechaFin) {
+    function hoyMedioDia() {
+      return new Date(ahoraBolivia.getFullYear(), ahoraBolivia.getMonth(), ahoraBolivia.getDate(), 12, 0, 0);
+    }
+
+    // ── Prioridad 1: filtro rápido ──
+    if (filtro === 'hoy') {
+      startDate = hoyMedioDia();
+      endDate = startDate;
+    } else if (filtro === 'semana') {
+      const diaSem = ahoraBolivia.getDay();
+      const diff = diaSem === 0 ? 6 : diaSem - 1;
+      const lunes = new Date(ahoraBolivia);
+      lunes.setDate(ahoraBolivia.getDate() - diff);
+      startDate = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 12, 0, 0);
+      endDate = hoyMedioDia();
+    } else if (filtro === 'mes') {
+      startDate = new Date(ahoraBolivia.getFullYear(), ahoraBolivia.getMonth(), 1, 12, 0, 0);
+      endDate = hoyMedioDia();
+    } else if (filtro === 'periodo') {
+      const gestion = await prisma.gestionAcademica.findFirst({
+        where: { nombre: obtenerPeriodoActual() },
+      });
+      if (gestion && gestion.fechaInicio) {
+        const gi = gestion.fechaInicio instanceof Date ? gestion.fechaInicio : new Date(gestion.fechaInicio);
+        startDate = new Date(gi.getFullYear(), gi.getMonth(), gi.getDate(), 12, 0, 0);
+      } else {
+        startDate = new Date(ahoraBolivia.getFullYear(), 0, 1, 12, 0, 0);
+      }
+      endDate = hoyMedioDia();
+    } else if (fechaInicio && fechaFin) {
+      // ── Prioridad 2: rango explícito ──
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
@@ -1037,6 +1060,7 @@ async function miHistorial(req, res) {
         return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
       }
     } else {
+      // ── Prioridad 3: mes/año ──
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
       const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
       if (mes < 1 || mes > 12) {
