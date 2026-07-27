@@ -20,7 +20,7 @@ async function generateQR(req, res) {
     const duracion = config?.duracionQR ?? 30;
 
     const exp = Math.floor(Date.now() / 1000) + duracion;
-    const payload = { nonce, exp, terminal: 'main', version: '1' };
+    const payload = { nonce, terminal: 'main', version: '1' };
     const token = jwt.sign(payload, QR_JWT_SECRET, { expiresIn: duracion });
 
     await prisma.qrNonce.create({

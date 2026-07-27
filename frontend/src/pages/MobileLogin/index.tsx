@@ -19,6 +19,12 @@ export const MobileLogin: React.FC = () => {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   const [codigo, setCodigo] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -77,14 +77,38 @@ export const MobileEscanerQR: React.FC = () => {
     }
   }, [onScanSuccess]);
 
+  const solicitarPermisoCamara = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+      });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch {
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        fallbackStream.getTracks().forEach(track => track.stop());
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+
   useEffect(() => {
     let stream: MediaStream | null = null;
     let animationId: number;
 
     const startCamera = async () => {
+      const tienePermiso = await solicitarPermisoCamara();
+      if (!tienePermiso) {
+        setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
+        setInit(false);
+        return;
+      }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
