@@ -3,41 +3,64 @@
   "name": "SICAD - Control de Asistencia",
   "short_name": "SICAD",
   "description": "Sistema de Control de Asistencia Docente - App Móvil de Empleados",
+  "lang": "es",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "orientation": "portrait",
   "categories": ["education", "productivity"],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "icons": [
     {
-      "src": "/sicad-icon-192.svg",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/sicad-icon.svg",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/sicad-icon-192.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "form_factor": "narrow",
       "label": "App Móvil SICAD"
     },
     {
-      "src": "/sicad-icon.svg",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "form_factor": "wide",
-      "label": "App Móvil SICAD Panel"
+      "label": "Panel SICAD"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Escanear QR",
+      "short_name": "Escanear",
+      "description": "Marcar entrada o salida con el código QR",
+      "url": "/app/escanear",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mi Historial",
+      "short_name": "Historial",
+      "description": "Ver reporte de asistencias",
+      "url": "/app/historial",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }
