@@ -1,3 +1,4 @@
+import { scanImageFile } from "@/utils/qr.utils";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
@@ -14,7 +15,7 @@ export const MobileEscanerQR: React.FC = () => {
   const [error, setError] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [init, setInit] = useState(true);
-  const [photoMode, setPhotoMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [resultado, setResultado] = useState<{ tipo: "success" | "error"; accion?: string; estado?: string; mensaje: string; hora?: string; periodo?: string; empleadoNombre?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -152,36 +153,23 @@ export const MobileEscanerQR: React.FC = () => {
   }, [scanFrame]);
 
   const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
-    if (!rawFile) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setPhotoMode(true);
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 800;
-      const scale = MAX_WIDTH / img.width;
-      canvas.width = MAX_WIDTH;
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
-      if (imageData) {
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code && code.data) {
-          onScanSuccess(code.data);
-          return;
-        }
+    setIsLoading(true);
+    try {
+      const qrResult = await scanImageFile(file);
+      if (qrResult) {
+        onScanSuccess(qrResult);
+      } else {
+        setError('No se detectó ningún código QR en la imagen seleccionada.');
       }
-      setError('No se detectó un código QR claro en la foto. Intenta enfocar más cerca.');
-      setPhotoMode(false);
-    };
-    img.onerror = () => {
-      setError('Error al cargar la imagen seleccionada');
-      setPhotoMode(false);
-    };
-    img.src = URL.createObjectURL(rawFile);
+    } catch (error) {
+      console.error("Error al procesar la imagen QR:", error);
+      setError('No se pudo leer la imagen. Intenta con una foto más clara.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [onScanSuccess]);
 
   return (
@@ -206,7 +194,14 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        {error && !init && (
+        {isLoading && (
+          <div className="flex flex-col items-center gap-3 text-white/60">
+            <Loader2 size={32} className="animate-spin" />
+            <p className="text-sm">Procesando imagen...</p>
+          </div>
+        )}
+
+        {error && !init && !isLoading && (
           <div className="flex flex-col items-center gap-4 p-6 text-center">
             <CameraOff size={40} className="text-red-400" />
             <p className="text-sm text-white/80">{error}</p>
@@ -261,7 +256,7 @@ export const MobileEscanerQR: React.FC = () => {
           </div>
         )}
 
-        {camOn && !error && (
+        {camOn && !error && !isLoading && (
           <>
             <div className="absolute inset-0 pointer-events-none">
               <div className="w-64 h-64 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">

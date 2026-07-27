@@ -1,6 +1,6 @@
-# 📌 SICAD — Sistema de Control de Asistencia Docente
+# 📌 SICAD — Sistema Inteligente de Control de Asistencia Digital
 
-Sistema integral para el registro, monitoreo y análisis de asistencia de empleados. Incluye marcación por código QR dinámico con síntesis de voz, gestión de permisos, reportes estadísticos interactivos y una app móvil companion.
+Sistema integral para el registro, monitoreo y análisis de asistencia de empleados. Incluye marcación por código QR dinámico con síntesis de voz, gestión de permisos, reportes estadísticos interactivos y una app móvil instalable (PWA / Android APK).
 
 ---
 
@@ -10,7 +10,7 @@ Sistema integral para el registro, monitoreo y análisis de asistencia de emplea
 |---|---|
 | **Frontend Web** | React + TypeScript + Vite + Tailwind CSS + Recharts + MUI |
 | **Backend** | Node.js + Express + Prisma ORM + PostgreSQL |
-| **App Móvil** | React Native / Expo |
+| **App Móvil** | Progressive Web App (PWA) / PWABuilder (Android APK) |
 | **Autenticación** | JWT + bcryptjs |
 | **Exportación** | PDF (jsPDF) y Excel (ExcelJS) |
 
@@ -18,103 +18,16 @@ Sistema integral para el registro, monitoreo y análisis de asistencia de emplea
 
 ## 🔑 Características Principales
 
-- **Marcación rápida con QR dinámico + Síntesis de Voz** — Cada empleado escanea su código y recibe confirmación por voz del estado registrado.
-- **Gestión de Empleados** — Registro individual.
-- **Permisos y Licencias** — Flujo completo de solicitud, aprobación/rechazo con carga de archivos.
-- **Reportes y Análisis Estadístico** — Gráficos de barras apiladas y dona con leyendas interactivas (click para filtrar por estado: Puntual, Tardanza, Ausente, Justificado).
-- **Guía Interactiva** — Tutorial paso a paso para el administrador al ingresar al sistema.
-- **Keep-Alive** — Endpoint `/api/health` para prevenir *Cold Starts* en Render.
+- **Marcación rápida con QR dinámico + Síntesis de Voz** — Confirmación inmediata por audio del estado de asistencia registrado.
+- **Gestión de Empleados y Horarios por Turnos** — Registro individual de personal y horarios.
+- **Permisos y Licencias** — Flujo completo de solicitud y aprobación con archivos adjuntos.
+- **Reportes y Análisis Estadístico** — Gráficos interactivos por estado (Puntual, Atraso, Ausente, Justificado).
+- **Soporte Offline & Notificaciones Push** — Sincronización en segundo plano e instalación directa en dispositivos móviles.
 
 ---
 
-## ⚙️ Instalación y Ejecución
+## 📲 App Móvil (PWA / APK)
 
-### 1. Clonar el repositorio
-
-```bash
-git clone https://github.com/Esme0123/SICAD.git
-cd SICAD
-```
-
-### 2. Backend
-
-```bash
-cd backend
-npm install
-
-# Configurar variables de entorno (crear .env basado en .env.example)
-# Luego ejecutar migraciones de Prisma
-npx prisma generate
-npx prisma db push
-
-# Iniciar en modo desarrollo
-npm run dev
-```
-
-### 3. Frontend Web
-
-```bash
-cd frontend
-npm install
-
-# Iniciar en modo desarrollo
-npm run dev
-```
-
-### 4. Variables de Entorno (Backend)
-
-Crear un archivo `backend/.env` con las siguientes variables:
-
-```env
-PORT=3000
-DATABASE_URL="postgresql://usuario:password@host:5432/sicad"
-JWT_SECRET="tu_secreto_jwt"
-NODE_ENV=development
-QR_SECRET_KEY="cambia-esta-clave-en-produccion"
-QR_VALIDITY_SECONDS=30
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:admin@sicad.app
-```
-
----
-
-## 📲 App Móvil (React Native / Expo)
-
-La aplicación móvil permite a los empleados marcar asistencia y gestionar permisos desde su dispositivo.
-
-### Generar APK / Build de producción
-
-```bash
-cd mobile
-npm install
-
-# Build Android (APK / AAB)
-npx eas build --platform android --profile production
-
-# Build iOS (IPA)
-npx eas build --platform ios --profile production
-```
-
-> **Nota:** Se requiere una cuenta en [Expo.dev](https://expo.dev) y tener configurado `eas.json` con los perfiles de build.
-
----
-
-## 🌐 Endpoints Principales
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/api/health` | Health check (keep-alive) |
-| `POST` | `/api/auth/login` | Inicio de sesión |
-| `GET` | `/api/qr/:codigo` | Generar QR de empleado |
-| `POST` | `/api/asistencia` | Registrar asistencia |
-| `GET` | `/api/reportes/analisis` | Reportes y estadísticas |
-| `GET` | `/api/usuarios` | Listado de empleados |
-
----
-
-## 🚀 Despliegue en Producción
-
-El proyecto está preparado para ser desplegado en **Render** (backend) y **Vercel** (frontend web). La app móvil se distribuye mediante **Expo Application Services (EAS)**.
-
-El endpoint `/api/health` debe configurarse como *cron job* (por ejemplo, UptimeRobot) para realizar un ping cada 5 minutos y así evitar que Render detenga el servicio por inactividad.
+La aplicación móvil permite a los empleados marcar asistencia escaneando códigos QR y consultar su historial detallado.
+- **PWA Deploy:** Vercel (`/app/login`)
+- **Android APK:** Empaquetado nativo TWA mediante PWABuilder.

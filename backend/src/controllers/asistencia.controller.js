@@ -1227,9 +1227,6 @@ async function miHistorial(req, res) {
       const permisosDeHoy = permisosPorFecha.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
 
-      // Verificar si TODOS los periodos del día están cubiertos
-      let todosCubiertos = true;
-      let periodosPendientes = [];
       const fechaDate = new Date(fechaStr + 'T12:00:00Z');
 
       for (const h of horariosDia) {
@@ -1249,13 +1246,8 @@ async function miHistorial(req, res) {
           if (ahoraMin < hFin * 60 + mFin) continue;
         }
 
-        todosCubiertos = false;
-        periodosPendientes.push(periodoLabel);
-      }
-
-      if (!todosCubiertos && periodosPendientes.length > 0) {
         data.push({
-          id: `ausente-${fechaStr}`,
+          id: `ausente-${fechaStr}-${periodoLabel.replace(/:/g, '').replace(/–/g, '-')}`,
           fecha: fechaStr,
           fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
             timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -1263,8 +1255,8 @@ async function miHistorial(req, res) {
           horaEntrada: null,
           horaSalida: null,
           estado: 'Ausente',
-          periodo: periodosPendientes.join(', '),
-          observacion: `Sin marcación en ${periodosPendientes.join(', ')}`,
+          periodo: periodoLabel,
+          observacion: `Sin marcación en ${periodoLabel}`,
           minutosRetraso: null,
           salidaOmitida: false,
         });
