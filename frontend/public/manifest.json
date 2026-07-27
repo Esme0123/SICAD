@@ -5,7 +5,7 @@
   "description": "Sistema de Control de Asistencia Docente - App Móvil",
   "lang": "es",
   "dir": "ltr",
-  "start_url": "/",
+  "start_url": "/app/login",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],
@@ -21,9 +21,6 @@
   ],
   "launch_handler": {
     "client_mode": "focus-existing"
-  },
-  "edge_side_panel": {
-    "preferred_width": 400
   },
   "icons": [
     {
@@ -45,14 +42,14 @@
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Vista Móvil SICAD"
+      "label": "Login Móvil SICAD"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Panel SICAD"
+      "label": "Panel Principal SICAD"
     }
   ],
   "shortcuts": [
@@ -84,31 +81,6 @@
     {
       "protocol": "web+sicad",
       "url": "/?qr=%s"
-    }
-  ],
-  "file_handlers": [
-    {
-      "action": "/open-file",
-      "accept": {
-        "text/csv": [".csv"]
-      }
-    }
-  ],
-  "widgets": [
-    {
-      "name": "SICAD Widget",
-      "description": "Acceso rápido a marcación",
-      "tag": "sicad-widget",
-      "ms_ac_template": "widgets/template.json",
-      "data": "widgets/data.json",
-      "type": "application/json",
-      "screenshots": [
-        {
-          "src": "/icon-192x192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
     }
   ]
 }
