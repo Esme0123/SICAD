@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -6,19 +6,26 @@ import { Topbar } from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 
+const KIOSKO_ONLY = ["/attendance/qr", "/attendance/success"];
+
 interface RootLayoutProps {
   dark: boolean;
   onToggleDark: () => void;
 }
 
 export const RootLayout: React.FC<RootLayoutProps> = ({ dark, onToggleDark }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
   // Redirect to login if user session is not active
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  const userRole = (user?.rol || user?.role || "").toUpperCase();
+  if (userRole === "KIOSKO" && !KIOSKO_ONLY.includes(location.pathname)) {
+    return <Navigate to="/attendance/qr" replace />;
   }
 
   return (

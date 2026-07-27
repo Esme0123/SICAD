@@ -72,7 +72,8 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
         password: data.password,
       });
       login(token, user);
-      navigate("/dashboard");
+      const userRole = (user.role || "").toUpperCase();
+      navigate(userRole === "KIOSKO" ? "/attendance/qr" : "/dashboard");
     } catch (err: unknown) {
       const message =
         err instanceof Error

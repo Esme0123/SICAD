@@ -43,18 +43,24 @@ const navItems: { id: NavId; label: string; path: string; icon: React.ReactNode 
   { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} /> },
 ];
 
-const NAV_PERMISSIONS: Record<string, NavId[]> = {
-  ADMIN: ["dashboard", "employees", "leaves", "periods", "qr", "history", "reports", "settings"],
-  COORDINADOR: ["dashboard", "employees", "leaves", "periods", "qr", "history", "reports"],
-  EMPLEADO: [],
-};
+const MENU_ITEMS: { id: NavId; label: string; path: string; icon: React.ReactNode; roles: string[] }[] = [
+  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: <Home size={18} />, roles: ["ADMIN", "COORDINADOR"] },
+  { id: "employees", label: "Empleados", path: "/employees", icon: <Users size={18} />, roles: ["ADMIN", "COORDINADOR"] },
+  { id: "leaves", label: "Permisos", path: "/leaves", icon: <Users size={18} />, roles: ["ADMIN", "COORDINADOR"] },
+  { id: "periods", label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} />, roles: ["ADMIN"] },
+  { id: "qr", label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} />, roles: ["ADMIN", "COORDINADOR", "KIOSKO"] },
+  { id: "history", label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} />, roles: ["ADMIN", "COORDINADOR"] },
+  { id: "reports", label: "Reportes", path: "/reports", icon: <BarChart2 size={18} />, roles: ["ADMIN", "COORDINADOR"] },
+  { id: "settings", label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} />, roles: ["ADMIN"] },
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const role = user?.role || "EMPLEADO";
-  const allowedIds = NAV_PERMISSIONS[role] || [];
+  const userRole = (user?.rol || user?.role || "EMPLEADO").toUpperCase();
+  const isAdmin = userRole.includes("ADMIN");
+  const filteredItems = MENU_ITEMS.filter((item) => isAdmin || item.roles.includes(userRole));
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
@@ -100,9 +106,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         </AnimatePresence>
       </div>
 
-      {/* Navigation */}
+        {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.filter((item) => allowedIds.includes(item.id)).map((item) => (
+        {filteredItems.map((item) => (
           <NavLink
             key={item.id}
             to={item.path}
@@ -157,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               </div>
               <div className="leading-none">
                 <p className="text-white text-xs font-semibold">{user?.name || "Usuario"}</p>
-                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{role.toLowerCase()}</p>
+                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{userRole.toLowerCase()}</p>
               </div>
             </div>
           </div>
