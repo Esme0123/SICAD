@@ -1,6 +1,6 @@
 # 📌 SICAD — Sistema de Control de Asistencia Docente
 
-Sistema integral para el registro, monitoreo y análisis de asistencia de docentes y empleados. Incluye marcación por código QR dinámico con síntesis de voz, gestión de permisos, reportes estadísticos interactivos y una app móvil companion.
+Sistema integral para el registro, monitoreo y análisis de asistencia de empleados. Incluye marcación por código QR dinámico con síntesis de voz, gestión de permisos, reportes estadísticos interactivos y una app móvil companion.
 
 ---
 
@@ -19,7 +19,7 @@ Sistema integral para el registro, monitoreo y análisis de asistencia de docent
 ## 🔑 Características Principales
 
 - **Marcación rápida con QR dinámico + Síntesis de Voz** — Cada empleado escanea su código y recibe confirmación por voz del estado registrado.
-- **Gestión de Empleados** — Registro individual o importación masiva desde Excel.
+- **Gestión de Empleados** — Registro individual.
 - **Permisos y Licencias** — Flujo completo de solicitud, aprobación/rechazo con carga de archivos.
 - **Reportes y Análisis Estadístico** — Gráficos de barras apiladas y dona con leyendas interactivas (click para filtrar por estado: Puntual, Tardanza, Ausente, Justificado).
 - **Guía Interactiva** — Tutorial paso a paso para el administrador al ingresar al sistema.
@@ -70,13 +70,15 @@ PORT=3000
 DATABASE_URL="postgresql://usuario:password@host:5432/sicad"
 JWT_SECRET="tu_secreto_jwt"
 NODE_ENV=development
+QR_SECRET_KEY="cambia-esta-clave-en-produccion"
+QR_VALIDITY_SECONDS=30
 ```
 
 ---
 
 ## 📲 App Móvil (React Native / Expo)
 
-La aplicación móvil permite a los docentes marcar asistencia y gestionar permisos desde su dispositivo.
+La aplicación móvil permite a los empleados marcar asistencia y gestionar permisos desde su dispositivo.
 
 ### Generar APK / Build de producción
 
@@ -110,6 +112,6 @@ npx eas build --platform ios --profile production
 
 ## 🚀 Despliegue en Producción
 
-El proyecto está preparado para ser desplegado en **Render** (backend) y **Vercel** o similar (frontend web). La app móvil se distribuye mediante **Expo Application Services (EAS)**.
+El proyecto está preparado para ser desplegado en **Render** (backend) y **Vercel** (frontend web). La app móvil se distribuye mediante **Expo Application Services (EAS)**.
 
-El endpoint `/api/health` debe configurarse como *cron job* (por ejemplo, UptimeRobot o Cron-job.org) para realizar un ping cada 5 minutos y así evitar que Render detenga el servicio por inactividad.
+El endpoint `/api/health` debe configurarse como *cron job* (por ejemplo, UptimeRobot) para realizar un ping cada 5 minutos y así evitar que Render detenga el servicio por inactividad.
