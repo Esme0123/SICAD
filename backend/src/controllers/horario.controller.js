@@ -2,7 +2,7 @@
 // Gestión del catálogo de Periodos y asignación de horarios a empleados
 
 const prisma = require('../config/db');
-const { obtenerPeriodoActual, obtenerOCrearGestionPorNombre } = require('../utils/periodo.utils');
+const { obtenerPeriodoActual, obtenerOCrearGestionPorNombre, parsePeriod } = require('../utils/periodo.utils');
 const { crearNotificacion } = require('./notificacion.controller');
 
 // ── GET /api/horarios/periodos ────────────────────────────────
@@ -165,16 +165,76 @@ async function asignarBatch(req, res) {
     }
 
     const uid = parseInt(usuarioId);
-    const periodo = periodoAcademico || obtenerPeriodoActual();
-    let totalAsignados = 0;
+    const nombrePeriodo = periodoAcademico || obtenerPeriodoActual();
 
-    for (const asig of asignaciones) {
-      if (!asig.diaSemana || !Array.isArray(asig.periodosIds)) continue;
-      const resDia = await asignarDia(uid, asig.diaSemana, asig.periodosIds, periodo);
-      totalAsignados += resDia.horariosAsignados;
+    // 1. Buscar o crear la gestión académica (sin exigir activo)
+    let gestion = await prisma.gestionAcademica.findUnique({
+      where: { nombre: nombrePeriodo },
+    });
+
+    if (!gestion) {
+      const parsed = parsePeriod(nombrePeriodo);
+      if (!parsed) {
+        return res.status(400).json({
+          ok: false,
+          message: `El periodo académico "${nombrePeriodo}" no es válido.`,
+        });
+      }
+      gestion = await prisma.gestionAcademica.create({
+        data: {
+          nombre: nombrePeriodo,
+          fechaInicio: new Date(`${parsed.year}-01-01T00:00:00`),
+          fechaFin:    new Date(`${parsed.year}-12-31T23:59:59`),
+          activo:      true,
+        },
+      });
     }
 
-    // UNA sola notificación para todos los días
+    // 2. Transacción: limpiar horarios previos + insertar nuevos
+    const resultado = await prisma.$transaction(async (tx) => {
+      // Eliminar asignaciones previas de este usuario para este periodo
+      await tx.horarioAsignado.deleteMany({
+        where: { usuarioId: uid, gestionId: gestion.id },
+      });
+
+      let totalAsignados = 0;
+      for (const asig of asignaciones) {
+        if (!asig.diaSemana || !Array.isArray(asig.periodosIds)) continue;
+        if (asig.periodosIds.length === 0) continue;
+
+        await tx.horarioAsignado.createMany({
+          data: asig.periodosIds.map((periodoId) => ({
+            usuarioId: uid,
+            periodoId: parseInt(periodoId),
+            diaSemana: asig.diaSemana,
+            periodoAcademico: nombrePeriodo,
+            gestionId: gestion.id,
+          })),
+          skipDuplicates: true,
+        });
+        totalAsignados += asig.periodosIds.length;
+      }
+
+      // Recalcular horas programadas
+      const todosLosHorarios = await tx.horarioAsignado.findMany({
+        where: { usuarioId: uid },
+        include: { periodo: { select: { duracion: true } } },
+      });
+      const totalMinutos = todosLosHorarios.reduce(
+        (acc, h) => acc + (h.periodo?.duracion ?? 0),
+        0
+      );
+      const horasProgramadas = parseFloat((totalMinutos / 60).toFixed(2));
+
+      await tx.usuario.update({
+        where: { id: uid },
+        data: { horasProgramadas },
+      });
+
+      return { horariosAsignados: totalAsignados };
+    });
+
+    // 3. UNA sola notificación para todos los días
     crearNotificacion({
       titulo: 'Horario Actualizado',
       mensaje: 'Tu horario de atención/clases ha sido actualizado por el administrador.',
@@ -182,7 +242,7 @@ async function asignarBatch(req, res) {
       paraRol: 'EMPLEADO',
     });
 
-    res.json({ ok: true, data: { horariosAsignados: totalAsignados } });
+    res.json({ ok: true, data: resultado });
   } catch (error) {
     if (error.code === 'P2025') {
       return res.status(404).json({ ok: false, message: 'Usuario o periodo no encontrado' });
