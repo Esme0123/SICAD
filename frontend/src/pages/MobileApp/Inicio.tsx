@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
-import { solicitarPermisoNotificaciones } from "@/utils/notifications.utils";
 
 export const MobileInicio: React.FC = () => {
   const { user, isAuthenticated } = useEmployeeAuth();
@@ -72,10 +71,42 @@ export const MobileInicio: React.FC = () => {
     setShowNotifPrompt(false);
   };
 
-  const handleAcceptNotif = () => {
-    sessionStorage.setItem('notifications_prompted', 'true');
-    solicitarPermisoNotificaciones().catch(() => {});
-    setShowNotifPrompt(false);
+  const handleAcceptNotif = async () => {
+    try {
+      if (!('Notification' in window)) {
+        setShowNotifPrompt(false);
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        alert(
+          'Las notificaciones están bloqueadas en la configuración de tu navegador o dispositivo.\n\n' +
+          'Para activarlas:\n' +
+          '1. Toca el icono de sitio/candado cerca de la barra de direcciones.\n' +
+          '2. Ve a Permisos > Notificaciones y selecciona "Permitir".'
+        );
+        sessionStorage.setItem('notifications_prompted', 'true');
+        setShowNotifPrompt(false);
+        return;
+      }
+
+      const permissionResult = await Notification.requestPermission();
+      console.log('Resultado del permiso nativo:', permissionResult);
+
+      if (permissionResult === 'granted' && 'serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        try {
+          const { suscribirPush } = await import('@/utils/notifications.utils');
+          await suscribirPush();
+        } catch {}
+      }
+
+      sessionStorage.setItem('notifications_prompted', 'true');
+      setShowNotifPrompt(false);
+    } catch (error) {
+      console.error('Error al solicitar permiso de notificación:', error);
+      setShowNotifPrompt(false);
+    }
   };
 
   return (
