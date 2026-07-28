@@ -40,7 +40,8 @@ export const MobileInicio: React.FC = () => {
 
   useEffect(() => {
     const dismissed = localStorage.getItem("notif_dismissed") === "true";
-    if (!("Notification" in window) || Notification.permission !== "default" || dismissed) {
+    const prompted = sessionStorage.getItem("notifications_prompted") === "true";
+    if (!("Notification" in window) || Notification.permission !== "default" || dismissed || prompted) {
       setShowNotifPrompt(false);
       return;
     }
@@ -72,6 +73,7 @@ export const MobileInicio: React.FC = () => {
   };
 
   const handleAcceptNotif = () => {
+    sessionStorage.setItem('notifications_prompted', 'true');
     solicitarPermisoNotificaciones().catch(() => {});
     setShowNotifPrompt(false);
   };

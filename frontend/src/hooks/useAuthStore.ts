@@ -36,6 +36,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setSession: (session) => set({ session }),
   clearAuth: () => {
     localStorage.removeItem("sicad_token");
+    sessionStorage.removeItem("notifications_prompted");
     set({ user: null, token: null, session: null });
   },
 }));

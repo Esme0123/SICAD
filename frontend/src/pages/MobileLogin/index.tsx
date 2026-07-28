@@ -29,9 +29,11 @@ export const MobileLogin: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'default') return;
+    if (sessionStorage.getItem('notifications_prompted')) return;
+    sessionStorage.setItem('notifications_prompted', 'true');
+    Notification.requestPermission().catch(() => {});
   }, []);
 
   const [codigo, setCodigo] = useState("");

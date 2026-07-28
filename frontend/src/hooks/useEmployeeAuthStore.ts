@@ -53,6 +53,7 @@ export const useEmployeeAuthStore = create<EmployeeAuthState>((set) => ({
   clearAuth: () => {
     localStorage.removeItem("sicad_emp_token");
     localStorage.removeItem("sicad_emp_user");
+    sessionStorage.removeItem("notifications_prompted");
     set({ user: null, token: null });
   },
 }));
