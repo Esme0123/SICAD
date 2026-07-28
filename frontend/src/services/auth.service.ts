@@ -17,7 +17,7 @@ export interface UsuarioBackend {
   id:        number;
   nombre:    string;
   email:     string;
-  rol:       "ADMIN" | "EMPLEADO";
+  rol:       "ADMIN" | "COORDINADOR" | "KIOSKO" | "EMPLEADO";
   horasBase: number;
 }
 
@@ -41,11 +41,17 @@ export class LoginError extends Error {
 
 /** Normaliza el usuario del backend al shape del frontend */
 function mapUsuario(u: UsuarioBackend): UserProfile {
+  const roleMap: Record<string, string> = {
+    ADMIN: "ADMIN",
+    COORDINADOR: "COORDINADOR",
+    KIOSKO: "KIOSKO",
+    EMPLEADO: "EMPLEADO",
+  };
   return {
     id:    String(u.id),
     name:  u.nombre,
     email: u.email,
-    role:  u.rol === "ADMIN" ? "Administrador" : "Empleado",
+    role:  roleMap[u.rol] ?? u.rol,
   };
 }
 

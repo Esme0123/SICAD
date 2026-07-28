@@ -47,11 +47,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
     }
     return true;
   });
-  let roleDisplay = "";
+  let roleDisplay = "Empleado";
   if (rawRole === "ADMIN") roleDisplay = "Administrador";
   else if (rawRole === "COORDINADOR") roleDisplay = "Coordinador";
   else if (rawRole === "KIOSKO") roleDisplay = "Kiosco (Tótem)";
-  else roleDisplay = rawRole;
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")

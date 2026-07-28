@@ -104,4 +104,36 @@ async function loginMovil(req, res) {
   }
 }
 
-module.exports = { login, loginMovil };
+/**
+ * GET /api/auth/me
+ * Devuelve el perfil del usuario autenticado desde UsuarioSistema.
+ * req.usuario viene del authMiddleware (JWT verificado).
+ */
+async function getProfile(req, res) {
+  try {
+    const userSistema = await prisma.usuarioSistema.findUnique({
+      where: { id: req.usuario.id },
+      select: { id: true, nombre: true, email: true, rol: true, activo: true },
+    });
+
+    if (userSistema) {
+      return res.json({
+        ok: true,
+        usuario: {
+          id: userSistema.id,
+          nombre: userSistema.nombre,
+          email: userSistema.email,
+          rol: userSistema.rol,
+          activo: userSistema.activo,
+        },
+      });
+    }
+
+    return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+  } catch (error) {
+    console.error('[auth.getProfile]', error);
+    return res.status(500).json({ ok: false, message: 'Error al obtener perfil' });
+  }
+}
+
+module.exports = { login, loginMovil, getProfile };
