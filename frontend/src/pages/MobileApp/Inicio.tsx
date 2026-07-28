@@ -38,13 +38,15 @@ export const MobileInicio: React.FC = () => {
   }, [showSuccess]);
 
   useEffect(() => {
-    const dismissed = localStorage.getItem("notif_dismissed") === "true";
-    const prompted = sessionStorage.getItem("notifications_prompted") === "true";
-    if (!("Notification" in window) || Notification.permission !== "default" || dismissed || prompted) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted' || Notification.permission === 'denied') {
       setShowNotifPrompt(false);
       return;
     }
-    setShowNotifPrompt(true);
+    const prompted = sessionStorage.getItem('notifications_prompted');
+    if (!prompted && Notification.permission === 'default') {
+      setShowNotifPrompt(true);
+    }
   }, []);
 
   if (loading) {
@@ -72,39 +74,37 @@ export const MobileInicio: React.FC = () => {
   };
 
   const handleAcceptNotif = async () => {
+    if (!('Notification' in window)) {
+      setShowNotifPrompt(false);
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert(
+        '📱 Las notificaciones están desactivadas en los ajustes de tu teléfono.\n\n' +
+        'Para activarlas:\n' +
+        '1. Ve a los Ajustes / Configuración de tu teléfono.\n' +
+        '2. Entra en "Aplicaciones" > Selecciona esta PWA (SICAD).\n' +
+        '3. Ve a "Permisos" > "Notificaciones" y selecciona PERMITIR.'
+      );
+      sessionStorage.setItem('notifications_prompted', 'true');
+      setShowNotifPrompt(false);
+      return;
+    }
+
     try {
-      if (!('Notification' in window)) {
-        setShowNotifPrompt(false);
-        return;
-      }
-
-      if (Notification.permission === 'denied') {
-        alert(
-          'Las notificaciones están bloqueadas en la configuración de tu navegador o dispositivo.\n\n' +
-          'Para activarlas:\n' +
-          '1. Toca el icono de sitio/candado cerca de la barra de direcciones.\n' +
-          '2. Ve a Permisos > Notificaciones y selecciona "Permitir".'
-        );
-        sessionStorage.setItem('notifications_prompted', 'true');
-        setShowNotifPrompt(false);
-        return;
-      }
-
-      const permissionResult = await Notification.requestPermission();
-      console.log('Resultado del permiso nativo:', permissionResult);
-
-      if (permissionResult === 'granted' && 'serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      console.log('Permiso PWA obtenido:', permission);
+      if (permission === 'granted' && 'serviceWorker' in navigator) {
         try {
           const { suscribirPush } = await import('@/utils/notifications.utils');
           await suscribirPush();
         } catch {}
       }
-
-      sessionStorage.setItem('notifications_prompted', 'true');
-      setShowNotifPrompt(false);
     } catch (error) {
-      console.error('Error al solicitar permiso de notificación:', error);
+      console.error('Error al pedir permiso en PWA:', error);
+    } finally {
+      sessionStorage.setItem('notifications_prompted', 'true');
       setShowNotifPrompt(false);
     }
   };
