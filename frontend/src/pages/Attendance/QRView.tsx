@@ -145,20 +145,20 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
       style={{ background: dark ? "var(--background)" : "var(--background)" }}
     >
       {/* ── Panel principal ──────────────────────────────── */}
-      <div className={card(dark, "flex-1 flex flex-col items-center justify-center p-10 relative")}>
-        {/* Top bar */}
-        <div className="absolute top-5 left-5 right-5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400" style={{ animation: "pulse 2s infinite" }} />
-            <span className={`text-xs font-medium ${dark ? "text-white/40" : "text-slate-500"}`}>
-              Sistema activo
-            </span>
-          </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 text-center">
+        {/* Cabecera Estado */}
+        <div className="w-full max-w-xl flex justify-between items-center">
+          <span className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full ${dark ? "text-emerald-400 bg-emerald-900/30" : "text-emerald-600 bg-emerald-50"}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5" style={{ animation: "pulse 2s infinite" }} />
+            Sistema activo
+          </span>
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
               flash
                 ? "bg-green-500/15 text-green-600"
-                : "bg-primary/10 text-primary"
+                : dark
+                  ? "bg-white/5 text-white/50"
+                  : "bg-slate-100 text-slate-500"
             }`}
           >
             <RefreshCw size={11} className={flash ? "animate-spin" : ""} />
@@ -166,73 +166,74 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </div>
         </div>
 
-        {/* Periodo y hora actual */}
-        <div className="text-center mb-7 mt-4">
-          <p className={`text-xs font-semibold tracking-widest uppercase mb-2 ${dark ? "text-white/30" : "text-slate-400"}`}>
-            Periodo actual
-          </p>
-          <h3 className={`text-3xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>
-            {activePeriod
-              ? `${activePeriod.horaInicio} – ${activePeriod.horaFin}`
-              : periodos.length > 0
-              ? "Sin periodo activo"
-              : "Cargando..."}
-          </h3>
-          <p className={`text-sm mt-1.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
-            {now.toLocaleTimeString("es-BO")} &nbsp;·&nbsp;
-            {now.toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-        </div>
+        {/* Bloque Periodo y QR */}
+        <div className="flex flex-col items-center justify-center my-auto space-y-5">
+          <div className="text-center">
+            <p className={`text-xs font-bold tracking-widest uppercase ${dark ? "text-white/30" : "text-slate-400"}`}>
+              Periodo Actual
+            </p>
+            <h2 className={`text-3xl font-extrabold tracking-tight mt-1 ${dark ? "text-white" : "text-slate-800"}`}>
+              {activePeriod
+                ? `${activePeriod.horaInicio} – ${activePeriod.horaFin}`
+                : periodos.length > 0
+                ? "Sin periodo activo"
+                : "Cargando..."}
+            </h2>
+            <p className={`text-xs mt-1 ${dark ? "text-white/35" : "text-slate-500"}`}>
+              {now.toLocaleTimeString("es-BO")} &nbsp;·&nbsp;
+              {now.toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
+          </div>
 
-        {/* QR Code */}
-        <motion.div
-          key={token}
-          initial={{ scale: 0.93, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.35 }}
-          onClick={() => navigate("/attendance/success")}
-          className="cursor-pointer relative p-5 rounded-3xl"
-          style={{
-            background: dark ? "var(--card)" : "var(--background)",
-            boxShadow: "0 24px 64px rgba(15,76,151,0.18)",
-          }}
-        >
-          {loadError ? (
-            <div className="w-[230px] h-[230px] flex flex-col items-center justify-center gap-3 text-destructive">
-              <Server size={40} />
-              <span className="text-xs font-medium text-center">Sin conexión al servidor</span>
-            </div>
-          ) : (
-            <QRCodeDisplay
-              value={`https://sicad-m2ra.vercel.app/app/login?token=${encodeURIComponent(token)}`}
-              size={230}
-              color={qrColor}
-            />
-          )}
+          {/* QR Code */}
+          <motion.div
+            key={token}
+            initial={{ scale: 0.93, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.35 }}
+            onClick={() => navigate("/attendance/success")}
+            className="cursor-pointer relative p-5 rounded-3xl"
+            style={{
+              background: dark ? "var(--card)" : "var(--background)",
+              boxShadow: "0 24px 64px rgba(15,76,151,0.18)",
+            }}
+          >
+            {loadError ? (
+              <div className="w-[230px] h-[230px] flex flex-col items-center justify-center gap-3 text-destructive">
+                <Server size={40} />
+                <span className="text-xs font-medium text-center">Sin conexión al servidor</span>
+              </div>
+            ) : (
+              <QRCodeDisplay
+                value={`https://sicad-m2ra.vercel.app/app/login?token=${encodeURIComponent(token)}`}
+                size={230}
+                color={qrColor}
+              />
+            )}
 
-          {(["tl", "tr", "bl", "br"] as const).map((k) => (
-            <div
-              key={k}
-              className={`absolute w-6 h-6 ${
-                k === "tl" ? "top-0 left-0" :
-                k === "tr" ? "top-0 right-0" :
-                k === "bl" ? "bottom-0 left-0" : "bottom-0 right-0"
-              }`}
-              style={{
-                borderTop:    k[0] === "t" ? "3px solid var(--primary)" : "none",
-                borderBottom: k[0] === "b" ? "3px solid var(--primary)" : "none",
-                borderLeft:   k[1] === "l" ? "3px solid var(--primary)" : "none",
-                borderRight:  k[1] === "r" ? "3px solid var(--primary)" : "none",
-                borderRadius:
-                  k === "tl" ? "8px 0 0 0" :
-                  k === "tr" ? "0 8px 0 0" :
-                  k === "bl" ? "0 0 0 8px" : "0 0 8px 0",
-              }}
-            />
-          ))}
-        </motion.div>
+            {(["tl", "tr", "bl", "br"] as const).map((k) => (
+              <div
+                key={k}
+                className={`absolute w-6 h-6 ${
+                  k === "tl" ? "top-0 left-0" :
+                  k === "tr" ? "top-0 right-0" :
+                  k === "bl" ? "bottom-0 left-0" : "bottom-0 right-0"
+                }`}
+                style={{
+                  borderTop:    k[0] === "t" ? "3px solid var(--primary)" : "none",
+                  borderBottom: k[0] === "b" ? "3px solid var(--primary)" : "none",
+                  borderLeft:   k[1] === "l" ? "3px solid var(--primary)" : "none",
+                  borderRight:  k[1] === "r" ? "3px solid var(--primary)" : "none",
+                  borderRadius:
+                    k === "tl" ? "8px 0 0 0" :
+                    k === "tr" ? "0 8px 0 0" :
+                    k === "bl" ? "0 0 0 8px" : "0 0 8px 0",
+                }}
+              />
+            ))}
+          </motion.div>
 
-        <div className="mt-6">
+          {/* Contador */}
           <CircularTimer seconds={countdown} total={totalDuration} dark={dark} />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +45,7 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   const {
     register,
@@ -63,9 +64,24 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
 
   const rememberVal = watch("remember");
 
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("sicad_remember_email");
+    if (savedEmail) {
+      setValue("email", savedEmail);
+      setValue("remember", true);
+    }
+  }, [setValue]);
+
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
     setApiError(null);
+
+    if (data.remember) {
+      localStorage.setItem("sicad_remember_email", data.email);
+    } else {
+      localStorage.removeItem("sicad_remember_email");
+    }
+
     try {
       const { token, user } = await loginService({
         email:    data.email,
@@ -243,7 +259,8 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
               </label>
               <button
                 type="button"
-                className="text-sm font-medium hover:underline text-primary" // Cambiado a text-primary
+                onClick={() => setShowForgotPasswordModal(true)}
+                className="text-sm font-medium hover:underline text-primary"
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -273,6 +290,32 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
           </p>
         </motion.div>
       </div>
+
+      {/* Modal de Olvidaste tu contraseña */}
+      {showForgotPasswordModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
+              🔒
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">Restablecimiento de Contraseña</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Por políticas de seguridad del Centro de Cómputo UCB, el restablecimiento de contraseñas debe ser gestionado directamente por el <strong>Administrador del Sistema</strong>.
+            </p>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
+              📧 Contacto: <span className="font-semibold text-blue-600">admin@ucb.edu.bo</span><br />
+              📍 Oficina: Centro de Cómputo UCB
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowForgotPasswordModal(false)}
+              className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
