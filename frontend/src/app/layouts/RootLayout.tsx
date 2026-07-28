@@ -33,8 +33,10 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ dark, onToggleDark }) =>
 
   if (rawRole === "KIOSKO") {
     return (
-      <div className="w-screen h-screen bg-slate-900 flex items-center justify-center overflow-hidden">
-        <Outlet />
+      <div className="w-full min-h-screen h-screen overflow-y-auto bg-gray-900 p-4 sm:p-6 md:p-8 flex flex-col justify-start items-center">
+        <div className="w-full max-w-7xl my-auto">
+          <Outlet />
+        </div>
       </div>
     );
   }
