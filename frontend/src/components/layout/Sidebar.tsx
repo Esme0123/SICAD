@@ -37,9 +37,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const rol = (user?.rol || "ADMIN").toUpperCase();
-  const isAdmin = rol === "ADMIN";
-  const menuItems = allMenuItems.filter((item) => isAdmin || !item.adminOnly);
+  const rawRole = (user?.rol || "ADMIN").toUpperCase();
+  const isCoordinador = rawRole === "COORDINADOR";
+  const menuItems = allMenuItems.filter((item) => {
+    if (isCoordinador && item.adminOnly) return false;
+    return true;
+  });
+  const displayRole = isCoordinador ? "Coordinador" : "Administrador";
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
@@ -142,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               </div>
               <div className="leading-none">
                 <p className="text-white text-xs font-semibold">{user?.name || "Usuario"}</p>
-                <p className="text-white/35 text-[10px] mt-0.5 capitalize">{rol.toLowerCase()}</p>
+                <p className="text-white/35 text-[10px] mt-0.5">{displayRole}</p>
               </div>
             </div>
           </div>

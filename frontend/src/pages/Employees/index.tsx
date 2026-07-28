@@ -96,12 +96,15 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
   // Filter operations
   const filteredRows = employees.filter((emp) => {
-    const searchTerm = search.toLowerCase();
-    const matchesSearch =
-      emp.name.toLowerCase().includes(searchTerm) ||
-      emp.code.toLowerCase().includes(searchTerm) ||
-      (emp.ci && emp.ci.toLowerCase().includes(searchTerm)) ||
-      (emp.email && emp.email.toLowerCase().includes(searchTerm));
+    const query = search.toLowerCase().trim();
+    if (!query) return true;
+
+    const matchNombre = emp.name.toLowerCase().includes(query);
+    const matchCodigo = emp.code.toLowerCase().includes(query);
+    const matchCI = emp.ci?.toString().toLowerCase().includes(query);
+    const matchCorreo = (emp.email && emp.email.toLowerCase().includes(query));
+
+    const matchesSearch = matchNombre || matchCodigo || matchCI || matchCorreo;
 
     const dynStatus = getDynamicStatus(emp);
     const matchesStatus =

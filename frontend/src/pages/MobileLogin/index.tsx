@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { loginMovil } from "@/services/employee.service";
-import { marcarAsistencia } from "@/services/qr.service";
+import api from "@/services/api";
 import { User, Key, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 
@@ -54,16 +54,19 @@ export const MobileLogin: React.FC = () => {
     try {
       const res = await loginMovil({ codigo: finalCode, password });
       if (res.ok) {
-        login(res.token, res.usuario);
+        const token = res.token;
+        localStorage.setItem("token", token);
+        login(token, res.usuario);
         const pendingQr = sessionStorage.getItem("pending_qr_token");
         if (pendingQr) {
           sessionStorage.removeItem("pending_qr_token");
           try {
-            await marcarAsistencia(pendingQr);
+            await api.post("/asistencias/marcar", { token: pendingQr }, { headers: { Authorization: `Bearer ${token}` } });
             alert("¡Asistencia registrada con éxito!");
             navigate("/app/historial", { replace: true });
-          } catch {
-            alert("Error al registrar la asistencia del QR.");
+          } catch (err) {
+            console.error("Error al marcar QR:", err);
+            alert("No se pudo registrar la asistencia con el QR escaneado.");
             navigate("/app/inicio", { replace: true });
           }
         } else {
