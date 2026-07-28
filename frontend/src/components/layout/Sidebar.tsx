@@ -37,19 +37,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const userRole = (user?.rol || "").toUpperCase();
+  const rawRole = (user?.rol || user?.role || "").toUpperCase();
   const menuItems = allMenuItems.filter((item) => {
-    if (userRole === "KIOSKO") {
+    if (rawRole === "KIOSKO") {
       return item.path === "/attendance/qr";
     }
-    if (userRole === "COORDINADOR") {
-      return item.path !== "/settings";
+    if (rawRole === "COORDINADOR") {
+      return item.path !== "/configuracion" && item.path !== "/settings";
     }
     return true;
   });
-  let displayRole = "Coordinador";
-  if (userRole === "ADMIN") displayRole = "Administrador";
-  else if (userRole === "KIOSKO") displayRole = "Kiosco (Tótem)";
+  let roleDisplay = "";
+  if (rawRole === "ADMIN") roleDisplay = "Administrador";
+  else if (rawRole === "COORDINADOR") roleDisplay = "Coordinador";
+  else if (rawRole === "KIOSKO") roleDisplay = "Kiosco (Tótem)";
+  else roleDisplay = rawRole;
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")
@@ -152,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               </div>
               <div className="leading-none">
                 <p className="text-white text-xs font-semibold">{user?.name || "Usuario"}</p>
-                <p className="text-white/35 text-[10px] mt-0.5">{displayRole}</p>
+                <p className="text-white/35 text-[10px] mt-0.5">{roleDisplay}</p>
               </div>
             </div>
           </div>

@@ -23,12 +23,20 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ dark, onToggleDark }) =>
     return <Navigate to="/login" replace />;
   }
 
-  const userRole = (user?.rol || user?.role || "").toUpperCase();
-  if (userRole === "KIOSKO" && !KIOSKO_ONLY.includes(location.pathname)) {
+  const rawRole = (user?.rol || user?.role || "").toUpperCase();
+  if (rawRole === "KIOSKO" && !KIOSKO_ONLY.includes(location.pathname)) {
     return <Navigate to="/attendance/qr" replace />;
   }
-  if (userRole === "COORDINADOR" && location.pathname === "/settings") {
+  if (rawRole === "COORDINADOR" && location.pathname === "/settings") {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (rawRole === "KIOSKO") {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center">
+        <Outlet />
+      </div>
+    );
   }
 
   return (
