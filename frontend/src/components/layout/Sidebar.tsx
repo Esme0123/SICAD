@@ -37,13 +37,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const rawRole = (user?.rol || "ADMIN").toUpperCase();
+  const rawRole = (user?.rol || "").toUpperCase();
   const isCoordinador = rawRole === "COORDINADOR";
   const menuItems = allMenuItems.filter((item) => {
     if (isCoordinador && item.adminOnly) return false;
     return true;
   });
-  const displayRole = isCoordinador ? "Coordinador" : "Administrador";
+  let displayRole = "Empleado";
+  if (rawRole === "ADMIN") displayRole = "Administrador";
+  else if (rawRole === "COORDINADOR") displayRole = "Coordinador";
+  else if (rawRole === "KIOSKO") displayRole = "Kiosco (Tótem)";
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")

@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
-import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2 } from "lucide-react";
+import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 import { solicitarPermisoNotificaciones } from "@/utils/notifications.utils";
 
 export const MobileInicio: React.FC = () => {
   const { user, isAuthenticated } = useEmployeeAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [successData, setSuccessData] = useState(location.state as { showSuccessModal?: boolean; attendanceData?: any } | null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -22,6 +24,8 @@ export const MobileInicio: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "default" || localStorage.getItem("notifications_dismissed") === "true") return;
     solicitarPermisoNotificaciones().catch(() => {});
   }, []);
 
@@ -32,6 +36,13 @@ export const MobileInicio: React.FC = () => {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (successData?.showSuccessModal) {
+      const timer = setTimeout(() => setSuccessData(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successData]);
 
   if (!user || !isAuthenticated) {
     return <Navigate replace to="/app/login" />;
@@ -45,6 +56,24 @@ export const MobileInicio: React.FC = () => {
   })();
 
   return (
+    <div className="relative">
+      <AnimatePresence>
+        {successData?.showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <div className="rounded-2xl p-8 text-center max-w-xs mx-4" style={{ background: "var(--card)", color: "var(--card-foreground)" }}>
+              <CheckCircle size={56} className="mx-auto mb-4 text-emerald-500" />
+              <p className="text-lg font-bold">¡Asistencia registrada!</p>
+              <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>Tu marcación se ha guardado correctamente.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -195,5 +224,6 @@ export const MobileInicio: React.FC = () => {
         </div>
       </div>
     </motion.div>
+    </div>
   );
 };

@@ -61,9 +61,8 @@ export const MobileLogin: React.FC = () => {
         if (pendingQr) {
           sessionStorage.removeItem("pending_qr_token");
           try {
-            await api.post("/asistencias/marcar", { token: pendingQr }, { headers: { Authorization: `Bearer ${token}` } });
-            alert("¡Asistencia registrada con éxito!");
-            navigate("/app/historial", { replace: true });
+            const res = await api.post("/asistencias/marcar", { token: pendingQr }, { headers: { Authorization: `Bearer ${token}` } });
+            navigate("/app/inicio", { state: { showSuccessModal: true, attendanceData: res.data }, replace: true });
           } catch (err) {
             console.error("Error al marcar QR:", err);
             alert("No se pudo registrar la asistencia con el QR escaneado.");
