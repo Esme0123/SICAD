@@ -30,22 +30,26 @@ const allMenuItems = [
   { label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} /> },
   { label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} /> },
   { label: "Reportes", path: "/reports", icon: <BarChart2 size={18} /> },
-  { label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} />, adminOnly: true },
+  { label: "Configuración", path: "/settings", icon: <SettingsIcon size={18} /> },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { logout, user } = useAuth();
   const [institutionName, setInstitutionName] = useState("SICAD");
 
-  const rawRole = (user?.rol || "").toUpperCase();
+  const userRole = (user?.rol || "").toUpperCase();
   const menuItems = allMenuItems.filter((item) => {
-    if (rawRole === "KIOSKO") return item.path === "/attendance/qr";
-    if (rawRole === "COORDINADOR" && item.adminOnly) return false;
+    if (userRole === "KIOSKO") {
+      return item.path === "/attendance/qr";
+    }
+    if (userRole === "COORDINADOR") {
+      return item.path !== "/settings";
+    }
     return true;
   });
   let displayRole = "Coordinador";
-  if (rawRole === "ADMIN") displayRole = "Administrador";
-  else if (rawRole === "KIOSKO") displayRole = "Kiosco (Tótem)";
+  if (userRole === "ADMIN") displayRole = "Administrador";
+  else if (userRole === "KIOSKO") displayRole = "Kiosco (Tótem)";
 
   useEffect(() => {
     api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion")

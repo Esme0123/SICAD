@@ -27,6 +27,9 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ dark, onToggleDark }) =>
   if (userRole === "KIOSKO" && !KIOSKO_ONLY.includes(location.pathname)) {
     return <Navigate to="/attendance/qr" replace />;
   }
+  if (userRole === "COORDINADOR" && location.pathname === "/settings") {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div
