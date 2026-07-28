@@ -9,7 +9,6 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Check,
   RefreshCw,
   UserCheck,
   QrCode,
@@ -238,24 +237,15 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
             </div>
 
             <div className="flex items-center justify-between">
-              <label
-                className="flex items-center gap-2 cursor-pointer"
-                onClick={() => setValue("remember", !rememberVal)}
-              >
-                <input type="checkbox" className="hidden" {...register("remember")} />
-                <div
-                  className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${rememberVal
-                      ? "border-primary bg-primary" // Cambiado a primary (Azul)
-                      : dark
-                        ? "border-white/20"
-                        : "border-slate-300"
-                    }`}
-                >
-                  {rememberVal && <Check size={10} className="text-white" strokeWidth={3} />}
-                </div>
-                <span className={`text-sm ${dark ? "text-white/50" : "text-slate-600"}`}>
-                  Recordarme
-                </span>
+              <label htmlFor="rememberMe" className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 select-none">
+                <input
+                  id="rememberMe"
+                  type="checkbox"
+                  checked={rememberVal}
+                  onChange={(e) => setValue("remember", e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <span>Recordarme</span>
               </label>
               <button
                 type="button"
@@ -300,16 +290,15 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
             </div>
             <h3 className="text-lg font-bold text-slate-800">Restablecimiento de Contraseña</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Por políticas de seguridad del Centro de Cómputo UCB, el restablecimiento de contraseñas debe ser gestionado directamente por el <strong>Administrador del Sistema</strong>.
+              Por políticas de seguridad, el restablecimiento de credenciales debe ser gestionado directamente con el Administrador.
             </p>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
-              📧 Contacto: <span className="font-semibold text-blue-600">admin@ucb.edu.bo</span><br />
-              📍 Oficina: Centro de Cómputo UCB
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700">
+              📍 Contacte directamente con la administración del <strong>Centro de Cómputo UCB</strong>.
             </div>
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(false)}
-              className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm cursor-pointer"
+              className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm"
             >
               Entendido
             </button>

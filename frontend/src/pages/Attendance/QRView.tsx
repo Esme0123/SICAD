@@ -2,10 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { RefreshCw, Server, Volume2 } from "lucide-react";
-import { QRCodeDisplay } from "./components/QRCodeDisplay";
+import { QRCodeSVG } from "qrcode.react";
 import { anunciarAsistencia } from "@/utils/tts.utils";
 import { enviarNotificacionSistema } from "@/utils/notifications.utils";
-import { CircularTimer } from "./components/CircularTimer";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { getSocket, AsistenciaRegistradaEvent } from "@/services/socket";
@@ -145,20 +144,18 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
       style={{ background: dark ? "var(--background)" : "var(--background)" }}
     >
       {/* ── Panel principal ──────────────────────────────── */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 text-center">
-        {/* Cabecera Estado */}
-        <div className="w-full max-w-xl flex justify-between items-center">
-          <span className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full ${dark ? "text-emerald-400 bg-emerald-900/30" : "text-emerald-600 bg-emerald-50"}`}>
+      <div className="flex-1 flex flex-col justify-between min-h-[85vh] p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
+        {/* 1. CABECERA (Siempre Arriba) */}
+        <div className="flex justify-between items-center w-full pb-4 border-b border-slate-100">
+          <span className="inline-flex items-center text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5" style={{ animation: "pulse 2s infinite" }} />
             Sistema activo
           </span>
           <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               flash
                 ? "bg-green-500/15 text-green-600"
-                : dark
-                  ? "bg-white/5 text-white/50"
-                  : "bg-slate-100 text-slate-500"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
             <RefreshCw size={11} className={flash ? "animate-spin" : ""} />
@@ -166,48 +163,44 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
           </div>
         </div>
 
-        {/* Bloque Periodo y QR */}
-        <div className="flex flex-col items-center justify-center my-auto space-y-5">
-          <div className="text-center">
-            <p className={`text-xs font-bold tracking-widest uppercase ${dark ? "text-white/30" : "text-slate-400"}`}>
-              Periodo Actual
-            </p>
-            <h2 className={`text-3xl font-extrabold tracking-tight mt-1 ${dark ? "text-white" : "text-slate-800"}`}>
+        {/* 2. BLOQUE CENTRAL: QR Y CONTEO */}
+        <div className="flex-1 flex flex-col items-center justify-center my-auto py-6 space-y-4 text-center">
+          <div>
+            <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">Periodo Actual</p>
+            <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
               {activePeriod
                 ? `${activePeriod.horaInicio} – ${activePeriod.horaFin}`
                 : periodos.length > 0
                 ? "Sin periodo activo"
                 : "Cargando..."}
             </h2>
-            <p className={`text-xs mt-1 ${dark ? "text-white/35" : "text-slate-500"}`}>
+            <p className="text-xs text-slate-500 mt-1">
               {now.toLocaleTimeString("es-BO")} &nbsp;·&nbsp;
               {now.toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" })}
             </p>
           </div>
 
-          {/* QR Code */}
+          {/* QR SVG */}
           <motion.div
             key={token}
             initial={{ scale: 0.93, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.35 }}
             onClick={() => navigate("/attendance/success")}
-            className="cursor-pointer relative p-5 rounded-3xl"
-            style={{
-              background: dark ? "var(--card)" : "var(--background)",
-              boxShadow: "0 24px 64px rgba(15,76,151,0.18)",
-            }}
+            className="cursor-pointer relative p-5 bg-white rounded-2xl shadow-xl border border-slate-100"
           >
             {loadError ? (
-              <div className="w-[230px] h-[230px] flex flex-col items-center justify-center gap-3 text-destructive">
+              <div className="w-[240px] h-[240px] flex flex-col items-center justify-center gap-3 text-destructive">
                 <Server size={40} />
                 <span className="text-xs font-medium text-center">Sin conexión al servidor</span>
               </div>
             ) : (
-              <QRCodeDisplay
+              <QRCodeSVG
                 value={`https://sicad-m2ra.vercel.app/app/login?token=${encodeURIComponent(token)}`}
-                size={230}
-                color={qrColor}
+                size={240}
+                fgColor={qrColor}
+                bgColor="#FFFFFF"
+                level="M"
               />
             )}
 
@@ -233,8 +226,12 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
             ))}
           </motion.div>
 
-          {/* Contador */}
-          <CircularTimer seconds={countdown} total={totalDuration} dark={dark} />
+          {/* Contador de segundos */}
+          <div className="flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full border-4 border-blue-600 flex items-center justify-center text-sm font-bold text-slate-700">
+              {countdown}s
+            </div>
+          </div>
         </div>
       </div>
 
