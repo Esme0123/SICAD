@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { loginMovil } from "@/services/employee.service";
 import api from "@/services/api";
+import { checkAndRequestNotifications } from "@/utils/notifications.utils";
 import { User, Key, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 
@@ -29,11 +30,7 @@ export const MobileLogin: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!('Notification' in window)) return;
-    if (Notification.permission !== 'default') return;
-    if (sessionStorage.getItem('notifications_prompted')) return;
-    sessionStorage.setItem('notifications_prompted', 'true');
-    Notification.requestPermission().catch(() => {});
+    checkAndRequestNotifications();
   }, []);
 
   const [codigo, setCodigo] = useState("");

@@ -16,6 +16,23 @@ export const enviarNotificacionSistema = async (titulo: string, cuerpo: string) 
   }
 };
 
+export const checkAndRequestNotifications = async () => {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  if (Notification.permission === 'default') {
+    const hasPromptedThisSession = sessionStorage.getItem('notifications_prompted');
+    if (!hasPromptedThisSession) {
+      sessionStorage.setItem('notifications_prompted', 'true');
+      try {
+        await Notification.requestPermission();
+      } catch (error) {
+        console.error('Error al solicitar permiso:', error);
+      }
+    }
+  }
+};
+
 export const solicitarPermisoNotificaciones = async (): Promise<boolean> => {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
