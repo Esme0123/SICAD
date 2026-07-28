@@ -207,8 +207,8 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
     }
   };
 
-  const rolColor = (r: string) => (r === "ADMIN" ? "#E63946" : "#0F4C97");
-  const rolLabel = (r: string) => (r === "ADMIN" ? "Administrador" : "Coordinador");
+  const rolColor = (r: string) => r === "ADMIN" ? "#E63946" : r === "KIOSKO" ? "#8B5CF6" : "#0F4C97";
+  const rolLabel = (r: string) => r === "ADMIN" ? "Administrador" : r === "KIOSKO" ? "Kiosco" : "Coordinador";
 
   return (
     <div

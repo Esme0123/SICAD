@@ -12,7 +12,9 @@ export const MobileInicio: React.FC = () => {
   const location = useLocation();
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [successData, setSuccessData] = useState(location.state as { showSuccessModal?: boolean; attendanceData?: any } | null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const attendanceData = location.state?.attendanceData || null;
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -24,9 +26,25 @@ export const MobileInicio: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "default" || localStorage.getItem("notifications_dismissed") === "true") return;
-    solicitarPermisoNotificaciones().catch(() => {});
+    if (location.state?.showSuccessModal) {
+      setShowSuccess(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (!showSuccess) return;
+    const timer = setTimeout(() => setShowSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showSuccess]);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem("notif_dismissed") === "true";
+    if (!("Notification" in window) || Notification.permission !== "default" || dismissed) {
+      setShowNotifPrompt(false);
+      return;
+    }
+    setShowNotifPrompt(true);
   }, []);
 
   if (loading) {
@@ -36,13 +54,6 @@ export const MobileInicio: React.FC = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (successData?.showSuccessModal) {
-      const timer = setTimeout(() => setSuccessData(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [successData]);
 
   if (!user || !isAuthenticated) {
     return <Navigate replace to="/app/login" />;
@@ -55,10 +66,20 @@ export const MobileInicio: React.FC = () => {
     return "Buenas noches";
   })();
 
+  const handleDismissNotif = () => {
+    localStorage.setItem("notif_dismissed", "true");
+    setShowNotifPrompt(false);
+  };
+
+  const handleAcceptNotif = () => {
+    solicitarPermisoNotificaciones().catch(() => {});
+    setShowNotifPrompt(false);
+  };
+
   return (
     <div className="relative">
       <AnimatePresence>
-        {successData?.showSuccessModal && (
+        {showSuccess && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -73,6 +94,19 @@ export const MobileInicio: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showNotifPrompt && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-4 mt-2 p-3 rounded-xl flex items-center gap-3"
+          style={{ background: "color-mix(in srgb, var(--primary) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)" }}
+        >
+          <p className="text-xs flex-1">Activa las notificaciones para recibir alertas de tus marcaciones.</p>
+          <button onClick={handleAcceptNotif} className="text-xs font-bold px-2.5 py-1.5 rounded-lg cursor-pointer" style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>Activar</button>
+          <button onClick={handleDismissNotif} className="text-xs px-2 py-1.5 rounded-lg text-muted-foreground cursor-pointer">Ahora no</button>
+        </motion.div>
+      )}
 
     <motion.div
       initial={{ opacity: 0, y: 12 }}

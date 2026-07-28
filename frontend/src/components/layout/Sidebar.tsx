@@ -38,14 +38,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const [institutionName, setInstitutionName] = useState("SICAD");
 
   const rawRole = (user?.rol || "").toUpperCase();
-  const isCoordinador = rawRole === "COORDINADOR";
   const menuItems = allMenuItems.filter((item) => {
-    if (isCoordinador && item.adminOnly) return false;
+    if (rawRole === "KIOSKO") return item.path === "/attendance/qr";
+    if (rawRole === "COORDINADOR" && item.adminOnly) return false;
     return true;
   });
-  let displayRole = "Empleado";
+  let displayRole = "Coordinador";
   if (rawRole === "ADMIN") displayRole = "Administrador";
-  else if (rawRole === "COORDINADOR") displayRole = "Coordinador";
   else if (rawRole === "KIOSKO") displayRole = "Kiosco (Tótem)";
 
   useEffect(() => {
