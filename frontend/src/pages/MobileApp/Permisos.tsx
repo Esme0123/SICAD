@@ -412,7 +412,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900">
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85dvh] sm:max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b shrink-0 border-slate-200 dark:border-slate-700">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Nuevo Permiso</h2>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-500 dark:text-slate-400">
@@ -420,7 +420,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-4 flex-1">
+        <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0">
           <div>
             <label className="text-xs font-semibold mb-1 block text-slate-500 dark:text-slate-400">Empleado</label>
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
@@ -531,7 +531,7 @@ const NuevoPermisoModal: React.FC<NuevoPermisoModalProps> = ({ user, onClose, on
         </div>
 
         {/* Fixed Footer */}
-        <div className="p-4 border-t shrink-0 flex gap-3 border-slate-200 dark:border-slate-700">
+        <div className="p-4 border-t shrink-0 flex gap-3 border-slate-200 dark:border-slate-700" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}>
           <button onClick={onClose}
             className="flex-1 py-3 rounded-xl text-sm font-bold border transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
           >
@@ -592,7 +592,7 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900">
+      <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85dvh] sm:max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b shrink-0 border-slate-200 dark:border-slate-700">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Detalle del Permiso</h2>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-500 dark:text-slate-400">
@@ -600,7 +600,7 @@ const DetallePermisoModal: React.FC<DetallePermisoModalProps> = ({ permiso, onCl
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-4 flex-1">
+        <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
