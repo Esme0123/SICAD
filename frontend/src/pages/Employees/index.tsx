@@ -178,13 +178,21 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
         await updateEmployee(selectedEmployee.id!, {
           ...formValues,
         });
+        setFormModalOpen(false);
+        loadEmployees();
+        alert("Empleado actualizado exitosamente.");
       } else {
-        await createEmployee({
+        const res = await createEmployee({
           ...formValues,
         });
+        setFormModalOpen(false);
+        loadEmployees();
+        if (res?.defaultPassword) {
+          alert(`Empleado creado exitosamente.\n\nCódigo: ${res.code || formValues.code}\nContraseña asignada: ${res.defaultPassword}\n\nProporcione esta credencial al empleado.`);
+        } else {
+          alert("Empleado creado exitosamente.");
+        }
       }
-      setFormModalOpen(false);
-      loadEmployees();
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : "Error al guardar el empleado");

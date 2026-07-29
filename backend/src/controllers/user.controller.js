@@ -54,29 +54,32 @@ async function getById(req, res) {
 // POST /api/usuarios
 async function create(req, res) {
   try {
-    const { nombre, email, password, rol, horasBase, ci, celular, activo } = req.body;
+    const { nombre, email, password, rol, horasBase, ci, celular, activo, codigo, code } = req.body;
     if (!nombre || !email) {
       return res.status(400).json({ ok: false, message: 'nombre y email son requeridos' });
     }
 
-    const ultimoUsuario = await prisma.usuario.findFirst({
-      where: {
-        codigo: {
-          startsWith: 'US-',
+    let nuevoCodigo = codigo || code;
+    if (!nuevoCodigo) {
+      const ultimoUsuario = await prisma.usuario.findFirst({
+        where: {
+          codigo: {
+            startsWith: 'CC-',
+          },
         },
-      },
-      orderBy: {
-        codigo: 'desc',
-      },
-    });
+        orderBy: {
+          codigo: 'desc',
+        },
+      });
 
-    let nuevoCodigo = 'US-001';
-    if (ultimoUsuario && ultimoUsuario.codigo) {
-      const match = ultimoUsuario.codigo.match(/US-(\d+)/);
-      if (match) {
-        const numero = parseInt(match[1], 10);
-        const siguiente = numero + 1;
-        nuevoCodigo = `US-${String(siguiente).padStart(3, '0')}`;
+      nuevoCodigo = 'CC-001';
+      if (ultimoUsuario && ultimoUsuario.codigo) {
+        const match = ultimoUsuario.codigo.match(/CC-(\d+)/);
+        if (match) {
+          const numero = parseInt(match[1], 10);
+          const siguiente = numero + 1;
+          nuevoCodigo = `CC-${String(siguiente).padStart(3, '0')}`;
+        }
       }
     }
 
@@ -115,7 +118,7 @@ async function create(req, res) {
         activo: true,
       },
     });
-    res.status(201).json({ ok: true, data: usuario });
+    res.status(201).json({ ok: true, data: usuario, defaultPassword: passwordEfectiva });
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({ ok: false, message: 'El email o código ya está registrado' });

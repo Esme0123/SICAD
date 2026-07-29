@@ -96,16 +96,32 @@ export async function createEmployee(employee: Omit<Employee, "periods">): Promi
     password: password,
     rol: "EMPLEADO",
     horasBase: employee.contractedHours,
+    codigo: employee.code || null,
     ci: employee.ci ? employee.ci.trim() : null,
     celular: employee.phone ? employee.phone.trim() : null,
     activo: employee.status === "Activo",
   };
 
-  const { data } = await api.post<{ ok: boolean; data: any }>("/usuarios", payload);
+  const { data } = await api.post<{ ok: boolean; data: any; defaultPassword?: string }>("/usuarios", payload);
   if (!data.ok) {
     throw new Error("Error al crear el empleado");
   }
-  return data.data;
+  
+  const user = data.data;
+  return {
+    id: user.id,
+    code: user.codigo || employee.code || `CC-${String(user.id).padStart(3, "0")}`,
+    ci: user.ci || "N/A",
+    name: user.nombre,
+    role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
+    status: user.activo ? "Activo" : "Inactivo",
+    periods: 0,
+    email: user.email,
+    phone: user.celular || "N/A",
+    contractedHours: user.horasBase === 20 ? 20 : 40,
+    assignedHours: 0,
+    defaultPassword: data.defaultPassword,
+  };
 }
 
 /**
