@@ -25,7 +25,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 10;
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia" | "Pendiente">("Todos");
@@ -545,17 +545,17 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
             <div className="py-4">
               <p className={`text-sm mb-4 ${dark ? "text-white/70" : "text-slate-600"}`}>
-                Ingresa el correo electrónico del empleado. Se le enviará un enlace para que complete su registro.
+                Ingresa uno o varios correos electrónicos (separados por coma).
               </p>
               <label className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"}`}>
-                Correo Electrónico *
+                Correo(s) Electrónico(s) *
               </label>
-              <input
-                type="email"
+              <textarea
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="empleado@ucb.edu.bo"
-                className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                placeholder="empleado1@ucb.edu.bo, empleado2@ucb.edu.bo"
+                rows={3}
+                className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all resize-none ${dark
                     ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
                     : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
                   }`}
@@ -574,14 +574,14 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               </button>
               <button
                 onClick={async () => {
-                  if (!inviteEmail) { toast.error("Ingresa un correo electrónico"); return; }
+                  if (!inviteEmail.trim()) { toast.error("Ingresa al menos un correo electrónico"); return; }
                   setInviteLoading(true);
                   try {
-                    await inviteEmployee(inviteEmail);
+                    const res = await inviteEmployee(inviteEmail);
                     setInviteModalOpen(false);
-                    toast.success(`Invitación enviada a ${inviteEmail}`);
+                    toast.success(res.message || "Invitaciones procesadas");
                   } catch (err: any) {
-                    toast.error(err.message || "Error al invitar empleado");
+                    toast.error(err.message || "Error al invitar empleados");
                   } finally {
                     setInviteLoading(false);
                   }

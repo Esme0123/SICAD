@@ -306,96 +306,86 @@ async function cambiarPassword(req, res) {
  */
 async function invite(req, res) {
   try {
-    const rawEmail = req.body.email;
-    if (!rawEmail) {
-      return res.status(400).json({ ok: false, message: 'El correo electrónico es requerido' });
-    }
-    const email = rawEmail.toLowerCase();
-
-    // Buscar si ya existe
-    const existente = await prisma.usuario.findUnique({ where: { email } });
-
-    // Caso A: usuario activo → 409
-    if (existente && existente.activo) {
-      return res.status(409).json({ ok: false, message: 'Este correo pertenece a un empleado activo en el sistema.' });
+    const raw = req.body.email;
+    if (!raw) {
+      return res.status(400).json({ ok: false, message: 'Ingresa al menos un correo electrónico.' });
     }
 
-    // Caso B: usuario inactivo/pendiente → reenviar invitación
-    if (existente && !existente.activo) {
-      const inviteToken = crypto.randomBytes(32).toString('hex');
-      const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    // Normalizar a array de correos
+    const emails = Array.isArray(raw)
+      ? raw.map((e) => String(e).trim().toLowerCase()).filter(Boolean)
+      : String(raw).split(/[\s,]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
 
-      await prisma.usuario.update({
-        where: { id: existente.id },
-        data: { inviteToken, inviteTokenExpires: expira },
-      });
+    if (emails.length === 0) {
+      return res.status(400).json({ ok: false, message: 'No se encontraron correos válidos.' });
+    }
 
+    let procesados = 0;
+
+    for (const email of emails) {
       try {
-        await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???');
-      } catch (emailError) {
-        console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
-        return res.status(500).json({ ok: false, message: 'El usuario se creó correctamente, pero no se pudo enviar el correo. Revisa los logs del servidor.' });
+        const existente = await prisma.usuario.findUnique({ where: { email } });
+
+        // Saltar activos
+        if (existente && existente.activo) continue;
+
+        if (existente && !existente.activo) {
+          // Reenviar
+          const inviteToken = crypto.randomBytes(32).toString('hex');
+          const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+          await prisma.usuario.update({
+            where: { id: existente.id },
+            data: { inviteToken, inviteTokenExpires: expira },
+          });
+
+          enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???')
+            .catch((err) => console.error("❌ ERROR DETALLADO SMTP GMAIL:", err));
+
+          procesados++;
+          continue;
+        }
+
+        // Crear nuevo
+        const ultimo = await prisma.usuario.findFirst({
+          where: { codigo: { startsWith: 'CC-' } },
+          orderBy: { codigo: 'desc' },
+        });
+
+        let codigo = 'CC-001';
+        if (ultimo && ultimo.codigo) {
+          const m = ultimo.codigo.match(/CC-(\d+)/);
+          if (m) codigo = `CC-${String(parseInt(m[1], 10) + 1).padStart(3, '0')}`;
+        }
+
+        const inviteToken = crypto.randomBytes(32).toString('hex');
+        const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        await prisma.usuario.create({
+          data: {
+            nombre: 'Pendiente',
+            email,
+            password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
+            codigo,
+            activo: false,
+            inviteToken,
+            inviteTokenExpires: expira,
+          },
+        });
+
+        enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, codigo)
+          .catch((err) => console.error("❌ ERROR DETALLADO SMTP GMAIL:", err));
+
+        procesados++;
+      } catch (itemError) {
+        console.error(`[user.invite] Error procesando ${email}:`, itemError);
       }
-
-      return res.json({ ok: true, message: 'Se ha reenviado la invitación al correo electrónico.' });
     }
 
-    // Caso C: usuario no existe → crear nuevo
-    const ultimoUsuario = await prisma.usuario.findFirst({
-      where: { codigo: { startsWith: 'CC-' } },
-      orderBy: { codigo: 'desc' },
-    });
-
-    let nuevoCodigo = 'CC-001';
-    if (ultimoUsuario && ultimoUsuario.codigo) {
-      const match = ultimoUsuario.codigo.match(/CC-(\d+)/);
-      if (match) {
-        const numero = parseInt(match[1], 10) + 1;
-        nuevoCodigo = `CC-${String(numero).padStart(3, '0')}`;
-      }
-    }
-
-    const inviteToken = crypto.randomBytes(32).toString('hex');
-    const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    const usuario = await prisma.usuario.create({
-      data: {
-        nombre: 'Pendiente',
-        email,
-        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
-        codigo: nuevoCodigo,
-        activo: false,
-        inviteToken,
-        inviteTokenExpires: expira,
-      },
-      select: {
-        id: true,
-        nombre: true,
-        email: true,
-        codigo: true,
-        activo: true,
-        createdAt: true,
-      },
-    });
-
-    try {
-      await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, nuevoCodigo);
-    } catch (emailError) {
-      console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
-      return res.status(500).json({ ok: false, message: 'El usuario se creó correctamente, pero no se pudo enviar el correo. Revisa los logs del servidor.' });
-    }
-
-    res.status(201).json({
-      ok: true,
-      data: usuario,
-      message: 'Invitación enviada con éxito.',
-    });
+    res.json({ ok: true, message: `Se procesaron ${procesados} invitaciones correctamente.` });
   } catch (error) {
-    if (error.code === 'P2002') {
-      return res.status(409).json({ ok: false, message: 'El email o código ya está registrado' });
-    }
     console.error('[user.invite]', error);
-    res.status(500).json({ ok: false, message: 'Error al invitar empleado' });
+    res.status(500).json({ ok: false, message: 'Error al invitar empleados' });
   }
 }
 
