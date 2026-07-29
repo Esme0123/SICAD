@@ -1,8 +1,7 @@
-import { scanImageFile } from "@/utils/qr.utils";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
-import { X, Camera, CameraOff, Loader2, Image, CheckCircle, Clock, XCircle } from "lucide-react";
+import { X, Camera, CameraOff, Loader2, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { marcarAsistenciaConAuth } from "@/services/qr.service";
 import { anunciarAsistencia } from "@/utils/tts.utils";
@@ -17,7 +16,6 @@ export const MobileEscanerQR: React.FC = () => {
   const [init, setInit] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [resultado, setResultado] = useState<{ tipo: "success" | "error"; accion?: string; estado?: string; mensaje: string; hora?: string; periodo?: string; empleadoNombre?: string } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onScanSuccess = useCallback(async (decodedText: string) => {
     let token = "";
@@ -103,7 +101,7 @@ export const MobileEscanerQR: React.FC = () => {
     const startCamera = async () => {
       const tienePermiso = await solicitarPermisoCamara();
       if (!tienePermiso) {
-        setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
+        setError("No se pudo acceder a la cámara. Revisa los permisos de tu navegador o dispositivo.");
         setInit(false);
         return;
       }
@@ -136,7 +134,7 @@ export const MobileEscanerQR: React.FC = () => {
             };
           }
         } catch (err2) {
-          setError("No se pudo acceder a la cámara. Usa la opción de tomar foto.");
+          setError("No se pudo acceder a la cámara. Revisa los permisos de tu navegador o dispositivo.");
           setInit(false);
         }
       }
@@ -151,27 +149,6 @@ export const MobileEscanerQR: React.FC = () => {
       }
     };
   }, [scanFrame]);
-
-  const handlePhotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setError("");
-    setIsLoading(true);
-    try {
-      const qrResult = await scanImageFile(file);
-      if (qrResult) {
-        onScanSuccess(qrResult);
-      } else {
-        setError('No se detectó ningún código QR en la imagen seleccionada.');
-      }
-    } catch (error) {
-      console.error("Error al procesar la imagen QR:", error);
-      setError('No se pudo leer la imagen. Intenta con una foto más clara.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onScanSuccess]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
@@ -206,13 +183,6 @@ export const MobileEscanerQR: React.FC = () => {
           <div className="flex flex-col items-center gap-4 p-6 text-center">
             <CameraOff size={40} className="text-red-400" />
             <p className="text-sm text-white/80">{error}</p>
-            <button
-              onClick={() => { fileInputRef.current?.click(); }}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/15 text-white text-sm font-semibold hover:bg-white/25 transition-colors cursor-pointer"
-            >
-              <Image size={16} />
-              Tomar foto al QR
-            </button>
             <button
               onClick={() => navigate("/app/inicio")}
               className="px-6 py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/20 transition-colors"
@@ -273,26 +243,10 @@ export const MobileEscanerQR: React.FC = () => {
                 Apunta el QR al centro de la pantalla
               </div>
             </div>
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-              <button
-                onClick={() => { fileInputRef.current?.click(); }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white/50 text-[10px] hover:bg-white/10 hover:text-white/70 transition-colors cursor-pointer"
-              >
-                <Image size={11} />
-                ¿No funciona la cámara? Usar foto
-              </button>
-            </div>
+
           </>
         )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoCapture}
-          className="hidden"
-        />
       </div>
     </div>
   );
