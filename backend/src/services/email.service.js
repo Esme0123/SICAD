@@ -14,15 +14,17 @@ function createTransporter() {
     console.warn('[email.service] SMTP_USER o SMTP_PASS no configurados. Los correos no se enviarán.');
     return null;
   }
+  const port = Number(process.env.SMTP_PORT) || 465;
   return nodemailer.createTransport({
     host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: false, // true para puerto 465, false para 587
+    port,
+    secure: port === 465, // true para puerto 465 (SSL), false para 587
     auth: { user: SMTP_USER, pass: SMTP_PASS },
     tls: { rejectUnauthorized: false },
-    connectionTimeout: 8000,
+    family: 4,
+    connectionTimeout: 10000,
     greetingTimeout: 5000,
-    socketTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
