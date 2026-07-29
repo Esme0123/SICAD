@@ -4,7 +4,7 @@
 
 require('dotenv').config();
 
-const required = ['DATABASE_URL', 'QR_SECRET_KEY', 'JWT_SECRET', 'SMTP_USER', 'SMTP_PASS'];
+const required = ['DATABASE_URL', 'QR_SECRET_KEY', 'JWT_SECRET', 'RESEND_API_KEY'];
 
 for (const key of required) {
   if (!process.env[key]) {

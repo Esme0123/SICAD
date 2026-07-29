@@ -4,7 +4,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/db');
-const { createTransporter, enviarCorreoInvitacion } = require('../services/email.service');
+const { enviarCorreoInvitacion } = require('../services/email.service');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -446,28 +446,30 @@ async function completeRegistration(req, res) {
 
 /**
  * GET /api/usuarios/test-email?to=correo@ejemplo.com
- * Endpoint de diagnóstico para probar la configuración SMTP.
+ * Endpoint de diagnóstico para probar la configuración de correo.
  */
 async function testEmail(req, res) {
   const { to } = req.query;
   if (!to) {
     return res.status(400).json({ success: false, error: "Proporciona un correo en el parámetro 'to'" });
   }
-  const transporter = createTransporter();
-  if (!transporter) {
-    return res.status(500).json({ success: false, error: "SMTP no configurado (faltan credenciales)" });
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(500).json({ success: false, error: "RESEND_API_KEY no configurado" });
   }
   try {
-    const info = await transporter.sendMail({
-      from: `"SICAD Sistema" <${process.env.SMTP_USER}>`,
-      to,
-      subject: "Prueba de Configuración SMTP - SICAD",
-      html: "<b>¡Si lees esto, el servicio de correo de Render funciona correctamente!</b>",
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: `SICAD <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+      to: [to],
+      subject: "Prueba de Configuración de Correo - SICAD",
+      html: "<b>¡Si lees esto, el servicio de correo funciona correctamente!</b>",
     });
-    return res.json({ success: true, message: "Correo enviado con éxito", messageId: info.messageId });
+    if (error) throw error;
+    return res.json({ success: true, message: "Correo enviado con éxito", data });
   } catch (error) {
     console.error("❌ Error en testEmail:", error);
-    return res.status(500).json({ success: false, error: error.message, code: error.code, stack: error.stack });
+    return res.status(500).json({ success: false, error: error.message, stack: error.stack });
   }
 }
 
