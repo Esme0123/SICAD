@@ -164,11 +164,21 @@ export async function deleteEmployee(id: number): Promise<void> {
  * POST /api/usuarios/invite
  */
 export async function inviteEmployee(email: string): Promise<{ ok: boolean; message: string }> {
-  const { data } = await api.post<{ ok: boolean; message: string; data?: any }>("/usuarios/invite", { email });
-  if (!data.ok) {
-    throw new Error(data.message || "Error al invitar empleado");
+  try {
+    const { data } = await api.post<{ ok: boolean; message: string; data?: any }>("/usuarios/invite", { email });
+    if (!data.ok) {
+      throw new Error(data.message || "Error al invitar empleado");
+    }
+    return data;
+  } catch (err: any) {
+    if (err?.response?.status === 409) {
+      throw new Error("Este correo electrónico ya se encuentra registrado en el sistema.");
+    }
+    if (err?.response?.status === 400) {
+      throw new Error(err?.response?.data?.message || "Solicitud inválida. Verifica los datos ingresados.");
+    }
+    throw new Error(err?.response?.data?.message || err.message || "Error al invitar empleado");
   }
-  return data;
 }
 
 export default {

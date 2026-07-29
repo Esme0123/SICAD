@@ -150,11 +150,10 @@ async function forgotPassword(req, res) {
       return res.status(400).json({ ok: false, message: 'El correo es requerido' });
     }
 
-    // Respuesta genérica para no revelar si el email existe
-    const generic = { ok: true, message: 'Si el correo está registrado, recibirás un enlace de restablecimiento.' };
-
     const usuario = await prisma.usuarioSistema.findUnique({ where: { email } });
-    if (!usuario) return res.json(generic);
+    if (!usuario) {
+      return res.status(404).json({ ok: false, message: 'El correo electrónico no se encuentra registrado' });
+    }
 
     // Generar token seguro de 32 bytes
     const token = crypto.randomBytes(32).toString('hex');
@@ -170,10 +169,15 @@ async function forgotPassword(req, res) {
       },
     });
 
-    // Enviar correo (si SMTP está configurado)
-    await enviarCorreoReset(usuario.email, usuario.nombre, token);
+    // Enviar correo con manejo de errores
+    try {
+      await enviarCorreoReset(usuario.email, usuario.nombre, token);
+    } catch (emailError) {
+      console.error("❌ Error enviando correo mediante Nodemailer:", emailError);
+      return res.status(500).json({ ok: false, message: 'Error al enviar el correo. Verifique la configuración SMTP.' });
+    }
 
-    return res.json(generic);
+    return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });
   } catch (error) {
     console.error('[auth.forgotPassword]', error);
     return res.status(500).json({ ok: false, message: 'Error al procesar la solicitud' });

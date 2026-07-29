@@ -14,6 +14,7 @@ import {
   Employee,
 } from "@/services/employees.service";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
+import { toast } from "sonner";
 
 interface EmployeesProps {
   dark: boolean;
@@ -573,14 +574,14 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               </button>
               <button
                 onClick={async () => {
-                  if (!inviteEmail) { alert("Ingresa un correo electrónico"); return; }
+                  if (!inviteEmail) { toast.error("Ingresa un correo electrónico"); return; }
                   setInviteLoading(true);
                   try {
                     await inviteEmployee(inviteEmail);
                     setInviteModalOpen(false);
-                    alert(`Invitación enviada a ${inviteEmail}`);
+                    toast.success(`Invitación enviada a ${inviteEmail}`);
                   } catch (err: any) {
-                    alert(err.message || "Error al invitar empleado");
+                    toast.error(err.message || "Error al invitar empleado");
                   } finally {
                     setInviteLoading(false);
                   }

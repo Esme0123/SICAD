@@ -17,8 +17,9 @@ function createTransporter() {
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: false, // STARTTLS en puerto 587
+    secure: false, // true para puerto 465, false para 587
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: { rejectUnauthorized: false },
   });
 }
 
