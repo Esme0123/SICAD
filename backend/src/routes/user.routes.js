@@ -1,13 +1,14 @@
 // src/routes/user.routes.js
 
 const { Router } = require('express');
-const { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration } = require('../controllers/user.controller');
+const { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration, testEmail } = require('../controllers/user.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
 
-// Ruta pública — debe ir ANTES de authMiddleware
+// Rutas públicas — deben ir ANTES de authMiddleware
 router.post('/complete-registration', completeRegistration);
+router.get('/test-email', testEmail);
 
 // Todas las rutas de usuarios requieren autenticación
 router.use(authMiddleware);

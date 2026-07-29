@@ -4,7 +4,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/db');
-const { enviarCorreoInvitacion } = require('../services/email.service');
+const { createTransporter, enviarCorreoInvitacion } = require('../services/email.service');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -444,4 +444,31 @@ async function completeRegistration(req, res) {
   }
 }
 
-module.exports = { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration };
+/**
+ * GET /api/usuarios/test-email?to=correo@ejemplo.com
+ * Endpoint de diagnóstico para probar la configuración SMTP.
+ */
+async function testEmail(req, res) {
+  const { to } = req.query;
+  if (!to) {
+    return res.status(400).json({ success: false, error: "Proporciona un correo en el parámetro 'to'" });
+  }
+  const transporter = createTransporter();
+  if (!transporter) {
+    return res.status(500).json({ success: false, error: "SMTP no configurado (faltan credenciales)" });
+  }
+  try {
+    const info = await transporter.sendMail({
+      from: `"SICAD Sistema" <${process.env.SMTP_USER}>`,
+      to,
+      subject: "Prueba de Configuración SMTP - SICAD",
+      html: "<b>¡Si lees esto, el servicio de correo de Render funciona correctamente!</b>",
+    });
+    return res.json({ success: true, message: "Correo enviado con éxito", messageId: info.messageId });
+  } catch (error) {
+    console.error("❌ Error en testEmail:", error);
+    return res.status(500).json({ success: false, error: error.message, code: error.code, stack: error.stack });
+  }
+}
+
+module.exports = { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration, testEmail };

@@ -140,46 +140,96 @@ async function getProfile(req, res) {
 
 /**
  * POST /api/auth/forgot-password
- * Genera un token de reset y envía el correo al usuario del sistema.
- * Body: { email }
+ * Busca por codigo o email en UsuarioSistema y Usuario.
+ * Body: { email } o { codigo }
  */
 async function forgotPassword(req, res) {
   try {
-    const rawEmail = req.body.email;
-    if (!rawEmail) {
-      return res.status(400).json({ ok: false, message: 'El correo es requerido' });
+    const { email, codigo } = req.body;
+    if (!email && !codigo) {
+      return res.status(400).json({ ok: false, message: 'Proporciona tu correo electrónico o código de empleado.' });
     }
-    const email = rawEmail.toLowerCase();
 
-    const usuario = await prisma.usuarioSistema.findUnique({ where: { email } });
-    if (!usuario) {
+    // Buscar por codigo en Usuario (empleados)
+    if (codigo) {
+      const emp = await prisma.usuario.findUnique({ where: { codigo: codigo.toUpperCase() } });
+      if (!emp) {
+        return res.status(404).json({ ok: false, message: 'No existe ninguna cuenta con este código de empleado.' });
+      }
+      if (!emp.activo) {
+        return res.status(400).json({ ok: false, message: 'Esta cuenta está desactivada. Contacta al administrador.' });
+      }
+      if (!emp.email) {
+        return res.status(400).json({ ok: false, message: 'Esta cuenta no tiene un correo electrónico registrado.' });
+      }
+
+      // Generar JWT de restablecimiento
+      const resetToken = jwt.sign(
+        { id: emp.id, email: emp.email, type: 'employee-reset' },
+        JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      try {
+        await enviarCorreoReset(emp.email, emp.nombre, resetToken);
+      } catch (emailError) {
+        console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
+        return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
+      }
+
+      return res.json({ ok: true, message: 'Si el código coincide con una cuenta activa, recibirás un enlace para restablecer tu contraseña.' });
+    }
+
+    // Buscar por email en UsuarioSistema (dashboard) y Usuario (empleados)
+    const normalizedEmail = email.toLowerCase();
+
+    const usuarioSistema = await prisma.usuarioSistema.findUnique({ where: { email: normalizedEmail } });
+    const empleado = await prisma.usuario.findUnique({ where: { email: normalizedEmail } });
+
+    if (!usuarioSistema && !empleado) {
       return res.status(404).json({ ok: false, message: 'No existe ninguna cuenta registrada con este correo electrónico.' });
     }
 
-    if (!usuario.activo) {
+    // Priorizar UsuarioSistema
+    if (usuarioSistema) {
+      if (!usuarioSistema.activo) {
+        return res.status(400).json({ ok: false, message: 'Esta cuenta está desactivada. Contacta al administrador.' });
+      }
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const expira = new Date(Date.now() + 60 * 60 * 1000);
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      await prisma.usuarioSistema.update({
+        where: { id: usuarioSistema.id },
+        data: { resetToken: tokenHash, resetTokenExpires: expira },
+      });
+
+      try {
+        await enviarCorreoReset(usuarioSistema.email, usuarioSistema.nombre, token);
+      } catch (emailError) {
+        console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
+        return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
+      }
+
+      return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });
+    }
+
+    // Empleado (Usuario)
+    if (!empleado.activo) {
       return res.status(400).json({ ok: false, message: 'Esta cuenta está desactivada. Contacta al administrador.' });
     }
 
-    // Generar token seguro de 32 bytes
-    const token = crypto.randomBytes(32).toString('hex');
-    const expira = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    const resetToken = jwt.sign(
+      { id: empleado.id, email: empleado.email, type: 'employee-reset' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    // Guardar token hasheado en la BD
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    await prisma.usuarioSistema.update({
-      where: { id: usuario.id },
-      data: {
-        resetToken:        tokenHash,
-        resetTokenExpires: expira,
-      },
-    });
-
-    // Enviar correo con manejo de errores
     try {
-      await enviarCorreoReset(usuario.email, usuario.nombre, token);
+      await enviarCorreoReset(empleado.email, empleado.nombre, resetToken);
     } catch (emailError) {
       console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
-      return res.status(500).json({ ok: false, message: 'El usuario se creó correctamente, pero no se pudo enviar el correo. Revisa los logs del servidor.' });
+      return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
     }
 
     return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });
@@ -191,7 +241,7 @@ async function forgotPassword(req, res) {
 
 /**
  * POST /api/auth/reset-password
- * Valida el token y actualiza la contraseña.
+ * Valida el token (crypto para UsuarioSistema, JWT para Usuario) y actualiza la contraseña.
  * Body: { token, nuevaPassword }
  */
 async function resetPassword(req, res) {
@@ -204,6 +254,22 @@ async function resetPassword(req, res) {
       return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
+    // Intentar como JWT (empleados)
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded.type === 'employee-reset' && decoded.id) {
+        const passwordHash = await bcrypt.hash(nuevaPassword, 10);
+        await prisma.usuario.update({
+          where: { id: decoded.id },
+          data: { password: passwordHash },
+        });
+        return res.json({ ok: true, message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' });
+      }
+    } catch (jwtError) {
+      // No es JWT válido, continuar con crypto token
+    }
+
+    // Crypto token (UsuarioSistema)
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const usuario = await prisma.usuarioSistema.findFirst({
       where: {

@@ -7,7 +7,7 @@ const SMTP_HOST    = process.env.SMTP_HOST    || 'smtp.gmail.com';
 const SMTP_PORT    = parseInt(process.env.SMTP_PORT || '587', 10);
 const SMTP_USER    = process.env.SMTP_USER    || '';
 const SMTP_PASS    = process.env.SMTP_PASS    || '';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sicad-m2ra.vercel.app';
 
 function createTransporter() {
   if (!SMTP_USER || !SMTP_PASS) {
@@ -218,4 +218,4 @@ async function enviarCorreoInvitacion(to, nombre, inviteToken, codigo) {
   console.log(`[email.service] Invitación enviada a: ${to}`);
 }
 
-module.exports = { enviarCorreoReset, enviarCredencialesUsuario, enviarCorreoInvitacion, FRONTEND_URL };
+module.exports = { createTransporter, enviarCorreoReset, enviarCredencialesUsuario, enviarCorreoInvitacion, FRONTEND_URL };
