@@ -178,8 +178,8 @@ async function forgotPassword(req, res) {
     try {
       await enviarCorreoReset(usuario.email, usuario.nombre, token);
     } catch (emailError) {
-      console.error("❌ Error enviando correo mediante Nodemailer:", emailError);
-      return res.status(500).json({ ok: false, message: 'Error al enviar el correo. Verifique la configuración SMTP.' });
+      console.error("❌ ERROR SMTP:", emailError);
+      return res.status(500).json({ ok: false, message: 'El usuario se procesó pero no se pudo enviar el correo de verificación. Verifique las credenciales SMTP en Render.' });
     }
 
     return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });

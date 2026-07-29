@@ -330,7 +330,12 @@ async function invite(req, res) {
         data: { inviteToken, inviteTokenExpires: expira },
       });
 
-      await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???');
+      try {
+        await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???');
+      } catch (emailError) {
+        console.error("❌ ERROR SMTP:", emailError);
+        return res.status(500).json({ ok: false, message: 'El usuario se procesó pero no se pudo enviar el correo de verificación. Verifique las credenciales SMTP en Render.' });
+      }
 
       return res.json({ ok: true, message: 'Se ha reenviado la invitación al correo electrónico.' });
     }
@@ -373,7 +378,12 @@ async function invite(req, res) {
       },
     });
 
-    await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, nuevoCodigo);
+    try {
+      await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, nuevoCodigo);
+    } catch (emailError) {
+      console.error("❌ ERROR SMTP:", emailError);
+      return res.status(500).json({ ok: false, message: 'El usuario se procesó pero no se pudo enviar el correo de verificación. Verifique las credenciales SMTP en Render.' });
+    }
 
     res.status(201).json({
       ok: true,

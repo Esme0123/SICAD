@@ -20,6 +20,9 @@ function createTransporter() {
     secure: false, // true para puerto 465, false para 587
     auth: { user: SMTP_USER, pass: SMTP_PASS },
     tls: { rejectUnauthorized: false },
+    connectionTimeout: 8000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
   });
 }
 
