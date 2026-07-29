@@ -178,8 +178,8 @@ async function forgotPassword(req, res) {
     try {
       await enviarCorreoReset(usuario.email, usuario.nombre, token);
     } catch (emailError) {
-      console.error("❌ ERROR SMTP:", emailError);
-      return res.status(500).json({ ok: false, message: 'El usuario se procesó pero no se pudo enviar el correo de verificación. Verifique las credenciales SMTP en Render.' });
+      console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
+      return res.status(500).json({ ok: false, message: 'El usuario se creó correctamente, pero no se pudo enviar el correo. Revisa los logs del servidor.' });
     }
 
     return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });
