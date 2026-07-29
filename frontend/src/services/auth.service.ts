@@ -87,11 +87,16 @@ export async function login(
  * POST /api/auth/forgot-password
  */
 export async function forgotPassword(email: string): Promise<{ ok: boolean; message: string }> {
-  const { data } = await api.post<{ ok: boolean; message: string }>(
-    '/auth/forgot-password',
-    { email }
-  );
-  return data;
+  try {
+    const { data } = await api.post<{ ok: boolean; message: string }>(
+      '/auth/forgot-password',
+      { email }
+    );
+    return data;
+  } catch (err: any) {
+    const message = err?.response?.data?.message || err.message || 'Error al solicitar restablecimiento';
+    throw new Error(message);
+  }
 }
 
 /**

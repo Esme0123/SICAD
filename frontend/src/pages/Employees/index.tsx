@@ -28,7 +28,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   const itemsPerPage = 6;
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia">("Todos");
+  const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia" | "Pendiente">("Todos");
   const [hoursFilter, setHoursFilter] = useState<"Todas" | 20 | 40>("Todas");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -288,7 +288,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 Estado:
               </span>
               <div className="flex gap-1.5">
-                {(["Todos", "Activo", "Inactivo", "Licencia"] as const).map((status) => (
+                {(["Todos", "Activo", "Inactivo", "Licencia", "Pendiente"] as const).map((status) => (
                   <button
                     key={status}
                     onClick={() => {

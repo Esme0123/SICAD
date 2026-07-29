@@ -25,6 +25,7 @@ export interface UsuarioBackend {
   ci?: string | null;
   celular?: string | null;
   activo?: boolean;
+  invitacionPendiente?: boolean;
   _count?: { horariosAsignados: number };
 }
 
@@ -45,7 +46,7 @@ export async function getEmployees(): Promise<Employee[]> {
       ci: user.ci || "N/A",
       name: user.nombre,
       role: user.rol === "ADMIN" ? "Administrador" : "Empleado",
-      status: user.activo ? "Activo" : "Inactivo",
+      status: user.activo ? "Activo" : user.invitacionPendiente ? "Pendiente" : "Inactivo",
       periods: periodCount,
       email: user.email,
       phone: user.celular || "N/A",

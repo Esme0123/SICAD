@@ -6,12 +6,13 @@ interface StatusBadgeProps {
 }
 
 const STATUS_MAP: Record<string, { bg: string; color: string }> = {
-  "Activo":   { bg: successBg(0.12), color: COLORS.success },
-  "Puntual":  { bg: successBg(0.12), color: COLORS.success },
-  "Inactivo": { bg: dangerBg(0.12),  color: COLORS.danger  },
-  "Ausente":  { bg: dangerBg(0.12),  color: COLORS.danger  },
-  "Licencia": { bg: warningBg(0.12), color: COLORS.warning  },
-  "Tardanza": { bg: warningBg(0.12), color: COLORS.warning  },
+  "Activo":    { bg: successBg(0.12), color: COLORS.success },
+  "Puntual":   { bg: successBg(0.12), color: COLORS.success },
+  "Inactivo":  { bg: dangerBg(0.12),  color: COLORS.danger  },
+  "Ausente":   { bg: dangerBg(0.12),  color: COLORS.danger  },
+  "Licencia":  { bg: warningBg(0.12), color: COLORS.warning  },
+  "Tardanza":  { bg: warningBg(0.12), color: COLORS.warning  },
+  "Pendiente": { bg: warningBg(0.12), color: COLORS.warning  },
 };
 
 const DEFAULT_STATUS = {

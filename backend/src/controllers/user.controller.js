@@ -22,12 +22,19 @@ async function getAll(req, res) {
         ci: true,
         celular: true,
         activo: true,
+        inviteToken: true,
         createdAt: true,
         _count: { select: { horariosAsignados: true } },
       },
       orderBy: { nombre: 'asc' },
     });
-    res.json({ ok: true, data: usuarios });
+
+    const data = usuarios.map(({ inviteToken, ...rest }) => ({
+      ...rest,
+      invitacionPendiente: inviteToken !== null,
+    }));
+
+    res.json({ ok: true, data });
   } catch (error) {
     console.error('[user.getAll]', error);
     res.status(500).json({ ok: false, message: 'Error al obtener usuarios' });
@@ -299,18 +306,36 @@ async function cambiarPassword(req, res) {
  */
 async function invite(req, res) {
   try {
-    const { email } = req.body;
-    if (!email) {
+    const rawEmail = req.body.email;
+    if (!rawEmail) {
       return res.status(400).json({ ok: false, message: 'El correo electrónico es requerido' });
     }
+    const email = rawEmail.toLowerCase();
 
-    // Verificar si el email ya está registrado
+    // Buscar si ya existe
     const existente = await prisma.usuario.findUnique({ where: { email } });
-    if (existente) {
-      return res.status(409).json({ ok: false, message: 'El correo ya está registrado como empleado' });
+
+    // Caso A: usuario activo → 409
+    if (existente && existente.activo) {
+      return res.status(409).json({ ok: false, message: 'Este correo pertenece a un empleado activo en el sistema.' });
     }
 
-    // Calcular el siguiente código CC-xxx
+    // Caso B: usuario inactivo/pendiente → reenviar invitación
+    if (existente && !existente.activo) {
+      const inviteToken = crypto.randomBytes(32).toString('hex');
+      const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await prisma.usuario.update({
+        where: { id: existente.id },
+        data: { inviteToken, inviteTokenExpires: expira },
+      });
+
+      await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???');
+
+      return res.json({ ok: true, message: 'Se ha reenviado la invitación al correo electrónico.' });
+    }
+
+    // Caso C: usuario no existe → crear nuevo
     const ultimoUsuario = await prisma.usuario.findFirst({
       where: { codigo: { startsWith: 'CC-' } },
       orderBy: { codigo: 'desc' },
@@ -325,11 +350,9 @@ async function invite(req, res) {
       }
     }
 
-    // Generar token de invitación
     const inviteToken = crypto.randomBytes(32).toString('hex');
-    const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días
+    const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Crear empleado en estado pendiente (inactivo + token)
     const usuario = await prisma.usuario.create({
       data: {
         nombre: 'Pendiente',
@@ -350,13 +373,12 @@ async function invite(req, res) {
       },
     });
 
-    // Enviar correo de invitación
     await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, nuevoCodigo);
 
     res.status(201).json({
       ok: true,
       data: usuario,
-      message: `Invitación enviada a ${email}`,
+      message: 'Invitación enviada con éxito.',
     });
   } catch (error) {
     if (error.code === 'P2002') {

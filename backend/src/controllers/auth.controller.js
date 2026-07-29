@@ -145,14 +145,19 @@ async function getProfile(req, res) {
  */
 async function forgotPassword(req, res) {
   try {
-    const { email } = req.body;
-    if (!email) {
+    const rawEmail = req.body.email;
+    if (!rawEmail) {
       return res.status(400).json({ ok: false, message: 'El correo es requerido' });
     }
+    const email = rawEmail.toLowerCase();
 
     const usuario = await prisma.usuarioSistema.findUnique({ where: { email } });
     if (!usuario) {
-      return res.status(404).json({ ok: false, message: 'El correo electrónico no se encuentra registrado' });
+      return res.status(404).json({ ok: false, message: 'No existe ninguna cuenta registrada con este correo electrónico.' });
+    }
+
+    if (!usuario.activo) {
+      return res.status(400).json({ ok: false, message: 'Esta cuenta está desactivada. Contacta al administrador.' });
     }
 
     // Generar token seguro de 32 bytes
