@@ -159,10 +159,23 @@ export async function deleteEmployee(id: number): Promise<void> {
   }
 }
 
+/**
+ * Invita a un nuevo empleado por correo electrónico.
+ * POST /api/usuarios/invite
+ */
+export async function inviteEmployee(email: string): Promise<{ ok: boolean; message: string }> {
+  const { data } = await api.post<{ ok: boolean; message: string; data?: any }>("/usuarios/invite", { email });
+  if (!data.ok) {
+    throw new Error(data.message || "Error al invitar empleado");
+  }
+  return data;
+}
+
 export default {
   getEmployees,
   getEmployeeByCode,
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  inviteEmployee,
 };

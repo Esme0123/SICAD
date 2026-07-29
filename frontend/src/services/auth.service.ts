@@ -83,6 +83,30 @@ export async function login(
 }
 
 /**
+ * Solicita restablecimiento de contraseña.
+ * POST /api/auth/forgot-password
+ */
+export async function forgotPassword(email: string): Promise<{ ok: boolean; message: string }> {
+  const { data } = await api.post<{ ok: boolean; message: string }>(
+    '/auth/forgot-password',
+    { email }
+  );
+  return data;
+}
+
+/**
+ * Confirma el nuevo password con el token del correo.
+ * POST /api/auth/reset-password
+ */
+export async function resetPassword(token: string, nuevaPassword: string): Promise<{ ok: boolean; message: string }> {
+  const { data } = await api.post<{ ok: boolean; message: string }>(
+    '/auth/reset-password',
+    { token, nuevaPassword }
+  );
+  return data;
+}
+
+/**
  * Cierra sesión localmente (JWT stateless — no hay endpoint de logout en el backend).
  */
 export async function logout(): Promise<void> {
@@ -98,4 +122,4 @@ export async function getProfile(): Promise<UserProfile> {
   return mapUsuario(data.usuario);
 }
 
-export default { login, logout, getProfile };
+export default { login, logout, getProfile, forgotPassword, resetPassword };

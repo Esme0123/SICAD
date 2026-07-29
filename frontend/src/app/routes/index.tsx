@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { RootLayout } from "../layouts/RootLayout";
 import { MobileLayout } from "../layouts/MobileLayout";
 import { Login } from "@/pages/Login";
+import { ResetPassword } from "@/pages/Auth/ResetPassword";
+import { RegisterEmployee } from "@/pages/Auth/RegisterEmployee";
 import { Dashboard } from "@/pages/Dashboard";
 import { Employees } from "@/pages/Employees";
 import { LeavesView } from "@/pages/Leaves";
@@ -32,6 +34,8 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
   return (
     <Routes>
       <Route path="/login" element={<Login dark={dark} />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/register-employee" element={<RegisterEmployee />} />
 
       {/* Admin Layout */}
       <Route element={<RootLayout dark={dark} onToggleDark={onToggleDark} />}>

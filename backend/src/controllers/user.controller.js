@@ -2,7 +2,9 @@
 // CRUD de usuarios + consulta de horas base/programadas
 
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const prisma = require('../config/db');
+const { enviarCorreoInvitacion } = require('../services/email.service');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -289,4 +291,135 @@ async function cambiarPassword(req, res) {
   }
 }
 
-module.exports = { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword };
+/**
+ * POST /api/usuarios/invite
+ * Invita a un nuevo empleado por correo electrónico.
+ * Genera código CC-xxx, invitaToken y envía el correo.
+ * Body: { email }
+ */
+async function invite(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ ok: false, message: 'El correo electrónico es requerido' });
+    }
+
+    // Verificar si el email ya está registrado
+    const existente = await prisma.usuario.findUnique({ where: { email } });
+    if (existente) {
+      return res.status(409).json({ ok: false, message: 'El correo ya está registrado como empleado' });
+    }
+
+    // Calcular el siguiente código CC-xxx
+    const ultimoUsuario = await prisma.usuario.findFirst({
+      where: { codigo: { startsWith: 'CC-' } },
+      orderBy: { codigo: 'desc' },
+    });
+
+    let nuevoCodigo = 'CC-001';
+    if (ultimoUsuario && ultimoUsuario.codigo) {
+      const match = ultimoUsuario.codigo.match(/CC-(\d+)/);
+      if (match) {
+        const numero = parseInt(match[1], 10) + 1;
+        nuevoCodigo = `CC-${String(numero).padStart(3, '0')}`;
+      }
+    }
+
+    // Generar token de invitación
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días
+
+    // Crear empleado en estado pendiente (inactivo + token)
+    const usuario = await prisma.usuario.create({
+      data: {
+        nombre: 'Pendiente',
+        email,
+        password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
+        codigo: nuevoCodigo,
+        activo: false,
+        inviteToken,
+        inviteTokenExpires: expira,
+      },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        codigo: true,
+        activo: true,
+        createdAt: true,
+      },
+    });
+
+    // Enviar correo de invitación
+    await enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, nuevoCodigo);
+
+    res.status(201).json({
+      ok: true,
+      data: usuario,
+      message: `Invitación enviada a ${email}`,
+    });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ ok: false, message: 'El email o código ya está registrado' });
+    }
+    console.error('[user.invite]', error);
+    res.status(500).json({ ok: false, message: 'Error al invitar empleado' });
+  }
+}
+
+/**
+ * POST /api/usuarios/complete-registration
+ * Endpoint público para que el empleado complete su registro con el token de invitación.
+ * Body: { token, nombre, ci, celular, password }
+ */
+async function completeRegistration(req, res) {
+  try {
+    const { token, nombre, ci, celular, password } = req.body;
+
+    if (!token || !nombre || !password) {
+      return res.status(400).json({ ok: false, message: 'token, nombre y password son requeridos' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
+    }
+
+    // Buscar usuario por token de invitación (sin expirar)
+    const usuario = await prisma.usuario.findFirst({
+      where: {
+        inviteToken: token,
+        inviteTokenExpires: { gt: new Date() },
+      },
+    });
+
+    if (!usuario) {
+      return res.status(400).json({ ok: false, message: 'El enlace de invitación es inválido o ha expirado. Contacta al administrador.' });
+    }
+
+    const ciGuardar = (ci && typeof ci === 'string' && ci.trim()) ? ci.trim() : null;
+    const celularGuardar = (celular && typeof celular === 'string' && celular.trim()) ? celular.trim() : null;
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Actualizar datos del empleado
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        nombre,
+        ci: ciGuardar,
+        celular: celularGuardar,
+        password: passwordHash,
+        activo: true,
+        inviteToken: null,
+        inviteTokenExpires: null,
+      },
+    });
+
+    res.json({ ok: true, message: 'Registro completado exitosamente. Ya puedes iniciar sesión con tu código y contraseña.' });
+  } catch (error) {
+    console.error('[user.completeRegistration]', error);
+    res.status(500).json({ ok: false, message: 'Error al completar el registro' });
+  }
+}
+
+module.exports = { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration };

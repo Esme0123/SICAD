@@ -14,11 +14,13 @@ import {
   QrCode,
   BarChart2,
   AlertCircle,
+  CheckCircle,
+  X,
 } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
 import { FormInput } from "@/components/forms/FormInput";
 import { useAuth } from "@/context/AuthContext";
-import { login as loginService } from "@/services/auth.service";
+import { login as loginService, forgotPassword } from "@/services/auth.service";
 
 // Define the validation schema with Zod
 const loginSchema = z.object({
@@ -45,6 +47,10 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   const {
     register,
@@ -283,25 +289,111 @@ export const Login: React.FC<LoginProps> = ({ dark }) => {
 
       {/* Modal de Olvidaste tu contraseña */}
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-4">
-            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
-              🔒
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowForgotPasswordModal(false); }}
+        >
+          <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+            }`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Restablecer Contraseña</h3>
+              <button
+                onClick={() => setShowForgotPasswordModal(false)}
+                className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/10 text-white/50" : "hover:bg-slate-100 text-slate-400"
+                  }`}
+              >
+                <X size={18} />
+              </button>
             </div>
-            <h3 className="text-lg font-bold text-slate-800">Restablecimiento de Contraseña</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Por políticas de seguridad, el restablecimiento de credenciales debe ser gestionado directamente con el Administrador.
-            </p>
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700">
-              📍 Contacte directamente con la administración del <strong>Centro de Cómputo UCB</strong>.
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowForgotPasswordModal(false)}
-              className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors text-sm"
-            >
-              Entendido
-            </button>
+
+            {forgotSent ? (
+              <div className="text-center space-y-4 py-4">
+                <div className="w-14 h-14 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle size={28} />
+                </div>
+                <p className="text-sm leading-relaxed">
+                  Te hemos enviado un enlace a tu correo para restablecer tu contraseña.
+                </p>
+                <p className={`text-xs ${dark ? "text-white/50" : "text-slate-500"}`}>
+                  Revisa tu bandeja de entrada y sigue las instrucciones.
+                </p>
+                <button
+                  onClick={() => { setShowForgotPasswordModal(false); setForgotSent(false); }}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 text-white"
+                  style={{ background: "var(--primary)" }}
+                >
+                  Entendido
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className={`text-sm leading-relaxed ${dark ? "text-white/70" : "text-slate-600"}`}>
+                  Ingresa tu correo electrónico registrado y te enviaremos un enlace para restablecer tu contraseña.
+                </p>
+
+                {forgotError && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
+                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}
+                  >
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"}`}>
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="usuario@ucb.edu.bo"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-all ${dark
+                        ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                        : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                      }`}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowForgotPasswordModal(false)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${dark
+                        ? "border-white/10 text-white/70 hover:bg-white/5"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!forgotEmail) { setForgotError("Ingresa tu correo electrónico"); return; }
+                      setForgotLoading(true);
+                      setForgotError(null);
+                      try {
+                        await forgotPassword(forgotEmail);
+                        setForgotSent(true);
+                      } catch (err: unknown) {
+                        setForgotError(err instanceof Error ? err.message : "Error al enviar el correo");
+                      } finally {
+                        setForgotLoading(false);
+                      }
+                    }}
+                    disabled={forgotLoading}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 text-white disabled:opacity-50 cursor-pointer"
+                    style={{ background: "var(--primary)" }}
+                  >
+                    {forgotLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <RefreshCw size={14} className="animate-spin" /> Enviando...
+                      </span>
+                    ) : (
+                      "Enviar enlace de recuperación"
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,8 +1,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const prisma = require('../config/db');
 const { JWT_SECRET } = require('../config/env');
 const { registrarAuditoria } = require('./auditoria.controller');
+const { enviarCorreoReset } = require('../services/email.service');
 
 async function login(req, res) {
   try {
@@ -136,4 +138,90 @@ async function getProfile(req, res) {
   }
 }
 
-module.exports = { login, loginMovil, getProfile };
+/**
+ * POST /api/auth/forgot-password
+ * Genera un token de reset y envía el correo al usuario del sistema.
+ * Body: { email }
+ */
+async function forgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ ok: false, message: 'El correo es requerido' });
+    }
+
+    // Respuesta genérica para no revelar si el email existe
+    const generic = { ok: true, message: 'Si el correo está registrado, recibirás un enlace de restablecimiento.' };
+
+    const usuario = await prisma.usuarioSistema.findUnique({ where: { email } });
+    if (!usuario) return res.json(generic);
+
+    // Generar token seguro de 32 bytes
+    const token = crypto.randomBytes(32).toString('hex');
+    const expira = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    // Guardar token hasheado en la BD
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await prisma.usuarioSistema.update({
+      where: { id: usuario.id },
+      data: {
+        resetToken:        tokenHash,
+        resetTokenExpires: expira,
+      },
+    });
+
+    // Enviar correo (si SMTP está configurado)
+    await enviarCorreoReset(usuario.email, usuario.nombre, token);
+
+    return res.json(generic);
+  } catch (error) {
+    console.error('[auth.forgotPassword]', error);
+    return res.status(500).json({ ok: false, message: 'Error al procesar la solicitud' });
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Valida el token y actualiza la contraseña.
+ * Body: { token, nuevaPassword }
+ */
+async function resetPassword(req, res) {
+  try {
+    const { token, nuevaPassword } = req.body;
+    if (!token || !nuevaPassword) {
+      return res.status(400).json({ ok: false, message: 'token y nuevaPassword son requeridos' });
+    }
+    if (nuevaPassword.length < 6) {
+      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const usuario = await prisma.usuarioSistema.findFirst({
+      where: {
+        resetToken: tokenHash,
+        resetTokenExpires: { gt: new Date() },
+      },
+    });
+
+    if (!usuario) {
+      return res.status(400).json({ ok: false, message: 'El enlace de restablecimiento es inválido o ha expirado' });
+    }
+
+    const passwordHash = await bcrypt.hash(nuevaPassword, 10);
+    await prisma.usuarioSistema.update({
+      where: { id: usuario.id },
+      data: {
+        passwordHash,
+        resetToken:        null,
+        resetTokenExpires: null,
+      },
+    });
+
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' });
+  } catch (error) {
+    console.error('[auth.resetPassword]', error);
+    return res.status(500).json({ ok: false, message: 'Error al restablecer la contraseña' });
+  }
+}
+
+module.exports = { login, loginMovil, getProfile, forgotPassword, resetPassword };

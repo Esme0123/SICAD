@@ -1,10 +1,13 @@
 // src/routes/user.routes.js
 
 const { Router } = require('express');
-const { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword } = require('../controllers/user.controller');
+const { getAll, getById, create, update, remove, getEmpleados, getPerfil, cambiarPassword, invite, completeRegistration } = require('../controllers/user.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
+
+// Ruta pública — debe ir ANTES de authMiddleware
+router.post('/complete-registration', completeRegistration);
 
 // Todas las rutas de usuarios requieren autenticación
 router.use(authMiddleware);
@@ -16,6 +19,9 @@ router.patch('/cambiar-password', cambiarPassword);
 
 // GET  /api/usuarios/empleados  — debe ir ANTES de /:id para evitar conflicto de rutas
 router.get('/empleados',  getEmpleados);
+
+// POST /api/usuarios/invite      — Invitar empleado por correo (Admin)
+router.post('/invite',    requireRol('ADMIN'), invite);
 
 router.get('/',           getAll);
 router.get('/:id',        getById);

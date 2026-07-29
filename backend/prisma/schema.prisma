@@ -51,6 +51,11 @@ model Usuario {
   celular           String?
   activo            Boolean            @default(true)
 
+  /// Token de invitación para auto-registro de empleados
+  inviteToken        String?           @unique
+  /// Fecha de expiración del token de invitación (7 días)
+  inviteTokenExpires DateTime?
+
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -312,6 +317,11 @@ model UsuarioSistema {
   codigo       String?    @unique
   ci           String?
   celular      String?
+
+  /// Token de restablecimiento de contraseña (almacenado como hash SHA-256)
+  resetToken        String?
+  /// Fecha de expiración del token de reset (1 hora)
+  resetTokenExpires DateTime?
 
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

@@ -10,6 +10,7 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  inviteEmployee,
   Employee,
 } from "@/services/employees.service";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
@@ -37,6 +38,9 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // Form values
   const [formValues, setFormValues] = useState<Omit<Employee, "periods">>({
@@ -254,13 +258,22 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
               <Filter size={13} /> Filtrar {(statusFilter !== "Todos" || hoursFilter !== "Todas") && "•"}
             </button>
           </div>
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
-            style={{ background: COLORS.primary }}
-          >
-            <Plus size={14} /> Nuevo empleado
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setInviteEmail(""); setInviteModalOpen(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all hover:opacity-90 cursor-pointer"
+              style={{ borderColor: COLORS.primary, color: COLORS.primary }}
+            >
+              <Mail size={14} /> Invitar por Correo
+            </button>
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
+              style={{ background: COLORS.primary }}
+            >
+              <Plus size={14} /> Nuevo empleado
+            </button>
+          </div>
         </div>
 
         {/* Filters Panel */}
@@ -509,6 +522,80 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
         </div>
       </div>
 
+      {/* INVITE MODAL */}
+      {inviteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div
+            className={`w-full max-w-md rounded-2xl p-6 shadow-2xl border transition-all ${dark ? "bg-[#1E293B] border-white/10 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Mail size={18} /> Invitar Empleado
+              </h3>
+              <button
+                onClick={() => setInviteModalOpen(false)}
+                className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/10 text-white/50" : "hover:bg-slate-100 text-slate-400"
+                  }`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="py-4">
+              <p className={`text-sm mb-4 ${dark ? "text-white/70" : "text-slate-600"}`}>
+                Ingresa el correo electrónico del empleado. Se le enviará un enlace para que complete su registro.
+              </p>
+              <label className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"}`}>
+                Correo Electrónico *
+              </label>
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="empleado@ucb.edu.bo"
+                className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                    ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                  }`}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+              <button
+                onClick={() => setInviteModalOpen(false)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${dark
+                    ? "border-white/10 text-white/70 hover:bg-white/5"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  if (!inviteEmail) { alert("Ingresa un correo electrónico"); return; }
+                  setInviteLoading(true);
+                  try {
+                    await inviteEmployee(inviteEmail);
+                    setInviteModalOpen(false);
+                    alert(`Invitación enviada a ${inviteEmail}`);
+                  } catch (err: any) {
+                    alert(err.message || "Error al invitar empleado");
+                  } finally {
+                    setInviteLoading(false);
+                  }
+                }}
+                disabled={inviteLoading}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 cursor-pointer disabled:opacity-50"
+                style={{ background: COLORS.primary }}
+              >
+                {inviteLoading ? "Enviando..." : "Enviar Invitación"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DETAIL MODAL */}
       {detailModalOpen && selectedEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
@@ -659,17 +746,17 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                       className={`block text-xs font-semibold mb-1 ${dark ? "text-white/60" : "text-slate-500"
                         }`}
                     >
-                      Código *
+                      Código
+                      <span className="ml-1 text-[10px] font-normal opacity-60">(auto)</span>
                     </label>
                     <input
                       type="text"
-                      required
-                      disabled={isEditing}
+                      readOnly
+                      disabled
                       value={formValues.code}
-                      onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
-                          ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60 disabled:opacity-50"
-                          : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50 disabled:opacity-50"
+                      className={`w-full px-3 py-2 rounded-xl border text-sm outline-none cursor-not-allowed select-none ${dark
+                          ? "bg-white/5 border-white/10 text-white/40 opacity-60"
+                          : "bg-slate-100 border-slate-200 text-slate-500 opacity-80"
                         }`}
                     />
                   </div>
