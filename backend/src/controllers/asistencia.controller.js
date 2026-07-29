@@ -1109,101 +1109,34 @@ async function miHistorial(req, res) {
       return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
     }
 
-    const data = asistencias.map((a) => {
-      let estado = 'Puntual';
-      let minutosRetraso = null;
-
-      if (a.horaEntrada) {
-        const obs = (a.observacion || '').toLowerCase();
-        if (obs.startsWith('llegó') || obs.includes('tarde')) {
-          estado = 'Tardanza';
-          const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
-          if (match) minutosRetraso = parseInt(match[1]);
-        }
-      } else {
-        const obs = (a.observacion || '').toLowerCase();
-        if (obs.startsWith('llegó') || obs.includes('tarde')) {
-          estado = 'Tardanza';
-          const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
-          if (match) minutosRetraso = parseInt(match[1]);
-        } else if (obs.includes('permiso') || obs.includes('justificado')) {
-          estado = 'Justificado';
-        }
-      }
-
+    // ── Indexar asistencias por (fecha × periodoLabel) ──
+    const asistenciaIdx = new Map();
+    for (const a of asistencias) {
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
       const fechaStr = fd.toISOString().split('T')[0];
-      return {
-        id: a.id,
-        fecha: fechaStr,
-        fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
-          timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-        }),
-        horaEntrada: fmtTime(a.horaEntrada),
-        horaSalida: fmtTime(a.horaSalida),
-        estado,
-        periodo: a.periodo || getPeriodoHorario(fd),
-        observacion: a.observacion,
-        minutosRetraso,
-        salidaOmitida: a.salidaOmitida,
-      };
-    });
+      const pLabel = a.periodo ? a.periodo.replace(/\s*-\s*/g, '–') : '';
+      if (!pLabel) continue;
+      if (!asistenciaIdx.has(fechaStr)) asistenciaIdx.set(fechaStr, new Map());
+      asistenciaIdx.get(fechaStr).set(pLabel, a);
+    }
 
-    // ── Agregar permisos APROBADOS como registros "Justificado" ──
+    // ── Indexar permisos APROBADOS por fecha ──
     const permisos = await prisma.permiso.findMany({
-      where: {
-        usuarioId,
-        estado: 'APROBADO',
-        fecha: { gte: startDate, lte: endDate },
-      },
+      where: { usuarioId, estado: 'APROBADO', fecha: { gte: startDate, lte: endDate } },
       include: {
         tipoPermiso: { select: { nombre: true } },
         periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } },
       },
     });
-
-    const permisosPorFecha = new Map();
+    const permisosIdx = new Map();
     for (const p of permisos) {
       const pfecha = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
       const fechaStr = pfecha.toISOString().split('T')[0];
-      const tienePeriodos = p.periodos && p.periodos.length > 0;
-      const nombrePeriodos = tienePeriodos
-        ? p.periodos.map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`).join(', ')
-        : 'Todo el día';
-
-      const obsTexto = `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`;
-
-      if (!permisosPorFecha.has(fechaStr)) permisosPorFecha.set(fechaStr, []);
-      permisosPorFecha.get(fechaStr).push({
-        id: p.id,
-        nombrePeriodos,
-        observacion: obsTexto,
-        cubreTodo: !tienePeriodos,
-      });
-
-      const yaExisteJustificado = data.some(
-        (d) => d.estado === 'Justificado' && d.fecha === fechaStr
-      );
-
-      if (!yaExisteJustificado) {
-        data.push({
-          id: `permiso-${p.id}`,
-          fecha: fechaStr,
-          fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
-            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          }),
-          horaEntrada: null,
-          horaSalida: null,
-          estado: 'Justificado',
-          periodo: nombrePeriodos,
-          observacion: obsTexto,
-          minutosRetraso: null,
-          salidaOmitida: false,
-        });
-      }
+      if (!permisosIdx.has(fechaStr)) permisosIdx.set(fechaStr, []);
+      permisosIdx.get(fechaStr).push(p);
     }
 
-    // ── Calcular ausentes respetando la fecha de asignaci�n ──
+    // ── Loop único por (fecha × turno asignado) ──
     const fechasEnRango = [];
     for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
       fechasEnRango.push(new Date(d));
@@ -1213,13 +1146,7 @@ async function miHistorial(req, res) {
     const ahoraMin = ahoraBol.getHours() * 60 + ahoraBol.getMinutes();
     const hoyStr = `${ahoraBol.getFullYear()}-${String(ahoraBol.getMonth() + 1).padStart(2, '0')}-${String(ahoraBol.getDate()).padStart(2, '0')}`;
 
-    const asistenciaPorFecha = new Map();
-    for (const a of asistencias) {
-      const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-      const key = fd.toISOString().split('T')[0];
-      if (!asistenciaPorFecha.has(key)) asistenciaPorFecha.set(key, []);
-      asistenciaPorFecha.get(key).push(a);
-    }
+    const data = [];
 
     for (const fecha of fechasEnRango) {
       const fechaStr = fecha.toISOString().split('T')[0];
@@ -1231,8 +1158,8 @@ async function miHistorial(req, res) {
       const horariosDia = horarioPorDia.get(diaSemana) || [];
       if (horariosDia.length === 0) continue;
 
-      const asistenciasDeHoy = asistenciaPorFecha.get(fechaStr) || [];
-      const permisosDeHoy = permisosPorFecha.get(fechaStr) || [];
+      const asistenciasFecha = asistenciaIdx.get(fechaStr) || new Map();
+      const permisosFecha = permisosIdx.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
 
       for (const h of horariosDia) {
@@ -1245,14 +1172,78 @@ async function miHistorial(req, res) {
 
         const periodoLabel = `${h.horaInicio}–${h.horaFin}`;
 
-        const cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
-        if (cubierto) continue;
+        // ── ¿Tiene marcación? ──
+        const a = asistenciasFecha.get(periodoLabel);
+        if (a) {
+          let estado = 'Puntual';
+          let minutosRetraso = null;
+          if (a.horaEntrada) {
+            const obs = (a.observacion || '').toLowerCase();
+            if (obs.startsWith('llegó') || obs.includes('tarde')) {
+              estado = 'Tardanza';
+              const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
+              if (match) minutosRetraso = parseInt(match[1]);
+            }
+          }
+          const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+          const fStr2 = fd2.toISOString().split('T')[0];
+          data.push({
+            id: a.id,
+            fecha: fStr2,
+            fechaLegible: new Date(fStr2 + 'T12:00:00').toLocaleDateString('es-BO', {
+              timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }),
+            horaEntrada: fmtTime(a.horaEntrada),
+            horaSalida: fmtTime(a.horaSalida),
+            estado,
+            periodo: periodoLabel,
+            observacion: a.observacion,
+            minutosRetraso,
+            salidaOmitida: a.salidaOmitida,
+          });
+          continue;
+        }
 
-        const cubiertoPermiso = permisosDeHoy.some(p =>
-          p.cubreTodo || p.nombrePeriodos.includes(h.horaInicio)
-        );
-        if (cubiertoPermiso) continue;
+        // ── Sin marcación → ¿cubre permiso aprobado? ──
+        const permisoCubre = permisosFecha.some(p => {
+          const tienePeriodos = p.periodos && p.periodos.length > 0;
+          if (!tienePeriodos) return true;
+          return p.periodos.some(pp =>
+            pp.periodo.horaInicio === h.horaInicio && pp.periodo.horaFin === h.horaFin
+          );
+        });
 
+        if (permisoCubre) {
+          const p = permisosFecha.find(p2 => {
+            const tienePeriodos = p2.periodos && p2.periodos.length > 0;
+            if (!tienePeriodos) return true;
+            return p2.periodos.some(pp =>
+              pp.periodo.horaInicio === h.horaInicio && pp.periodo.horaFin === h.horaFin
+            );
+          });
+          const obsTexto = `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`;
+          const tienePeriodos = p.periodos && p.periodos.length > 0;
+          const nombrePeriodos = tienePeriodos
+            ? p.periodos.map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`).join(', ')
+            : 'Todo el día';
+          data.push({
+            id: `permiso-${p.id}`,
+            fecha: fechaStr,
+            fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
+              timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }),
+            horaEntrada: null,
+            horaSalida: null,
+            estado: 'Justificado',
+            periodo: nombrePeriodos,
+            observacion: obsTexto,
+            minutosRetraso: null,
+            salidaOmitida: false,
+          });
+          continue;
+        }
+
+        // ── Sin marcación ni permiso → Ausente (solo si el turno ya pasó hoy) ──
         if (esHoy) {
           const [hFin, mFin] = h.horaFin.split(':').map(Number);
           if (ahoraMin < hFin * 60 + mFin) continue;
