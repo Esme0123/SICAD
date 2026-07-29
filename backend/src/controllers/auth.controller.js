@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const prisma = require('../config/db');
 const { JWT_SECRET } = require('../config/env');
 const { registrarAuditoria } = require('./auditoria.controller');
-const { enviarCorreoReset } = require('../services/email.service');
+const { enviarCorreoRecuperacion } = require('../services/email.service');
 
 async function login(req, res) {
   try {
@@ -171,7 +171,7 @@ async function forgotPassword(req, res) {
       );
 
       try {
-        await enviarCorreoReset(emp.email, emp.nombre, resetToken);
+        await enviarCorreoRecuperacion(emp.email, resetToken);
       } catch (emailError) {
         console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
         return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
@@ -205,11 +205,11 @@ async function forgotPassword(req, res) {
       });
 
       try {
-        await enviarCorreoReset(usuarioSistema.email, usuarioSistema.nombre, token);
+        await enviarCorreoRecuperacion(usuarioSistema.email, token);
       } catch (emailError) {
-        console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
-        return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
-      }
+console.error("❌ ERROR DETALLADO Brevo API:", emailError);
+      return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
+    }
 
       return res.json({ ok: true, message: 'Te hemos enviado un enlace a tu correo para restablecer tu contraseña.' });
     }
@@ -226,9 +226,9 @@ async function forgotPassword(req, res) {
     );
 
     try {
-      await enviarCorreoReset(empleado.email, empleado.nombre, resetToken);
+      await enviarCorreoRecuperacion(empleado.email, resetToken);
     } catch (emailError) {
-      console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
+      console.error("❌ ERROR DETALLADO Brevo API:", emailError);
       return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
     }
 

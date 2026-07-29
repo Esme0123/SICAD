@@ -4,7 +4,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/db');
-const { enviarCorreoInvitacion } = require('../services/email.service');
+const { enviarCorreoInvitacion, sendBrevoEmail } = require('../services/email.service');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -453,23 +453,16 @@ async function testEmail(req, res) {
   if (!to) {
     return res.status(400).json({ success: false, error: "Proporciona un correo en el parámetro 'to'" });
   }
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(500).json({ success: false, error: "RESEND_API_KEY no configurado" });
-  }
   try {
-    const { Resend } = require('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { data, error } = await resend.emails.send({
-      from: `SICAD <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
-      to: [to],
-      subject: "Prueba de Configuración de Correo - SICAD",
-      html: "<b>¡Si lees esto, el servicio de correo funciona correctamente!</b>",
-    });
-    if (error) throw error;
-    return res.json({ success: true, message: "Correo enviado con éxito", data });
+    const result = await sendBrevoEmail(
+      to,
+      'Prueba Brevo API - SICAD',
+      '<b>¡Correo enviado exitosamente a cualquier destinatario a través de la API de Brevo!</b>'
+    );
+    return res.json({ success: true, message: "Correo enviado con éxito", result });
   } catch (error) {
-    console.error("❌ Error en testEmail:", error);
-    return res.status(500).json({ success: false, error: error.message, stack: error.stack });
+    console.error("❌ Error en testEmail Brevo:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
 
