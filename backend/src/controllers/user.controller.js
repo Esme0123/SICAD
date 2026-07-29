@@ -4,7 +4,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/db');
-const { enviarCorreoInvitacion, sendBrevoEmail } = require('../services/email.service');
+const { enviarCorreoInvitacion, sendSendGridEmail } = require('../services/email.service');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -340,7 +340,7 @@ async function invite(req, res) {
           });
 
           enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, existente.codigo || 'CC-???')
-            .catch((err) => console.error("❌ ERROR DETALLADO SMTP GMAIL:", err));
+            .catch((err) => console.error("❌ ERROR DETALLADO SendGrid API:", err));
 
           procesados++;
           continue;
@@ -374,7 +374,7 @@ async function invite(req, res) {
         });
 
         enviarCorreoInvitacion(email, email.split('@')[0], inviteToken, codigo)
-          .catch((err) => console.error("❌ ERROR DETALLADO SMTP GMAIL:", err));
+          .catch((err) => console.error("❌ ERROR DETALLADO SendGrid API:", err));
 
         procesados++;
       } catch (itemError) {
@@ -454,14 +454,14 @@ async function testEmail(req, res) {
     return res.status(400).json({ success: false, error: "Proporciona un correo en el parámetro 'to'" });
   }
   try {
-    const result = await sendBrevoEmail(
+    const result = await sendSendGridEmail(
       to,
-      'Prueba Brevo API - SICAD',
-      '<b>¡Correo enviado exitosamente a cualquier destinatario a través de la API de Brevo!</b>'
+      'Prueba SendGrid API - SICAD',
+      '<b>¡Correo enviado exitosamente mediante la API de SendGrid!</b>'
     );
     return res.json({ success: true, message: "Correo enviado con éxito", result });
   } catch (error) {
-    console.error("❌ Error en testEmail Brevo:", error);
+    console.error("❌ Error en testEmail SendGrid:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 }

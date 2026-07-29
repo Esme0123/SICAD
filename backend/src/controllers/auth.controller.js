@@ -173,7 +173,7 @@ async function forgotPassword(req, res) {
       try {
         await enviarCorreoRecuperacion(emp.email, resetToken);
       } catch (emailError) {
-        console.error("❌ ERROR DETALLADO SMTP GMAIL:", emailError);
+        console.error("❌ ERROR DETALLADO SendGrid API:", emailError);
         return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
       }
 
@@ -207,7 +207,7 @@ async function forgotPassword(req, res) {
       try {
         await enviarCorreoRecuperacion(usuarioSistema.email, token);
       } catch (emailError) {
-console.error("❌ ERROR DETALLADO Brevo API:", emailError);
+console.error("❌ ERROR DETALLADO SendGrid API:", emailError);
       return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
     }
 
@@ -228,7 +228,7 @@ console.error("❌ ERROR DETALLADO Brevo API:", emailError);
     try {
       await enviarCorreoRecuperacion(empleado.email, resetToken);
     } catch (emailError) {
-      console.error("❌ ERROR DETALLADO Brevo API:", emailError);
+      console.error("❌ ERROR DETALLADO SendGrid API:", emailError);
       return res.status(500).json({ ok: false, message: 'No se pudo enviar el correo. Revisa los logs del servidor.' });
     }
 
