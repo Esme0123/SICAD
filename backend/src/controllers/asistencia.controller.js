@@ -1006,7 +1006,7 @@ async function miHistorial(req, res) {
   try {
     const usuarioId = parseInt(req.usuario.id);
     if (isNaN(usuarioId)) {
-      return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+      return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
     }
 
     const ahoraBolivia = getBoliviaDate();
@@ -1052,19 +1052,19 @@ async function miHistorial(req, res) {
       // ── Prioridad 2: rango explícito ──
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
       }
       startDate = fechaLocalMedioDia(fechaInicio);
       endDate   = fechaLocalMedioDia(fechaFin);
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
       }
     } else {
       // ── Prioridad 3: mes/año ──
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
       const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
       if (mes < 1 || mes > 12) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0 } });
+        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
       }
       const ultimoDia = new Date(anio, mes, 0, 12, 0, 0).getDate();
       startDate = new Date(anio, mes - 1, 1, 12, 0, 0);
@@ -1166,18 +1166,26 @@ async function miHistorial(req, res) {
     for (const p of permisos) {
       const pfecha = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
       const fechaStr = pfecha.toISOString().split('T')[0];
-      const nombrePeriodos = p.periodos
-        .map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`)
-        .join(', ') || 'Permiso';
+      const tienePeriodos = p.periodos && p.periodos.length > 0;
+      const nombrePeriodos = tienePeriodos
+        ? p.periodos.map(pp => `${pp.periodo.horaInicio}–${pp.periodo.horaFin}`).join(', ')
+        : 'Todo el día';
+
+      const obsTexto = `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`;
 
       if (!permisosPorFecha.has(fechaStr)) permisosPorFecha.set(fechaStr, []);
-      permisosPorFecha.get(fechaStr).push({ id: p.id, nombrePeriodos, observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}` });
+      permisosPorFecha.get(fechaStr).push({
+        id: p.id,
+        nombrePeriodos,
+        observacion: obsTexto,
+        cubreTodo: !tienePeriodos,
+      });
 
-      const yaExiste = data.some(
+      const yaExisteJustificado = data.some(
         (d) => d.estado === 'Justificado' && d.fecha === fechaStr
       );
 
-      if (!yaExiste) {
+      if (!yaExisteJustificado) {
         data.push({
           id: `permiso-${p.id}`,
           fecha: fechaStr,
@@ -1188,7 +1196,7 @@ async function miHistorial(req, res) {
           horaSalida: null,
           estado: 'Justificado',
           periodo: nombrePeriodos,
-          observacion: `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`,
+          observacion: obsTexto,
           minutosRetraso: null,
           salidaOmitida: false,
         });
@@ -1227,18 +1235,22 @@ async function miHistorial(req, res) {
       const permisosDeHoy = permisosPorFecha.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
 
-      const fechaDate = new Date(fechaStr + 'T12:00:00Z');
-
       for (const h of horariosDia) {
-        if (fechaDate < h.createdAt) continue;
+        const createdAtStr = typeof h.createdAt === 'string'
+          ? h.createdAt.split('T')[0]
+          : h.createdAt instanceof Date
+            ? h.createdAt.toISOString().split('T')[0]
+            : '';
+        if (fechaStr < createdAtStr) continue;
+
         const periodoLabel = `${h.horaInicio}–${h.horaFin}`;
 
-        let cubierto = asistenciasDeHoy.some(a => {
-          return a.periodo === periodoLabel || (a.horaEntrada != null && a.periodo === periodoLabel);
-        });
+        const cubierto = asistenciasDeHoy.some(a => a.periodo === periodoLabel);
         if (cubierto) continue;
 
-        const cubiertoPermiso = permisosDeHoy.some(p => p.nombrePeriodos.includes(h.horaInicio));
+        const cubiertoPermiso = permisosDeHoy.some(p =>
+          p.cubreTodo || p.nombrePeriodos.includes(h.horaInicio)
+        );
         if (cubiertoPermiso) continue;
 
         if (esHoy) {
