@@ -17,7 +17,7 @@
   "prefer_related_applications": false,
   "related_applications": [],
   "scope_extensions": [
-    { "origin": "*.vercel.app" }
+    { "origin": "*.edgarcallisaya.com" }
   ],
   "launch_handler": {
     "client_mode": "focus-existing"

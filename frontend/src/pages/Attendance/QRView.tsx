@@ -196,7 +196,7 @@ export const QRView: React.FC<QRViewProps> = ({ dark }) => {
               </div>
             ) : (
               <QRCodeSVG
-                value={`https://sicad-m2ra.vercel.app/app/login?token=${encodeURIComponent(token)}`}
+                value={`https://sicad.edgarcallisaya.com/app/login?token=${encodeURIComponent(token)}`}
                 size={220}
                 fgColor={qrColor}
                 bgColor="#FFFFFF"

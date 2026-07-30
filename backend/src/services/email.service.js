@@ -2,7 +2,7 @@
 // Servicio de envío de correos con SendGrid API v3
 
 const SENDGRID_API_URL = 'https://api.sendgrid.com/v3/mail/send';
-const FRONTEND_URL     = process.env.FRONTEND_URL  || 'https://sicad-m2ra.vercel.app';
+const FRONTEND_URL     = process.env.FRONTEND_URL  || 'https://sicad.edgarcallisaya.com';
 const SENDER_EMAIL     = process.env.SMTP_USER     || 'esm.med123@gmail.com';
 
 async function sendSendGridEmail(toEmail, subject, htmlContent) {
