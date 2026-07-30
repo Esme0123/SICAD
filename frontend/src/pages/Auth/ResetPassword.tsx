@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { Lock, Eye, EyeOff, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
@@ -8,7 +8,14 @@ import { resetPassword } from "@/services/auth.service";
 export const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
   const token = searchParams.get("token") || "";
+
+  // 💡 DETECCIÓN DINÁMICA: Detecta si viene de la app o de la web
+  const fromParam = searchParams.get("from") || searchParams.get("source");
+  const isApp = fromParam === "app" || location.pathname.startsWith("/app");
+  const loginPath = isApp ? "/app/login" : "/login";
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -78,7 +85,8 @@ export const ResetPassword: React.FC = () => {
 
           {success ? (
             <div className="text-center space-y-4 py-6">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
                 style={{ background: "rgba(34,197,94,0.15)" }}
               >
                 <CheckCircle size={32} style={{ color: "#22c55e" }} />
@@ -89,8 +97,10 @@ export const ResetPassword: React.FC = () => {
               <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
                 Tu contraseña se ha actualizado correctamente. Ya puedes iniciar sesión con tu nueva contraseña.
               </p>
+
+              {/* 🔘 Botón con redirección dinámica */}
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate(loginPath)}
                 className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 cursor-pointer"
                 style={{ background: "var(--primary)" }}
               >

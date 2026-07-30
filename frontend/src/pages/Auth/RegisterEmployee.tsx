@@ -105,7 +105,7 @@ export const RegisterEmployee: React.FC = () => {
                 Tu cuenta ha sido activada exitosamente. Ya puedes iniciar sesión con tu código de empleado y contraseña.
               </p>
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/app/login")}
                 className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 cursor-pointer"
                 style={{ background: "var(--primary)" }}
               >
