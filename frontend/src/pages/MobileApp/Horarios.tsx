@@ -16,9 +16,10 @@ import {
   firstWeekdayOnOrAfter,
   dayToIcs,
   dayToIndex,
-  formatICalDateTime,
   buildWeeklyRRule,
+  getMergedShiftsByDay,
   CalendarEvent,
+  ScheduleSlot,
 } from "@/utils/calendar.utils";
 
 const DIAS_LAB = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
@@ -170,27 +171,38 @@ export const MobileHorarios: React.FC = () => {
     }
 
     const seen = new Set<string>();
-    const events: CalendarEvent[] = [];
+    const slots: ScheduleSlot[] = [];
 
     for (const a of asignaciones) {
       if (!a.periodo) continue;
-      const dayIcs = dayToIcs[a.diaSemana];
-      const dow = dayToIndex[a.diaSemana];
-      if (!dayIcs || !dow) continue;
-      const key = `${a.diaSemana}|${a.periodo.horaInicio}`;
+      const key = `${a.diaSemana}|${a.periodo.horaInicio}|${a.periodo.horaFin}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      slots.push({
+        day: a.diaSemana,
+        startTime: formatHora(a.periodo.horaInicio),
+        endTime: formatHora(a.periodo.horaFin),
+      });
+    }
+
+    const shifts = getMergedShiftsByDay(slots);
+    const events: CalendarEvent[] = [];
+
+    for (const shift of shifts) {
+      const dayIcs = dayToIcs[shift.day];
+      const dow = dayToIndex[shift.day];
+      if (!dayIcs || !dow) continue;
 
       const firstDate = firstWeekdayOnOrAfter(startDate, dow);
-      const [hI, mI] = a.periodo.horaInicio.split(":").map(Number);
-      const [hF, mF] = a.periodo.horaFin.split(":").map(Number);
+      const [hI, mI] = shift.startTime.split(":").map(Number);
+      const [hF, mF] = shift.endTime.split(":").map(Number);
       const startDT = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), hI || 0, mI || 0, 0);
       const endDT = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), hF || 0, mF || 0, 0);
       const until = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
 
       events.push({
-        summary: `SICAD - Turno ${formatHora(a.periodo.horaInicio)} a ${formatHora(a.periodo.horaFin)}`,
-        description: `Horario asignado en SICAD (${a.diaSemana})`,
+        summary: `SICAD - Turno ${shift.startTime} a ${shift.endTime}`,
+        description: `Jornada laboral asignada en SICAD (${shift.day})`,
         location: "SICAD",
         start: startDT,
         end: endDT,

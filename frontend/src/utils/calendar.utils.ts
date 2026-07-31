@@ -14,6 +14,18 @@ export interface CalendarEvent {
   rrule?: string;
 }
 
+export interface ScheduleSlot {
+  day: string;
+  startTime: string; // "07:00"
+  endTime: string;   // "08:15"
+}
+
+export interface MergedShift {
+  day: string;
+  startTime: string; // "07:00"
+  endTime: string;   // "10:15" (se fusionaron 3 bloques)
+}
+
 const DAYS_TO_ICS: Record<string, string> = {
   Lunes: "MO",
   Martes: "TU",
@@ -97,6 +109,42 @@ export function firstWeekdayOnOrAfter(from: Date, dow: number): Date {
   return d;
 }
 
+/**
+ * Fusiona bloques de horario continuos por día de la semana en un único turno.
+ * Ordena por hora de inicio y une bloques cuando el `endTime` del anterior
+ * coincide con el `startTime` del siguiente.
+ */
+export function getMergedShiftsByDay(schedules: ScheduleSlot[]): MergedShift[] {
+  const groupedByDay: Record<string, ScheduleSlot[]> = {};
+
+  schedules.forEach((slot) => {
+    if (!groupedByDay[slot.day]) groupedByDay[slot.day] = [];
+    groupedByDay[slot.day].push(slot);
+  });
+
+  const mergedShifts: MergedShift[] = [];
+
+  Object.entries(groupedByDay).forEach(([day, slots]) => {
+    const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    if (sorted.length === 0) return;
+
+    let currentShift: MergedShift = { ...sorted[0] };
+
+    for (let i = 1; i < sorted.length; i++) {
+      const nextSlot = sorted[i];
+      if (currentShift.endTime === nextSlot.startTime) {
+        currentShift.endTime = nextSlot.endTime;
+      } else {
+        mergedShifts.push(currentShift);
+        currentShift = { ...nextSlot };
+      }
+    }
+    mergedShifts.push(currentShift);
+  });
+
+  return mergedShifts;
+}
+
 function escapeICS(text: string): string {
   return text
     .replace(/\\/g, "\\\\")
@@ -140,7 +188,12 @@ export function buildICS(events: CalendarEvent[]): string {
     lines.push("BEGIN:VALARM");
     lines.push("TRIGGER:-PT5M");
     lines.push("ACTION:DISPLAY");
-    lines.push("DESCRIPTION:Recordatorio de marcación SICAD (5 min antes)");
+    lines.push("DESCRIPTION:Recordatorio de ENTRADA SICAD (5 min antes)");
+    lines.push("END:VALARM");
+    lines.push("BEGIN:VALARM");
+    lines.push("TRIGGER;RELATED=END:-PT5M");
+    lines.push("ACTION:DISPLAY");
+    lines.push("DESCRIPTION:Recordatorio de SALIDA SICAD (5 min antes)");
     lines.push("END:VALARM");
     lines.push("END:VEVENT");
   }
