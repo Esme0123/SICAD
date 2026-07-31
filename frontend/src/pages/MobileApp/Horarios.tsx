@@ -16,7 +16,8 @@ import {
   firstWeekdayOnOrAfter,
   dayToIcs,
   dayToIndex,
-  formatICSDate,
+  formatICalDateTime,
+  buildWeeklyRRule,
   CalendarEvent,
 } from "@/utils/calendar.utils";
 
@@ -39,6 +40,12 @@ interface HorarioAsignado {
   diaSemana: string;
   periodoAcademico: string;
   periodo: PeriodoCatalogo;
+}
+
+interface PeriodoInfo {
+  nombre: string;
+  fechaInicio?: string;
+  fechaFin?: string;
 }
 
 const CORPORATE_BLUE: [number, number, number] = [15, 76, 151];
@@ -93,6 +100,7 @@ export const MobileHorarios: React.FC = () => {
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
   const selectedPeriodoRef = useRef(selectedPeriodo);
   const [periodosCatalogo, setPeriodosCatalogo] = useState<PeriodoCatalogo[]>([]);
+  const [periodoFechas, setPeriodoFechas] = useState<Record<string, PeriodoInfo>>({});
   const [asignaciones, setAsignaciones] = useState<HorarioAsignado[]>([]);
   const [selectedDay, setSelectedDay] = useState(getTodayIndex());
   const [loading, setLoading] = useState(true);
@@ -117,12 +125,18 @@ export const MobileHorarios: React.FC = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [academicos, catalogos] = await Promise.all([
+      const [academicos, catalogos, periodosInfo] = await Promise.all([
         apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`),
         apiGet("/horarios/periodos"),
+        apiGet("/periodos"),
       ]);
       setPeriodosAcademicos(academicos);
       setPeriodosCatalogo(catalogos);
+      const fechas: Record<string, PeriodoInfo> = {};
+      for (const g of periodosInfo || []) {
+        if (g && g.nombre) fechas[g.nombre] = { nombre: g.nombre, fechaInicio: g.fechaInicio, fechaFin: g.fechaFin };
+      }
+      setPeriodoFechas(fechas);
       const periodo = selectedPeriodoRef.current || academicos[0] || "";
       setSelectedPeriodo(periodo);
       await fetchAsignaciones(periodo);
@@ -146,11 +160,14 @@ export const MobileHorarios: React.FC = () => {
 
   const buildCalendarEvents = useCallback((): CalendarEvent[] => {
     if (!selectedPeriodo) return [];
+    const fechas = periodoFechas[selectedPeriodo];
     const range = getPeriodoDateRange(selectedPeriodo);
-    if (!range) return [];
-    const startDate = parseLocalDate(range.inicio);
-    const endDate = parseLocalDate(range.fin);
-    if (!startDate || !endDate) return [];
+    const startDate = parseLocalDate(fechas?.fechaInicio) || (range ? parseLocalDate(range.inicio) : null);
+    let endDate = parseLocalDate(fechas?.fechaFin) || (range ? parseLocalDate(range.fin) : null);
+    if (!startDate) return [];
+    if (!endDate) {
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 6, startDate.getDate(), 23, 59, 59);
+    }
 
     const seen = new Set<string>();
     const events: CalendarEvent[] = [];
@@ -172,17 +189,17 @@ export const MobileHorarios: React.FC = () => {
       const until = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
 
       events.push({
-        summary: `SICAD · Trabajo ${a.periodo.horaInicio}–${a.periodo.horaFin}`,
-        description: `Bloque de trabajo SICAD — ${selectedPeriodo}`,
+        summary: `SICAD - Turno ${formatHora(a.periodo.horaInicio)} a ${formatHora(a.periodo.horaFin)}`,
+        description: `Horario asignado en SICAD (${a.diaSemana})`,
         location: "SICAD",
         start: startDT,
         end: endDT,
-        rrule: `FREQ=WEEKLY;BYDAY=${dayIcs};UNTIL=${formatICSDate(until)}`,
+        rrule: buildWeeklyRRule(dayIcs, until),
       });
     }
 
     return events.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [selectedPeriodo, asignaciones]);
+  }, [selectedPeriodo, asignaciones, periodoFechas]);
 
   const handleDownloadICS = () => {
     const events = buildCalendarEvents();
@@ -203,6 +220,12 @@ export const MobileHorarios: React.FC = () => {
     if (events.length === 0) {
       toast.error("No hay horarios asignados para exportar en este periodo.", { position: "bottom-center" });
       return;
+    }
+    if (events.length > 1) {
+      toast.info(
+        "Tienes varios bloques de horario. Recomendamos usar \"Descargar Calendario (.ics)\" para importarlos todos de un solo clic.",
+        { position: "bottom-center", duration: 6000 }
+      );
     }
     window.open(buildGoogleCalendarUrl(events[0]), "_blank", "noopener,noreferrer");
     setSyncMenuOpen(false);
@@ -661,6 +684,11 @@ export const MobileHorarios: React.FC = () => {
                 Versión web
               </span>
             </button>
+            {buildCalendarEvents().length > 1 && (
+              <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                Tienes varios bloques de horario: usa &quot;Descargar Calendario (.ics)&quot; para importarlos todos de una sola vez.
+              </p>
+            )}
           </motion.div>
         </div>
       )}

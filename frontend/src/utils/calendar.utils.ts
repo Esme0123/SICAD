@@ -6,11 +6,11 @@ export interface CalendarEvent {
   summary: string;
   description?: string;
   location?: string;
-  /** Fecha/hora de inicio en hora local (floating time) */
+  /** Fecha/hora de inicio (se serializa a UTC con Z) */
   start: Date;
-  /** Fecha/hora de fin en hora local (floating time) */
+  /** Fecha/hora de fin (se serializa a UTC con Z) */
   end: Date;
-  /** Regla de recurrencia, ej. "FREQ=WEEKLY;BYDAY=MO" */
+  /** Regla de recurrencia, ej. "FREQ=WEEKLY;BYDAY=MO;UNTIL=..." */
   rrule?: string;
 }
 
@@ -42,13 +42,9 @@ export const dayToIcs = DAYS_TO_ICS;
 /** Día de la semana → índice 1-6 (1 = Lunes, 6 = Sábado) */
 export const dayToIndex = DAYS_TO_INDEX;
 
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/** Formatea una fecha local como "YYYYMMDDTHHMMSS" (floating time). */
-export function formatICSDate(d: Date): string {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+/** Formatea una fecha a formato iCalendar UTC: "YYYYMMDDTHHMMSSZ". */
+export function formatICalDateTime(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 }
 
 /** Parsea "YYYY-MM-DD" a Date LOCAL evitando el desfase UTC. */
@@ -114,29 +110,37 @@ function generateUID(): string {
   return `sicad-${Date.now()}-${rand}@sicad`;
 }
 
+/**
+ * Regla de recurrencia semanal iCalendar:
+ * "FREQ=WEEKLY;BYDAY=MO;UNTIL=YYYYMMDDT235959Z"
+ */
+export function buildWeeklyRRule(dayCode: string, until: Date): string {
+  return `FREQ=WEEKLY;BYDAY=${dayCode};UNTIL=${formatICalDateTime(until)}`;
+}
+
 /** Construye el contenido de un archivo iCalendar (.ics) con VALARM -5 min. */
 export function buildICS(events: CalendarEvent[]): string {
   const lines: string[] = [];
   lines.push("BEGIN:VCALENDAR");
   lines.push("VERSION:2.0");
-  lines.push("PRODID:-//SICAD//Horarios SICAD//ES");
+  lines.push("PRODID:-//SICAD//Horarios Empleado//ES");
   lines.push("CALSCALE:GREGORIAN");
   lines.push("METHOD:PUBLISH");
 
   for (const ev of events) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${generateUID()}`);
-    lines.push(`DTSTAMP:${formatICSDate(new Date())}`);
+    lines.push(`DTSTAMP:${formatICalDateTime(new Date())}`);
     lines.push(`SUMMARY:${escapeICS(ev.summary)}`);
     if (ev.description) lines.push(`DESCRIPTION:${escapeICS(ev.description)}`);
     if (ev.location) lines.push(`LOCATION:${escapeICS(ev.location)}`);
-    lines.push(`DTSTART:${formatICSDate(ev.start)}`);
-    lines.push(`DTEND:${formatICSDate(ev.end)}`);
+    lines.push(`DTSTART:${formatICalDateTime(ev.start)}`);
+    lines.push(`DTEND:${formatICalDateTime(ev.end)}`);
     if (ev.rrule) lines.push(`RRULE:${ev.rrule}`);
     lines.push("BEGIN:VALARM");
     lines.push("TRIGGER:-PT5M");
     lines.push("ACTION:DISPLAY");
-    lines.push("DESCRIPTION:Recordatorio de entrada/salida SICAD");
+    lines.push("DESCRIPTION:Recordatorio de marcación SICAD (5 min antes)");
     lines.push("END:VALARM");
     lines.push("END:VEVENT");
   }
@@ -166,7 +170,7 @@ export function buildGoogleCalendarUrl(ev: CalendarEvent): string {
   params.set("text", ev.summary);
   if (ev.description) params.set("details", ev.description);
   if (ev.location) params.set("location", ev.location);
-  params.set("dates", `${formatICSDate(ev.start)}/${formatICSDate(ev.end)}`);
+  params.set("dates", `${formatICalDateTime(ev.start)}/${formatICalDateTime(ev.end)}`);
   if (ev.rrule) params.set("recur", ev.rrule);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
