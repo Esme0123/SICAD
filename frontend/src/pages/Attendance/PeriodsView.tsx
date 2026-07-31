@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, X, Calendar, Clock, User, CheckSquare, Download, ChevronDown, File, FileSpreadsheet, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
@@ -10,7 +10,10 @@ import {
   createScheduleBatch,
   deleteSchedule,
   getPeriods,
+  getGestionesAcademicas,
+  setGestionVisibilidad,
   Periodo,
+  GestionAcademica,
   Schedule,
 } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
@@ -27,6 +30,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [periods, setPeriods] = useState<Periodo[]>([]);
+  const [gestiones, setGestiones] = useState<GestionAcademica[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -42,6 +46,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
 
   // Form values para Asignación Múltiple (Multidía)
   const [modalEmployee, setModalEmployee] = useState<string>("");
+  const [employeeSearch, setEmployeeSearch] = useState<string>("");
   const [modalDay, setModalDay] = useState<DayOfWeek>("Lunes");
   const [draftSchedules, setDraftSchedules] = useState<Record<DayOfWeek, number[]>>({
     Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
@@ -53,6 +58,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const totalSelectedSlots = Object.values(draftSchedules).flat().length;
 
   const selectedEmp = employees.find(e => e.code === modalEmployee);
+  const currentGestion = gestiones.find(g => g.nombre === filterPeriod);
   const periodosHoy = draftSchedules[modalDay].length;
   const totalActual = Object.values(draftSchedules).flat().length;
   const maxPeriodos = selectedEmp?.contractedHours === 20 ? 20 : 40;
@@ -60,14 +66,16 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const loadData = async (periodo?: string) => {
     setLoading(true);
     try {
-      const [scheduleList, employeeList, periodList] = await Promise.all([
+      const [scheduleList, employeeList, periodList, gestionList] = await Promise.all([
         getSchedules(periodo),
         getEmployees(),
         getPeriods(),
+        getGestionesAcademicas(),
       ]);
       setSchedules(scheduleList);
       setEmployees(employeeList.filter(emp => emp.status === "Activo" && emp.role !== "Administrador"));
       setPeriods(periodList);
+      setGestiones(gestionList);
     } catch (error) {
       console.error("Error al cargar datos:", error);
     } finally {
@@ -81,10 +89,28 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
 
   const resetModal = () => {
     setModalEmployee("");
+    setEmployeeSearch("");
     setModalDay("Lunes");
     setDraftSchedules({
       Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
     });
+  };
+
+  const handleToggleVisibilidadMovil = async () => {
+    if (!currentGestion) return;
+    try {
+      const updated = await setGestionVisibilidad(currentGestion.id, !currentGestion.esVisibleMovil);
+      setGestiones(prev => prev.map(g => (g.id === updated.id ? updated : g)));
+      toast.success(
+        updated.esVisibleMovil
+          ? "Periodo publicado para la App Móvil"
+          : "Periodo ocultado en la App Móvil",
+        { position: "bottom-center", duration: 4000 }
+      );
+    } catch (error) {
+      console.error("Error al cambiar visibilidad:", error);
+      toast.error("Ocurrió un error al cambiar la visibilidad del periodo.", { position: "bottom-center", duration: 4000 });
+    }
   };
 
   const handleSaveSchedules = async () => {
@@ -337,6 +363,23 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
               </option>
             ))}
           </select>
+
+          {/* Toggle de visibilidad en la App Móvil */}
+          <button
+            onClick={handleToggleVisibilidadMovil}
+            disabled={!currentGestion}
+            title={currentGestion?.esVisibleMovil ? "Ocultar en la App Móvil" : "Publicar en la App Móvil"}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+              currentGestion?.esVisibleMovil
+                ? "bg-yellow-500/15 border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                : dark
+                  ? "bg-transparent border-white/20 text-white/60 hover:bg-white/5"
+                  : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {currentGestion?.esVisibleMovil ? <Eye size={16} /> : <EyeOff size={16} />}
+            <span className="hidden lg:inline">App Móvil</span>
+          </button>
         </div>
 
         {/* Filtro Múltiple de Días */}
@@ -492,16 +535,47 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
                 <label className={`text-sm font-semibold ${dark ? "text-white/70" : "text-slate-600"}`}>
                   <User size={14} className="inline mr-1" /> Seleccionar Empleado
                 </label>
-                <select
-                  value={modalEmployee}
-                  onChange={(e) => setModalEmployee(e.target.value)}
-                  className={`w-full p-3 rounded-xl border outline-none ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
-                >
-                  <option value="" disabled className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Seleccione un empleado...</option>
-                  {employees.map(emp => (
-                    <option key={emp.code} value={emp.code} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{emp.name}</option>
-                  ))}
-                </select>
+
+                {modalEmployee && selectedEmp ? (
+                  <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border ${dark ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar name={selectedEmp.name} size={36} bg={COLORS.primary} />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold truncate ${dark ? "text-white" : "text-slate-800"}`}>
+                          {selectedEmp.name}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${dark ? "text-white/40" : "text-slate-500"}`}>
+                          <span className="font-mono">{selectedEmp.code}</span>
+                          {selectedEmp.ci && selectedEmp.ci !== "N/A" && (
+                            <span className="ml-2">CI: {selectedEmp.ci}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setModalEmployee("");
+                        setEmployeeSearch("");
+                      }}
+                      title="Cambiar empleado"
+                      className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-200 hover:text-slate-700"}`}
+                    >
+                      <X size={14} /> Cambiar
+                    </button>
+                  </div>
+                ) : (
+                  <SearchAutocomplete
+                    items={employees}
+                    value={employeeSearch}
+                    onChange={setEmployeeSearch}
+                    onSelect={(item) => {
+                      setModalEmployee(item.code);
+                      setEmployeeSearch(item.name);
+                    }}
+                    placeholder="Buscar por Nombre, Código o CI..."
+                    dark={dark}
+                  />
+                )}
 
                 {modalEmployee && selectedEmp && (
                   <div className={`mt-3 px-4 py-2.5 rounded-xl border flex items-center justify-between ${

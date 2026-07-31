@@ -83,6 +83,9 @@ model GestionAcademica {
   fechaFin    DateTime           @db.Date
   activo      Boolean            @default(false)
 
+  /// Controla la visibilidad de la gestión en la App Móvil
+  esVisibleMovil Boolean         @default(false)
+
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 

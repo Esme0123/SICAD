@@ -19,6 +19,7 @@ const permisoRoutes = require('./routes/permiso.routes');
 const asistenciaRoutes = require('./routes/asistencia.routes');
 const authRoutes = require('./routes/auth.routes');
 const horarioRoutes = require('./routes/horario.routes');
+const periodoRoutes = require('./routes/periodo.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const reportesRoutes = require('./routes/reportes.routes');
 const usuarioSistemaRoutes = require('./routes/usuarioSistema.routes');
@@ -85,6 +86,8 @@ app.use('/api/qr', qrRoutes);
 app.use('/api/usuarios', userRoutes);
 // Horarios asignados
 app.use('/api/horarios', horarioRoutes);
+// Periodos académicos (gestiones académicas)
+app.use('/api/periodos', periodoRoutes);
 // Configuración del sistema (singleton)
 app.use('/api/configuracion', configRoutes);
 // Permisos y permisos parciales

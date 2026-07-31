@@ -47,9 +47,11 @@ async function getHorarioUsuario(req, res) {
 // ── GET /api/horarios/periodos-academicos ──────────────────────
 // Devuelve los periodos académicos distintos asociados a un usuario
 // Query params: ?usuarioId=123
+// App Móvil (rol EMPLEADO): solo periodos con esVisibleMovil=true o activos
 async function getPeriodosAcademicos(req, res) {
   try {
     const usuarioId = req.query.usuarioId ? parseInt(req.query.usuarioId) : undefined;
+    const esMovil = req.usuario?.rol === 'EMPLEADO';
 
     const where = {};
     if (usuarioId && !isNaN(usuarioId)) where.usuarioId = usuarioId;
@@ -61,7 +63,17 @@ async function getPeriodosAcademicos(req, res) {
       orderBy: { periodoAcademico: 'desc' },
     });
 
-    const data = result.map(r => r.periodoAcademico);
+    let data = result.map(r => r.periodoAcademico);
+
+    if (esMovil && data.length > 0) {
+      const visibles = await prisma.gestionAcademica.findMany({
+        where: { OR: [{ esVisibleMovil: true }, { activo: true }] },
+        select: { nombre: true },
+      });
+      const nombresVisibles = new Set(visibles.map(v => v.nombre));
+      data = data.filter(nombre => nombresVisibles.has(nombre));
+    }
+
     res.json({ ok: true, data });
   } catch (error) {
     console.error('[horario.getPeriodosAcademicos]', error);
