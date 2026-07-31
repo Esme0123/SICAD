@@ -106,26 +106,6 @@ export const MobilePermisos: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailPermiso, setDetailPermiso] = useState<PermisoBackend | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!user) return;
-    try {
-      await apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`)
-        .then((res) => {
-          const pa = res.data || [];
-          setPeriodosAcademicos(pa);
-          if (pa.length > 0) setSelectedPeriodo((prev) => prev || pa[0]);
-        })
-        .catch(console.error);
-    } catch (error) {
-      console.error(error);
-    }
-    await fetchPermisos();
-  }, [user, fetchPermisos]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  useRefetchOnFocus(loadData);
-
   const buildUrl = useCallback(() => {
     const hoyStr = new Date().toLocaleDateString('sv-SE');
     switch (filtro) {
@@ -162,6 +142,26 @@ export const MobilePermisos: React.FC = () => {
       setLoading(false);
     }
   }, [user, buildUrl]);
+
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    try {
+      await apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`)
+        .then((res) => {
+          const pa = res.data || [];
+          setPeriodosAcademicos(pa);
+          if (pa.length > 0) setSelectedPeriodo((prev) => prev || pa[0]);
+        })
+        .catch(console.error);
+    } catch (error) {
+      console.error(error);
+    }
+    await fetchPermisos();
+  }, [user, fetchPermisos]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useRefetchOnFocus(loadData);
 
   const cambiarMes = (delta: number) => {
     let nm = mes + delta, ny = anio;
