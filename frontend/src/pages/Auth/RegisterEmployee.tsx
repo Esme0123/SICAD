@@ -5,6 +5,9 @@ import { User, Fingerprint, Phone, Lock, Eye, EyeOff, RefreshCw, CheckCircle, Al
 import { UCBLogo } from "@/components/common/UCBLogo";
 import api from "@/services/api";
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_$-])[A-Za-z\d@$!%*?&.#_$-]{8,}$/;
+const PASSWORD_HELP = "Mínimo 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.";
+
 export const RegisterEmployee: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -34,8 +37,8 @@ export const RegisterEmployee: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    if (!PASSWORD_REGEX.test(password)) {
+      setError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.");
       return;
     }
 
@@ -195,7 +198,7 @@ export const RegisterEmployee: React.FC = () => {
                     type={showPass ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     className="w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm outline-none transition-all"
                     style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--foreground)" }}
                   />
@@ -208,6 +211,9 @@ export const RegisterEmployee: React.FC = () => {
                     {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
+                {password && !PASSWORD_REGEX.test(password) && (
+                  <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>{PASSWORD_HELP}</p>
+                )}
               </div>
 
               <div>

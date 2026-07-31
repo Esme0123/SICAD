@@ -215,15 +215,3 @@ export function downloadICS(events: CalendarEvent[], filename: string): void {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
-
-/** Enlace directo a Google Calendar Web Intent (action=TEMPLATE). */
-export function buildGoogleCalendarUrl(ev: CalendarEvent): string {
-  const params = new URLSearchParams();
-  params.set("action", "TEMPLATE");
-  params.set("text", ev.summary);
-  if (ev.description) params.set("details", ev.description);
-  if (ev.location) params.set("location", ev.location);
-  params.set("dates", `${formatICalDateTime(ev.start)}/${formatICalDateTime(ev.end)}`);
-  if (ev.rrule) params.set("recur", ev.rrule);
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}

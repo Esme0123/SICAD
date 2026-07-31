@@ -5,6 +5,7 @@ const prisma = require('../config/db');
 const { JWT_SECRET } = require('../config/env');
 const { registrarAuditoria } = require('./auditoria.controller');
 const { enviarCorreoRecuperacion } = require('../services/email.service');
+const { isValidPassword, PASSWORD_ERROR_MESSAGE } = require('../utils/validators');
 
 async function login(req, res) {
   try {
@@ -250,8 +251,8 @@ async function resetPassword(req, res) {
     if (!token || !nuevaPassword) {
       return res.status(400).json({ ok: false, message: 'token y nuevaPassword son requeridos' });
     }
-    if (nuevaPassword.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!isValidPassword(nuevaPassword)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
     }
 
     // Intentar como JWT (empleados)

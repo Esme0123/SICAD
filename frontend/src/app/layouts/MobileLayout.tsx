@@ -6,6 +6,7 @@ import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
 import { UCBLogo } from "@/components/common/UCBLogo";
+import { LogoutConfirmModal } from "@/components/common/LogoutConfirmModal";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -66,6 +67,7 @@ export const MobileLayout: React.FC = () => {
   const [noLeidas, setNoLeidas] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const mobileGuideSteps: GuideStep[] = [
     {
@@ -313,7 +315,7 @@ export const MobileLayout: React.FC = () => {
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             className="p-1.5 rounded-lg transition-colors"
             style={{ color: "var(--muted-foreground)" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--destructive)"; e.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)"; }}
@@ -383,6 +385,15 @@ export const MobileLayout: React.FC = () => {
       {guideOpen && (
         <GuideModal steps={mobileGuideSteps} onClose={() => setGuideOpen(false)} variant="mobile" />
       )}
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          handleLogout();
+        }}
+      />
     </div>
   );
 };

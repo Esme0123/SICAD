@@ -5,6 +5,9 @@ import { Lock, Eye, EyeOff, RefreshCw, CheckCircle, AlertCircle } from "lucide-r
 import { UCBLogo } from "@/components/common/UCBLogo";
 import { resetPassword } from "@/services/auth.service";
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_$-])[A-Za-z\d@$!%*?&.#_$-]{8,}$/;
+const PASSWORD_HELP = "Mínimo 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.";
+
 export const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -33,8 +36,8 @@ export const ResetPassword: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      setError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.");
       return;
     }
 
@@ -130,7 +133,7 @@ export const ResetPassword: React.FC = () => {
                     type={showPass ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     className="w-full px-4 py-2.5 rounded-xl border text-sm outline-none transition-all"
                     style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--foreground)" }}
                   />
@@ -143,6 +146,9 @@ export const ResetPassword: React.FC = () => {
                     {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
+                {newPassword && !PASSWORD_REGEX.test(newPassword) && (
+                  <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>{PASSWORD_HELP}</p>
+                )}
               </div>
 
               <div>

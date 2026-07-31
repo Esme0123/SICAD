@@ -10,7 +10,6 @@ import { saveAs } from "file-saver";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
   downloadICS,
-  buildGoogleCalendarUrl,
   getPeriodoDateRange,
   parseLocalDate,
   firstWeekdayOnOrAfter,
@@ -224,22 +223,6 @@ export const MobileHorarios: React.FC = () => {
       "Tus horarios se han exportado. Google Calendar te notificará automáticamente 5 minutos antes de tus entradas y salidas.",
       { position: "bottom-center", duration: 5000 }
     );
-    setSyncMenuOpen(false);
-  };
-
-  const handleOpenGoogle = () => {
-    const events = buildCalendarEvents();
-    if (events.length === 0) {
-      toast.error("No hay horarios asignados para exportar en este periodo.", { position: "bottom-center" });
-      return;
-    }
-    if (events.length > 1) {
-      toast.info(
-        "Tienes varios bloques de horario. Recomendamos usar \"Descargar Calendario (.ics)\" para importarlos todos de un solo clic.",
-        { position: "bottom-center", duration: 6000 }
-      );
-    }
-    window.open(buildGoogleCalendarUrl(events[0]), "_blank", "noopener,noreferrer");
     setSyncMenuOpen(false);
   };
 
@@ -674,7 +657,7 @@ export const MobileHorarios: React.FC = () => {
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Periodo: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedPeriodo}</span> · {buildCalendarEvents().length} bloque(s)
+              Periodo: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedPeriodo}</span> · {buildCalendarEvents().length} turno(s)
             </p>
             <button
               onClick={handleDownloadICS}
@@ -686,21 +669,6 @@ export const MobileHorarios: React.FC = () => {
                 Abre tu calendario del teléfono
               </span>
             </button>
-            <button
-              onClick={handleOpenGoogle}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold border transition-all cursor-pointer bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
-            >
-              <CalendarPlus size={16} className="text-primary" />
-              Abrir en Google Calendar
-              <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 ml-auto text-right">
-                Versión web
-              </span>
-            </button>
-            {buildCalendarEvents().length > 1 && (
-              <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400">
-                Tienes varios bloques de horario: usa &quot;Descargar Calendario (.ics)&quot; para importarlos todos de una sola vez.
-              </p>
-            )}
           </motion.div>
         </div>
       )}

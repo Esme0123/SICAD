@@ -18,6 +18,8 @@ interface Props {
   currentUserEmail: string;
 }
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_$-])[A-Za-z\d@$!%*?&.#_$-]{8,}$/;
+
 export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,8 +95,8 @@ export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => 
       if (!form.nombre.trim()) { setFormError("El nombre es requerido"); return; }
       if (!validateEmail(form.email)) { setFormError("El email debe terminar en @ucb.edu.bo"); return; }
     }
-    if (modalMode === "password" && (!form.password || form.password.length < 6)) {
-      setFormError("La contraseña debe tener al menos 6 caracteres"); return;
+    if (modalMode === "password" && (!form.password || !PASSWORD_REGEX.test(form.password))) {
+      setFormError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo."); return;
     }
 
     setSaving(true);
@@ -295,10 +297,10 @@ export const AdminUsersPanel: React.FC<Props> = ({ dark, currentUserEmail }) => 
                     <Lock size={13} className="inline mr-1" /> {modalMode === "password" ? "Nueva contraseña" : "Contraseña (opcional)"}
                   </label>
                   <input
-                    type="password" minLength={modalMode === "password" ? 6 : 0}
+                    type="password" minLength={modalMode === "password" ? 8 : 0}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder={modalMode === "create" ? "Se generará automáticamente" : "Mínimo 6 caracteres"}
+                    placeholder={modalMode === "create" ? "Se generará automáticamente" : "Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo"}
                     className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-all ${dark ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60" : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"}`}
                   />
                   {modalMode === "create" && (

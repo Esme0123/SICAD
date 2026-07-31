@@ -17,6 +17,8 @@ interface UsersViewProps {
   dark: boolean;
 }
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_$-])[A-Za-z\d@$!%*?&.#_$-]{8,}$/;
+
 export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,8 +174,8 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passwordValue || passwordValue.length < 6) {
-      setPasswordError("La contraseña debe tener al menos 6 caracteres");
+    if (!passwordValue || !PASSWORD_REGEX.test(passwordValue)) {
+      setPasswordError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.");
       return;
     }
     setSaving(true);
@@ -786,10 +788,10 @@ export const UsersView: React.FC<UsersViewProps> = ({ dark }) => {
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={8}
                   value={passwordValue}
                   onChange={(e) => setPasswordValue(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo"
                   className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-all ${
                     dark
                       ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"

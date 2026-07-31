@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/db');
 const { enviarCorreoInvitacion, sendSendGridEmail } = require('../services/email.service');
+const { isValidPassword, PASSWORD_ERROR_MESSAGE } = require('../utils/validators');
 
 // GET /api/usuarios
 async function getAll(req, res) {
@@ -100,6 +101,10 @@ async function create(req, res) {
     const passwordEfectiva = (password && typeof password === 'string' && password.trim())
       ? password.trim()
       : (ciGuardar || "123456");
+
+    if (password && typeof password === 'string' && password.trim() && !isValidPassword(passwordEfectiva)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
+    }
 
     const passwordHash = await bcrypt.hash(passwordEfectiva, 10);
     const usuario = await prisma.usuario.create({
@@ -273,8 +278,8 @@ async function cambiarPassword(req, res) {
       return res.status(400).json({ ok: false, message: 'passwordActual y nuevaPassword son requeridos' });
     }
 
-    if (nuevaPassword.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    if (!isValidPassword(nuevaPassword)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
     }
 
     const usuario = await prisma.usuario.findUnique({ where: { id } });
@@ -402,8 +407,8 @@ async function completeRegistration(req, res) {
       return res.status(400).json({ ok: false, message: 'token, nombre y password son requeridos' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!isValidPassword(password)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
     }
 
     // Buscar usuario por token de invitación (sin expirar)

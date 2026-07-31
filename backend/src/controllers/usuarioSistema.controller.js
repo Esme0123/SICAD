@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { generarPasswordPorDefecto } = require('../utils/password.utils');
 const { registrarAuditoria } = require('./auditoria.controller');
+const { isValidPassword, PASSWORD_ERROR_MESSAGE } = require('../utils/validators');
 
 async function getAll(req, res) {
   try {
@@ -52,6 +53,10 @@ async function create(req, res) {
     // Generar contraseña por defecto basada en el email
     const emailPrefijo = email.split('@')[0];
     const defaultPassword = password || generarPasswordPorDefecto(emailPrefijo);
+
+    if (password && !isValidPassword(defaultPassword)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(defaultPassword, salt);
@@ -126,8 +131,8 @@ async function changePassword(req, res) {
     if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
 
     const { password } = req.body;
-    if (!password || password.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!password || !isValidPassword(password)) {
+      return res.status(400).json({ ok: false, message: PASSWORD_ERROR_MESSAGE });
     }
 
     const salt = await bcrypt.genSalt(10);

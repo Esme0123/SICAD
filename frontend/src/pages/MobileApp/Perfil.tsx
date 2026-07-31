@@ -4,7 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { User, Mail, Hash, BadgeCheck, Shield, Phone, Clock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Key } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
+import { LogoutConfirmModal } from "@/components/common/LogoutConfirmModal";
 import { cambiarPassword as cambiarPasswordApi } from "@/services/employee.service";
+
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#_$-])[A-Za-z\d@$!%*?&.#_$-]{8,}$/;
+const PASSWORD_HELP = "Mínimo 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.";
 
 export const MobilePerfil: React.FC = () => {
   const { user, logout } = useEmployeeAuth();
@@ -20,6 +24,7 @@ export const MobilePerfil: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -36,8 +41,8 @@ export const MobilePerfil: React.FC = () => {
       return;
     }
 
-    if (nuevaPassword.length < 6) {
-      setError("La nueva contraseña debe tener al menos 6 caracteres");
+    if (!PASSWORD_REGEX.test(nuevaPassword)) {
+      setError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.");
       return;
     }
 
@@ -208,6 +213,9 @@ export const MobilePerfil: React.FC = () => {
                   {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
+              {nuevaPassword && !PASSWORD_REGEX.test(nuevaPassword) && (
+                <p className="text-[11px] text-destructive mt-1">{PASSWORD_HELP}</p>
+              )}
             </div>
 
             <div>
@@ -244,11 +252,20 @@ export const MobilePerfil: React.FC = () => {
       </div>
 
       <button
-        onClick={handleLogout}
+        onClick={() => setShowLogoutModal(true)}
         className="w-full py-3 rounded-xl border border-destructive/30 text-destructive text-sm font-semibold hover:bg-destructive/5 transition-colors"
       >
         Cerrar sesión
       </button>
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          handleLogout();
+        }}
+      />
     </motion.div>
   );
 };
