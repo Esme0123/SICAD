@@ -8,6 +8,7 @@ import { getSchedules, Schedule } from "@/services/schedules.service";
 import { getPermisos, createPermiso, cambiarEstadoPermiso, PermisoBackend } from "@/services/permisos.service";
 import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
 import { useAuthStore } from "@/hooks/useAuthStore";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 
 interface LeavesViewProps {
   dark: boolean;
@@ -74,17 +75,26 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
   const [formStatus, setFormStatus] = useState("En Revisión");
   const [modalSearchQuery, setModalSearchQuery] = useState("");
 
-  useEffect(() => {
-    Promise.all([
-      getEmployees(),
-      getSchedules(),
-      getPermisos(),
-    ]).then(([empList, schedList, permisoList]) => {
+  const loadData = async () => {
+    try {
+      const [empList, schedList, permisoList] = await Promise.all([
+        getEmployees(),
+        getSchedules(),
+        getPermisos(),
+      ]);
       setEmployees(empList.filter(emp => emp.status === "Activo" && emp.role !== "Administrador"));
       setSchedules(schedList);
       setLeaves(permisoList);
-    }).catch(console.error);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  useRefetchOnFocus(loadData);
 
   const availablePeriods = useMemo(() => {
     if (!selectedEmp || !formDate) return [];

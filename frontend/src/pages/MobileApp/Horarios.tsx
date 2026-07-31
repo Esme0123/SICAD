@@ -1,11 +1,24 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { motion } from "motion/react";
-import { Clock, Download, ChevronDown } from "lucide-react";
+import { Clock, Download, ChevronDown, CalendarPlus, X } from "lucide-react";
+import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
+import {
+  downloadICS,
+  buildGoogleCalendarUrl,
+  getPeriodoDateRange,
+  parseLocalDate,
+  firstWeekdayOnOrAfter,
+  dayToIcs,
+  dayToIndex,
+  formatICSDate,
+  CalendarEvent,
+} from "@/utils/calendar.utils";
 
 const DIAS_LAB = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 const DIAS_CORTO = ["L", "M", "M", "J", "V", "S"];
@@ -78,34 +91,122 @@ export const MobileHorarios: React.FC = () => {
 
   const [periodosAcademicos, setPeriodosAcademicos] = useState<string[]>([]);
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
+  const selectedPeriodoRef = useRef(selectedPeriodo);
   const [periodosCatalogo, setPeriodosCatalogo] = useState<PeriodoCatalogo[]>([]);
   const [asignaciones, setAsignaciones] = useState<HorarioAsignado[]>([]);
   const [selectedDay, setSelectedDay] = useState(getTodayIndex());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
+  const [syncMenuOpen, setSyncMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    Promise.all([
-      apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`),
-      apiGet("/horarios/periodos"),
-    ])
-      .then(([academicos, catalogos]) => {
-        setPeriodosAcademicos(academicos);
-        if (academicos.length > 0) setSelectedPeriodo(academicos[0]);
-        setPeriodosCatalogo(catalogos);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    selectedPeriodoRef.current = selectedPeriodo;
+  }, [selectedPeriodo]);
+
+  const fetchAsignaciones = useCallback(async (periodo: string) => {
+    if (!user || !periodo) return;
+    try {
+      const asig = await apiGet(`/horarios/${user.id}?periodoAcademico=${encodeURIComponent(periodo)}`);
+      setAsignaciones(asig);
+    } catch (error) {
+      console.error(error);
+    }
   }, [user]);
 
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const [academicos, catalogos] = await Promise.all([
+        apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`),
+        apiGet("/horarios/periodos"),
+      ]);
+      setPeriodosAcademicos(academicos);
+      setPeriodosCatalogo(catalogos);
+      const periodo = selectedPeriodoRef.current || academicos[0] || "";
+      setSelectedPeriodo(periodo);
+      await fetchAsignaciones(periodo);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, fetchAsignaciones]);
+
   useEffect(() => {
-    if (!user || !selectedPeriodo) return;
-    apiGet(`/horarios/${user.id}?periodoAcademico=${encodeURIComponent(selectedPeriodo)}`)
-      .then(setAsignaciones)
-      .catch(console.error);
-  }, [user, selectedPeriodo]);
+    loadData();
+  }, [loadData]);
+
+  useRefetchOnFocus(loadData);
+
+  const handlePeriodoChange = (value: string) => {
+    setSelectedPeriodo(value);
+    fetchAsignaciones(value);
+  };
+
+  const buildCalendarEvents = useCallback((): CalendarEvent[] => {
+    if (!selectedPeriodo) return [];
+    const range = getPeriodoDateRange(selectedPeriodo);
+    if (!range) return [];
+    const startDate = parseLocalDate(range.inicio);
+    const endDate = parseLocalDate(range.fin);
+    if (!startDate || !endDate) return [];
+
+    const seen = new Set<string>();
+    const events: CalendarEvent[] = [];
+
+    for (const a of asignaciones) {
+      if (!a.periodo) continue;
+      const dayIcs = dayToIcs[a.diaSemana];
+      const dow = dayToIndex[a.diaSemana];
+      if (!dayIcs || !dow) continue;
+      const key = `${a.diaSemana}|${a.periodo.horaInicio}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const firstDate = firstWeekdayOnOrAfter(startDate, dow);
+      const [hI, mI] = a.periodo.horaInicio.split(":").map(Number);
+      const [hF, mF] = a.periodo.horaFin.split(":").map(Number);
+      const startDT = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), hI || 0, mI || 0, 0);
+      const endDT = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), hF || 0, mF || 0, 0);
+      const until = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
+
+      events.push({
+        summary: `SICAD · Trabajo ${a.periodo.horaInicio}–${a.periodo.horaFin}`,
+        description: `Bloque de trabajo SICAD — ${selectedPeriodo}`,
+        location: "SICAD",
+        start: startDT,
+        end: endDT,
+        rrule: `FREQ=WEEKLY;BYDAY=${dayIcs};UNTIL=${formatICSDate(until)}`,
+      });
+    }
+
+    return events.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [selectedPeriodo, asignaciones]);
+
+  const handleDownloadICS = () => {
+    const events = buildCalendarEvents();
+    if (events.length === 0) {
+      toast.error("No hay horarios asignados para exportar en este periodo.", { position: "bottom-center" });
+      return;
+    }
+    downloadICS(events, `SICAD_Horario_${selectedPeriodo.replace(/\s/g, "_")}.ics`);
+    toast.success(
+      "Tus horarios se han exportado. Google Calendar te notificará automáticamente 5 minutos antes de tus entradas y salidas.",
+      { position: "bottom-center", duration: 5000 }
+    );
+    setSyncMenuOpen(false);
+  };
+
+  const handleOpenGoogle = () => {
+    const events = buildCalendarEvents();
+    if (events.length === 0) {
+      toast.error("No hay horarios asignados para exportar en este periodo.", { position: "bottom-center" });
+      return;
+    }
+    window.open(buildGoogleCalendarUrl(events[0]), "_blank", "noopener,noreferrer");
+    setSyncMenuOpen(false);
+  };
 
   const asignacionesPorDia = useMemo(() => {
     const map: Record<string, Set<number>> = {};
@@ -352,7 +453,7 @@ export const MobileHorarios: React.FC = () => {
       <div className="relative">
         <select
           value={selectedPeriodo}
-          onChange={(e) => setSelectedPeriodo(e.target.value)}
+          onChange={(e) => handlePeriodoChange(e.target.value)}
           className="w-full appearance-none rounded-xl px-4 py-3 pr-10 text-sm font-medium border transition-colors"
           style={{
             background: "var(--card)",
@@ -375,6 +476,20 @@ export const MobileHorarios: React.FC = () => {
           style={{ color: "var(--muted-foreground)" }}
         />
       </div>
+
+      <button
+        onClick={() => setSyncMenuOpen(true)}
+        disabled={!selectedPeriodo || asignaciones.length === 0}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+        style={{
+          background: "var(--primary)",
+          color: "var(--primary-foreground)",
+          boxShadow: "0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent)",
+        }}
+      >
+        <CalendarPlus size={16} />
+        Sincronizar con Google Calendar
+      </button>
 
       <div className="flex gap-2">
         {DIAS_CORTO.map((d, i) => {
@@ -499,6 +614,56 @@ export const MobileHorarios: React.FC = () => {
           </div>
         )}
       </div>
+
+      {syncMenuOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          onClick={(e) => { if (e.target === e.currentTarget) setSyncMenuOpen(false); }}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-3 bg-white dark:bg-slate-900"
+            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Sincronizar Horarios
+              </h2>
+              <button
+                onClick={() => setSyncMenuOpen(false)}
+                className="p-1 rounded-lg text-slate-500 dark:text-slate-400"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Periodo: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedPeriodo}</span> · {buildCalendarEvents().length} bloque(s)
+            </p>
+            <button
+              onClick={handleDownloadICS}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold border transition-all cursor-pointer bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+            >
+              <Download size={16} className="text-primary" />
+              Descargar Calendario (.ics)
+              <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 ml-auto text-right">
+                Abre tu calendario del teléfono
+              </span>
+            </button>
+            <button
+              onClick={handleOpenGoogle}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold border transition-all cursor-pointer bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+            >
+              <CalendarPlus size={16} className="text-primary" />
+              Abrir en Google Calendar
+              <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 ml-auto text-right">
+                Versión web
+              </span>
+            </button>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };

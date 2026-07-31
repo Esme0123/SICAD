@@ -6,6 +6,7 @@ import {
   Calendar, ChevronLeft, ChevronRight, X, Upload, Send, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 
 const API = import.meta.env.VITE_API_URL;
 const BO_TZ = "America/La_Paz";
@@ -105,16 +106,25 @@ export const MobilePermisos: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailPermiso, setDetailPermiso] = useState<PermisoBackend | null>(null);
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
-    apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`)
-      .then((res) => {
-        const pa = res.data || [];
-        setPeriodosAcademicos(pa);
-        if (pa.length > 0 && !selectedPeriodo) setSelectedPeriodo(pa[0]);
-      })
-      .catch(console.error);
-  }, [user]);
+    try {
+      await apiGet(`/horarios/periodos-academicos?usuarioId=${user.id}`)
+        .then((res) => {
+          const pa = res.data || [];
+          setPeriodosAcademicos(pa);
+          if (pa.length > 0) setSelectedPeriodo((prev) => prev || pa[0]);
+        })
+        .catch(console.error);
+    } catch (error) {
+      console.error(error);
+    }
+    await fetchPermisos();
+  }, [user, fetchPermisos]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useRefetchOnFocus(loadData);
 
   const buildUrl = useCallback(() => {
     const hoyStr = new Date().toLocaleDateString('sv-SE');
@@ -152,8 +162,6 @@ export const MobilePermisos: React.FC = () => {
       setLoading(false);
     }
   }, [user, buildUrl]);
-
-  useEffect(() => { fetchPermisos(); }, [fetchPermisos]);
 
   const cambiarMes = (delta: number) => {
     let nm = mes + delta, ny = anio;

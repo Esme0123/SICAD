@@ -14,6 +14,7 @@ import {
   Employee,
 } from "@/services/employees.service";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { toast } from "sonner";
 
 interface EmployeesProps {
@@ -77,6 +78,8 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   useEffect(() => {
     loadEmployees();
   }, []);
+
+  useRefetchOnFocus(loadEmployees);
 
   const getDynamicStatus = (emp: Employee): string => {
     if (emp.status !== "Activo") return emp.status;
@@ -579,6 +582,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   try {
                     const res = await inviteEmployee(inviteEmail);
                     setInviteModalOpen(false);
+                    loadEmployees();
                     toast.success(res.message || "Invitaciones procesadas");
                   } catch (err: any) {
                     toast.error(err.message || "Error al invitar empleados");

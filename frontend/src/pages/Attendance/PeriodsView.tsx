@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { COLORS } from "@/theme/colors";
 import { Avatar } from "@/components/common/Avatar";
 import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { getEmployees, Employee } from "@/services/employees.service";
 import {
   getSchedules,
@@ -86,6 +87,10 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   useEffect(() => {
     loadData(filterPeriod);
   }, [filterPeriod]);
+
+  useRefetchOnFocus(() => {
+    loadData(filterPeriod);
+  });
 
   const resetModal = () => {
     setModalEmployee("");
