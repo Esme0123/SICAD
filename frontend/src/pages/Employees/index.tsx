@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Filter, Plus, Edit2, Trash2, Eye, X, Mail, Phone } from "lucide-react";
+import { Plus, Edit2, Trash2, Eye, X, Mail, Phone } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
@@ -32,7 +32,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia" | "Pendiente">("Todos");
   const [hoursFilter, setHoursFilter] = useState<"Todas" | 20 | 40>("Todas");
-  const [showFilters, setShowFilters] = useState(false);
 
   // Period state
   const [selectedPeriod, setSelectedPeriod] = useState<string>(obtenerPeriodoActual());
@@ -253,19 +252,6 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 dark={dark}
               />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer transition-all ${showFilters
-                  ? dark
-                    ? "bg-white/10 border-white/20 text-white font-medium"
-                    : "bg-slate-100 border-slate-350 text-slate-800 font-medium"
-                  : dark
-                    ? "border-white/10 text-white/50 hover:bg-white/5"
-                    : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
-            >
-              <Filter size={13} /> Filtrar {(statusFilter !== "Todos" || hoursFilter !== "Todas") && "•"}
-            </button>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -286,11 +272,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
         </div>
 
         {/* Filters Panel */}
-        {showFilters && (
-          <div
-            className={`p-4 border-b flex flex-wrap gap-6 items-center ${dark ? "border-white/8 bg-white/2" : "border-slate-100 bg-slate-50/50"
-              }`}
-          >
+        <div
+          className={`p-4 border-b flex flex-wrap gap-6 items-center ${dark ? "border-white/8 bg-white/2" : "border-slate-100 bg-slate-50/50"
+            }`}
+        >
             <div className="flex items-center gap-2">
               <span className={`text-xs font-semibold ${dark ? "text-white/50" : "text-slate-500"}`}>
                 Estado:
@@ -363,8 +348,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                 ))}
               </select>
             </div>
-          </div>
-        )}
+        </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
