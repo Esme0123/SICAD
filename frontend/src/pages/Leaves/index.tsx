@@ -121,7 +121,7 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
         name.toLowerCase().includes(q) ||
         code.toLowerCase().includes(q) ||
         ci.includes(q);
-      const matchDate = !filterDate || l.fecha === filterDate;
+      const matchDate = !filterDate || (l.fecha && l.fecha.split("T")[0] === filterDate);
       const matchType = !filterType || l.tipoPermiso?.nombre === TYPE_MAP[filterType];
       const matchStatus = !filterStatus || (STATUS_MAP[l.estado] === filterStatus);
       return matchDate && matchEmp && matchType && matchStatus;
@@ -237,7 +237,11 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className={`pl-9 pr-4 py-2 rounded-xl text-sm border outline-none transition-all ${dark ? "bg-white/5 border-white/10 text-white/70 focus:border-primary/60" : "bg-slate-50 border-slate-200 text-slate-600 focus:border-primary/50 focus:bg-white"}`}
+                className={`pl-9 pr-4 py-2 rounded-xl border text-sm outline-none transition-all cursor-pointer accent-primary ${dark
+                  ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                  : "bg-white border-slate-200 text-slate-800 focus:border-blue-600/50 shadow-xs"
+                }`}
+                style={{ accentColor: "#0F4C97" }}
               />
             </div>
             <div className="relative">
@@ -566,7 +570,11 @@ export const LeavesView: React.FC<LeavesViewProps> = ({ dark }) => {
                     type="date"
                     value={formDate}
                     onChange={(e) => { setFormDate(e.target.value); setSelectedPeriods([]); }}
-                    className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm border outline-none ${dark ? "bg-white/5 border-white/10 text-white focus:border-primary" : "bg-white border-slate-200 text-slate-800 focus:border-primary"}`}
+                    className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm outline-none transition-all cursor-pointer accent-primary ${dark
+                      ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                      : "bg-white border-slate-200 text-slate-800 focus:border-blue-600/50 shadow-xs"
+                    }`}
+                    style={{ accentColor: "#0F4C97" }}
                   />
                 </div>
               </div>
