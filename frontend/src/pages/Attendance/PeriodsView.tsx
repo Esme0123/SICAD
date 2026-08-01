@@ -33,6 +33,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const [periods, setPeriods] = useState<Periodo[]>([]);
   const [gestiones, setGestiones] = useState<GestionAcademica[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -64,8 +65,8 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const totalActual = Object.values(draftSchedules).flat().length;
   const maxPeriodos = selectedEmp?.contractedHours === 20 ? 20 : 40;
 
-  const loadData = async (periodo?: string) => {
-    setLoading(true);
+  const loadData = async (periodo?: string, isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       const [scheduleList, employeeList, periodList, gestionList] = await Promise.all([
         getSchedules(periodo),
@@ -80,16 +81,25 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     } catch (error) {
       console.error("Error al cargar datos:", error);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+        setIsInitialLoading(false);
+      }
     }
   };
 
+  // Carga inicial solo 1 vez al montar:
   useEffect(() => {
-    loadData(filterPeriod);
+    loadData(filterPeriod, true);
+  }, []);
+
+  // Refrescos al cambiar filtro sin mostrar la pantalla blanca de carga:
+  useEffect(() => {
+    loadData(filterPeriod, false);
   }, [filterPeriod]);
 
   useRefetchOnFocus(() => {
-    loadData(filterPeriod);
+    loadData(filterPeriod, false);
   });
 
   const resetModal = () => {
@@ -141,7 +151,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
         })),
         periodoAcademico: selectedPeriod,
       });
-      await loadData();
+      await loadData(filterPeriod);
       setFormModalOpen(false);
       resetModal();
     } catch (error) {
@@ -153,7 +163,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   const handleDeleteConfirm = async () => {
     if (scheduleToDelete) {
       await deleteSchedule(scheduleToDelete.id);
-      await loadData();
+      await loadData(filterPeriod);
     }
     setDeleteConfirmOpen(false);
     setScheduleToDelete(null);
@@ -176,31 +186,43 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     );
   };
 
-  // ── PRE-CARGA: inicializa draftSchedules con los horarios del empleado en el periodo seleccionado ──
+  // ── PRE-CARGA: Obtiene los horarios reales para el empleado y periodo seleccionado en el modal ──
   useEffect(() => {
     if (!formModalOpen || !modalEmployee) return;
 
-    const initial: Record<DayOfWeek, number[]> = {
-      Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
+    let isMounted = true;
+
+    const fetchModalSchedules = async () => {
+      try {
+        // Consultar siempre las asignaciones reales del periodo seleccionado en el modal
+        const periodSchedules = await getSchedules(selectedPeriod);
+
+        if (!isMounted) return;
+
+        const initial: Record<DayOfWeek, number[]> = {
+          Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
+        };
+
+        periodSchedules
+          .filter(s => s.employeeCode === modalEmployee && s.periodoAcademico === selectedPeriod)
+          .forEach(s => {
+            if (s.periodId !== undefined && initial[s.day]) {
+              initial[s.day].push(s.periodId);
+            }
+          });
+
+        setDraftSchedules(initial);
+      } catch (err) {
+        console.error("Error al precargar horarios del modal:", err);
+      }
     };
 
-    schedules
-      .filter(s => s.employeeCode === modalEmployee && s.periodoAcademico === selectedPeriod)
-      .forEach(s => {
-        if (s.periodId !== undefined && initial[s.day]) {
-          initial[s.day].push(s.periodId);
-        }
-      });
+    fetchModalSchedules();
 
-    setDraftSchedules(initial);
-  }, [formModalOpen, modalEmployee, selectedPeriod, schedules]);
-
-  // ── RESETEA LOS BLOQUES AL CAMBIAR DE PERIODO ──
-  useEffect(() => {
-    setDraftSchedules({
-      Lunes: [], Martes: [], Miércoles: [], Jueves: [], Viernes: [], Sábado: []
-    });
-  }, [selectedPeriod]);
+    return () => {
+      isMounted = false;
+    };
+  }, [formModalOpen, modalEmployee, selectedPeriod]);
 
   // ── Cerrar menú exportación al hacer clic afuera ──
   useEffect(() => {
@@ -296,7 +318,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
     exportToPDF(body, columns, `horarios_${hoyLocal}`, "Asignación de Horarios", 0);
   };
 
-  if (loading) {
+  if (loading || isInitialLoading) {
     return <div className={`p-8 text-center ${dark ? "text-white" : "text-slate-800"}`}>Cargando horarios...</div>;
   }
 
