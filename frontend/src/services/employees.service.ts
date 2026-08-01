@@ -32,9 +32,13 @@ export interface UsuarioBackend {
 /**
  * Lista todos los empleados desde el backend.
  * GET /api/usuarios
+ * @param periodoAcademico Filtra el conteo de horarios asignados por periodo académico.
  */
-export async function getEmployees(): Promise<Employee[]> {
-  const { data } = await api.get<{ ok: boolean; data: UsuarioBackend[] }>("/usuarios");
+export async function getEmployees(periodoAcademico?: string): Promise<Employee[]> {
+  const params: Record<string, string> = {};
+  if (periodoAcademico) params.periodoAcademico = periodoAcademico;
+
+  const { data } = await api.get<{ ok: boolean; data: UsuarioBackend[] }>("/usuarios", { params });
   if (!data.ok) {
     throw new Error("Error al obtener la lista de empleados");
   }

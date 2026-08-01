@@ -14,6 +14,7 @@ import {
   Employee,
 } from "@/services/employees.service";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
+import { obtenerPeriodoActual, generatePeriodOptions } from "@/utils/periodo.utils";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { toast } from "sonner";
 
@@ -32,6 +33,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   const [statusFilter, setStatusFilter] = useState<"Todos" | "Activo" | "Inactivo" | "Licencia" | "Pendiente">("Todos");
   const [hoursFilter, setHoursFilter] = useState<"Todas" | 20 | 40>("Todas");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Period state
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(obtenerPeriodoActual());
+  const periodOptions = generatePeriodOptions(10);
 
   // Modals state
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -59,10 +64,10 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
   const [permisos, setPermisos] = useState<PermisoBackend[]>([]);
 
-  const loadEmployees = async () => {
+  const loadEmployees = async (period?: string) => {
     setLoading(true);
     try {
-      const [list, permList] = await Promise.all([getEmployees(), getPermisos()]);
+      const [list, permList] = await Promise.all([getEmployees(period), getPermisos()]);
       setEmployees(list);
       setPermisos(permList);
     } catch (error: any) {
@@ -76,10 +81,11 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
   };
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    loadEmployees(selectedPeriod);
+    setCurrentPage(1);
+  }, [selectedPeriod]);
 
-  useRefetchOnFocus(loadEmployees);
+  useRefetchOnFocus(() => loadEmployees(selectedPeriod));
 
   const getDynamicStatus = (emp: Employee): string => {
     if (emp.status !== "Activo") return emp.status;
@@ -335,6 +341,27 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-semibold ${dark ? "text-white/70" : "text-slate-600"}`}>
+                Periodo:
+              </span>
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className={`px-3 py-1.5 rounded-xl text-sm border outline-none cursor-pointer transition-all ${
+                  dark
+                    ? "bg-slate-800 border-slate-700 text-gray-100 focus:border-blue-500/60"
+                    : "bg-white border-slate-200 text-slate-800 focus:border-blue-600/50 shadow-xs"
+                }`}
+              >
+                {periodOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         )}

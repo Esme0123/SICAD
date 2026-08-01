@@ -8,8 +8,11 @@ const { enviarCorreoInvitacion, sendSendGridEmail } = require('../services/email
 const { isValidPassword, PASSWORD_ERROR_MESSAGE } = require('../utils/validators');
 
 // GET /api/usuarios
+// Query params: ?periodoAcademico=1-2026 (filtra el conteo de horarios asignados por periodo)
 async function getAll(req, res) {
   try {
+    const { periodoAcademico } = req.query;
+
     const usuarios = await prisma.usuario.findMany({
       where: { rol: 'EMPLEADO' },
       select: {
@@ -30,10 +33,26 @@ async function getAll(req, res) {
       orderBy: { nombre: 'asc' },
     });
 
-    const data = usuarios.map(({ inviteToken, ...rest }) => ({
-      ...rest,
-      invitacionPendiente: inviteToken !== null,
-    }));
+    let horariosPorUsuario = null;
+    if (periodoAcademico) {
+      const counts = await prisma.horarioAsignado.groupBy({
+        by: ['usuarioId'],
+        where: { periodoAcademico: String(periodoAcademico) },
+        _count: { _all: true },
+      });
+      horariosPorUsuario = new Map(counts.map(c => [c.usuarioId, c._count._all]));
+    }
+
+    const data = usuarios.map(({ inviteToken, _count, ...rest }) => {
+      const horariosAsignados = horariosPorUsuario
+        ? (horariosPorUsuario.get(rest.id) ?? 0)
+        : (_count?.horariosAsignados ?? 0);
+      return {
+        ...rest,
+        _count: { horariosAsignados },
+        invitacionPendiente: inviteToken !== null,
+      };
+    });
 
     res.json({ ok: true, data });
   } catch (error) {
