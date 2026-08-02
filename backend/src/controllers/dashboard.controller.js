@@ -148,12 +148,15 @@ async function getResumen(req, res) {
     });
     const presentes = asistenciasRange.length;
 
+    let empleadosEsperados = totalEmpleados;
     let ausentes = 0;
     if (rango === 'hoy') {
       const horariosHoy = await prisma.horarioAsignado.findMany({
         where: { diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true, rol: 'EMPLEADO' } },
         include: { periodo: true },
       });
+      // Empleados esperados hoy = activos con turno asignado en este día de la semana
+      empleadosEsperados = new Set(horariosHoy.map(h => h.usuarioId)).size;
       const asistioHoy = new Set(asistenciasRange.map(a => a.usuarioId));
       const ausentesSet = new Set(
         horariosHoy
@@ -220,6 +223,7 @@ async function getResumen(req, res) {
       ok: true,
       data: {
         totalEmpleados,
+        empleadosEsperados,
         presentes,
         ausentes,
         retrasos,

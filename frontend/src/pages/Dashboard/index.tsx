@@ -105,9 +105,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ dark }) => {
     return matchesSearch && matchesStatus;
   });
 
+  // Cantidad de empleados esperados según el período
+  const esperados =
+    resumen?.empleadosEsperados ?? (rango === "hoy" ? (resumen?.presentes ?? 0) : totalEmployees);
+
   const asistenciaPorcentaje =
-    resumen && resumen.totalEmpleados > 0
-      ? Math.round((resumen.presentes / resumen.totalEmpleados) * 100)
+    resumen && esperados > 0
+      ? Math.round((resumen.presentes / esperados) * 100)
       : 0;
 
   const chartSubtitle =
@@ -129,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ dark }) => {
     {
       title: "Asistencia",
       value: `${asistenciaPorcentaje}%`,
-      sub: `${resumen?.presentes ?? 0} de ${totalEmployees}`,
+      sub: `${resumen?.presentes ?? 0} de ${esperados}`,
       icon: <UserCheck size={20} className="text-green-500" />,
       bg: dark ? "bg-green-500/10" : "bg-green-50",
       col: "text-green-500",

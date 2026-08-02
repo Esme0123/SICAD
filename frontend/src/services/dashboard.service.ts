@@ -12,6 +12,7 @@ export interface SystemStatus {
 
 export interface DashboardResumen {
   totalEmpleados: number;
+  empleadosEsperados?: number; // Nueva propiedad opcional
   presentes: number;
   ausentes: number;
   retrasos: number;
