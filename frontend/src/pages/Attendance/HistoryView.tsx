@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import { getAttendanceHistory, AttendanceRecord } from "@/services/attendance.service";
-import { getPeriods, Periodo, getSchedules, Schedule, getGestionesAcademicas, GestionAcademica } from "@/services/schedules.service";
+import { getPeriods, Periodo } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,7 +28,37 @@ function periodContains(container: string, block: string): boolean {
   return toMinute(c[0]) <= toMinute(b[0]) && toMinute(c[1]) >= toMinute(b[1]);
 }
 
-const DAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+// Determina el periodo según el mes de la fecha (DD/MM/YYYY o YYYY-MM-DD)
+function getPeriodoByDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const parts = dateStr.includes("/") ? dateStr.split("/") : dateStr.split("-");
+  let day: number, month: number, year: number;
+
+  if (parts[0].length === 4) {
+    [year, month, day] = parts.map(Number);
+  } else {
+    [day, month, year] = parts.map(Number);
+  }
+
+  if (!month || !year) return "";
+
+  if (month === 1) return `Verano ${year}`;
+  if (month >= 2 && month <= 6) return `1-${year}`;
+  if (month === 7) return `Invierno ${year}`;
+  return `2-${year}`; // Meses 8 a 12 (Agosto - Diciembre)
+}
+
+// Obtiene el periodo académico de la fecha actual de Bolivia
+function obtenerPeriodoActual(): string {
+  const hoy = new Date(new Date().toLocaleString("en-US", { timeZone: "America/La_Paz" }));
+  const month = hoy.getMonth() + 1;
+  const year = hoy.getFullYear();
+
+  if (month === 1) return `Verano ${year}`;
+  if (month >= 2 && month <= 6) return `1-${year}`;
+  if (month === 7) return `Invierno ${year}`;
+  return `2-${year}`;
+}
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
@@ -40,10 +70,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [periodOptions, setPeriodOptions] = useState<Periodo[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [academicPeriodOptions, setAcademicPeriodOptions] = useState<GestionAcademica[]>([]);
   const [quickDateFilter, setQuickDateFilter] = useState<"todos" | "hoy" | "semana" | "mes">("todos");
-  const [academicPeriodFilter, setAcademicPeriodFilter] = useState("");
+  const [academicPeriodFilter, setAcademicPeriodFilter] = useState<string>(obtenerPeriodoActual());
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 30;
   const searchRef = useRef<HTMLDivElement>(null);
@@ -67,14 +95,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     Promise.all([
       getAttendanceHistory(),
       getPeriods(),
-      getGestionesAcademicas(),
-      getSchedules(),
     ])
-      .then(([attendanceData, periodsData, gestionesData, schedulesData]) => {
+      .then(([attendanceData, periodsData]) => {
         setRows(attendanceData);
         setPeriodOptions(periodsData);
-        setAcademicPeriodOptions(gestionesData);
-        setSchedules(schedulesData);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -96,36 +120,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       ).slice(0, 5)
     : [];
 
-  const scheduleLookup = useMemo(() => {
-    const map = new Map<string, Schedule[]>();
-    schedules.forEach(s => {
-      const list = map.get(s.employeeCode) || [];
-      list.push(s);
-      map.set(s.employeeCode, list);
-    });
-    return map;
-  }, [schedules]);
-
-  const getAcademicPeriod = useCallback(
-    (row: AttendanceRecord): string | undefined => {
-      if (!row.period || !row.date) return undefined;
-      const [d, m, y] = row.date.split("/").map(Number);
-      if (!d || !m || !y) return undefined;
-      const day = DAYS[new Date(y, m - 1, d).getDay()];
-      const start = row.period.split("–")[0]?.trim();
-      if (!start) return undefined;
-      const list = scheduleLookup.get(row.code) || [];
-      const match = list.find(s => s.day === day && s.startTime === start);
-      return match?.periodoAcademico || undefined;
-    },
-    [scheduleLookup]
-  );
-
   // ── Consolidación de filas para mostrar la jornada continua completa ──
   const consolidatedRows = useMemo(() => {
     const groups: Record<string, AttendanceRecord[]> = {};
 
-    // Agrupar por empleado (código) y fecha
+    // 1. Agrupar por código de empleado y fecha
     rows.forEach(row => {
       const key = `${row.code}_${row.date}`;
       if (!groups[key]) groups[key] = [];
@@ -135,33 +134,43 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     const mergedList: AttendanceRecord[] = [];
 
     Object.values(groups).forEach(group => {
+      // Asignar siempre el periodo correcto según la fecha
+      const computedAcademicPeriod = getPeriodoByDate(group[0].date);
+
       if (group.length === 1) {
-        mergedList.push({ ...group[0], academicPeriod: getAcademicPeriod(group[0]) });
+        mergedList.push({
+          ...group[0],
+          academicPeriod: computedAcademicPeriod,
+        });
         return;
       }
 
-      // Ordenar bloques por hora de inicio si contienen guion (ej: "07:00–08:15")
+      // Sort por hora de inicio del bloque
       group.sort((a, b) => (a.period || "").localeCompare(b.period || ""));
 
-      const firstBlock = group[0].period?.split("–")[0]?.trim() || "";
-      const lastBlock = group[group.length - 1].period?.split("–")[1]?.trim() || "";
+      // Extraer hora de inicio del primer bloque (ej: "07:00")
+      const startTime = group[0].period?.split("–")[0]?.trim() || group[0].period?.split("-")[0]?.trim() || "";
+      // Extraer hora de fin del último bloque (ej: "16:15")
+      const lastItem = group[group.length - 1];
+      const endTime = lastItem.period?.split("–")[1]?.trim() || lastItem.period?.split("-")[1]?.trim() || "";
 
-      // Unificar rango de periodo: ej. "07:00–16:15"
-      const periodRange = firstBlock && lastBlock ? `${firstBlock}–${lastBlock}` : group[0].period;
+      const fullPeriodRange = (startTime && endTime) ? `${startTime}–${endTime}` : group[0].period;
 
-      // Retornar registro consolidado usando la primera entrada y última salida registrada
+      // Buscar la primera hora de entrada válida y la última hora de salida válida del grupo
+      const primeraEntrada = group.find(g => g.horaEntrada && g.horaEntrada !== "—")?.horaEntrada || group[0].horaEntrada;
+      const ultimaSalida = group.slice().reverse().find(g => g.horaSalida && g.horaSalida !== "—")?.horaSalida || group[0].horaSalida;
+
       mergedList.push({
         ...group[0],
-        period: periodRange,
-        // Conservar la marcación válida del grupo
-        horaEntrada: group.find(g => g.horaEntrada)?.horaEntrada || group[0].horaEntrada,
-        horaSalida: group.slice().reverse().find(g => g.horaSalida)?.horaSalida || group[0].horaSalida,
-        academicPeriod: getAcademicPeriod(group[0]),
+        period: fullPeriodRange,
+        horaEntrada: primeraEntrada,
+        horaSalida: ultimaSalida,
+        academicPeriod: computedAcademicPeriod,
       });
     });
 
     return mergedList;
-  }, [rows, getAcademicPeriod]);
+  }, [rows]);
 
   const filteredRows = useMemo(() => {
     const hoyDate = new Date();
@@ -171,7 +180,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       const matchDate = !filterDate || row.date === format(filterDate, "dd/MM/yyyy");
 
       // Filtro por Periodo Académico (ej: "2-2026", "Invierno 2026")
-      const matchAcademicPeriod = !academicPeriodFilter || row.academicPeriod === academicPeriodFilter || row.periodoAcademico === academicPeriodFilter;
+      const matchAcademicPeriod = !academicPeriodFilter ||
+        row.academicPeriod === academicPeriodFilter ||
+        getPeriodoByDate(row.date) === academicPeriodFilter;
 
       // Filtro por Horario (compatibilidad con rangos consolidados de jornada continua)
       const matchPeriod = filterPeriod === "" || periodContains(row.period || "", filterPeriod);
@@ -208,6 +219,30 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterDate, filterPeriod, filterStatus, quickDateFilter, academicPeriodFilter]);
+
+  // ── Orden cronológico de periodos académicos (del más antiguo al más nuevo) ──
+  const sortedAcademicPeriods = useMemo(() => {
+    // Extraer periodos únicos disponibles en los datos
+    const periodsSet = new Set<string>();
+    rows.forEach(r => {
+      const p = getPeriodoByDate(r.date);
+      if (p) periodsSet.add(p);
+    });
+
+    const periodOrderWeight = (periodStr: string) => {
+      const [name, yearStr] = periodStr.split(" ");
+      let weight = 0;
+      if (periodStr.startsWith("Verano")) weight = 1;
+      else if (periodStr.startsWith("1-")) weight = 2;
+      else if (periodStr.startsWith("Invierno")) weight = 3;
+      else if (periodStr.startsWith("2-")) weight = 4;
+
+      const year = parseInt(yearStr || periodStr.split("-")[1] || "0");
+      return year * 10 + weight;
+    };
+
+    return Array.from(periodsSet).sort((a, b) => periodOrderWeight(a) - periodOrderWeight(b));
+  }, [rows]);
 
   const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE) || 1;
   const paginatedRows = useMemo(() => {
@@ -412,8 +447,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
               className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
             >
               <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los Periodos Académicos</option>
-              {academicPeriodOptions.map(p => (
-                <option key={p.id} value={p.nombre} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{p.nombre}</option>
+              {sortedAcademicPeriods.map(p => (
+                <option key={p} value={p} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{p}</option>
               ))}
             </select>
           </div>
