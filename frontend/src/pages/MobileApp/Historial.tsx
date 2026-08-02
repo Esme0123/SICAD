@@ -48,10 +48,10 @@ const filtrosLabel: Record<Filtro, string> = {
 };
 
 const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg: string; border: string }> = {
-  Puntual:    { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
-  Tardanza:   { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/20", border: "border-amber-500/30" },
+  Puntual: { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
+  Tardanza: { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/20", border: "border-amber-500/30" },
   Justificado: { icon: FileText, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
-  Ausente:    { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" },
+  Ausente: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" },
 };
 
 function boDate(date?: Date): Date {
@@ -64,11 +64,12 @@ function fmtDateISO(d: Date): string {
   return `${b.getFullYear()}-${String(b.getMonth() + 1).padStart(2, "0")}-${String(b.getDate()).padStart(2, "0")}`;
 }
 
-function formatHora(d: Date | null): string {
+/**
+  function formatHora(d: Date | null): string {
   if (!d) return null;
   const b = boDate(d);
   return b.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
-}
+}**/
 
 /** Convierte "YYYY-MM-DD" a Date LOCAL evitando el desfase UTC.
  *  new Date("2026-07-22") se interpreta como UTC 00:00 y en Bolivia
@@ -139,7 +140,7 @@ async function getInstitutionName(): Promise<string> {
     const res = await fetch(`${API}/configuracion`);
     const json = await res.json();
     if (json.ok && json.data?.nombreInstitucion) return json.data.nombreInstitucion;
-  } catch {}
+  } catch { }
   return "SICAD - Centro de Cómputo";
 }
 
@@ -508,11 +509,11 @@ export const MobileHistorial: React.FC = () => {
           ))
         ) : resumen ? (
           [
-            { key: null,      label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
-            { key: "Puntual",    label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
-            { key: "Tardanza",   label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
+            { key: null, label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
+            { key: "Puntual", label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
+            { key: "Tardanza", label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
             { key: "Justificado", label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
-            { key: "Ausente",    label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
+            { key: "Ausente", label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
           ].map((s) => {
             const isActive = s.key !== null && filtroEstado === s.key;
             return (
@@ -583,13 +584,13 @@ export const MobileHistorial: React.FC = () => {
 
             const borderClr = m.estado === "Puntual" ? "#10B981" :
               m.estado === "Tardanza" ? "#F59E0B" :
-              m.estado === "Ausente" ? "#EF4444" :
-              "#3B82F6";
+                m.estado === "Ausente" ? "#EF4444" :
+                  "#3B82F6";
 
             const bgGlow = m.estado === "Puntual" ? "#10B98108" :
               m.estado === "Tardanza" ? "#F59E0B08" :
-              m.estado === "Ausente" ? "#EF444408" :
-              "#3B82F608";
+                m.estado === "Ausente" ? "#EF444408" :
+                  "#3B82F608";
 
             const tardanzaMin = m.estado === "Tardanza" ? m.minutosRetraso : null;
 
