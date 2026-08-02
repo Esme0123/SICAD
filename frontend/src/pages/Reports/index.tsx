@@ -32,49 +32,66 @@ const PIE_COLORS: Record<string, string> = {
 
 
 
+// Helper para obtener la fecha de hoy en formato YYYY-MM-DD local (sin desfase UTC)
+function getTodayLocalString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function mapPeriodToDates(period: string): { startDate: string; endDate: string } {
+  const todayStr = getTodayLocalString();
   const now = new Date();
   const y = now.getFullYear();
 
   switch (period) {
     case "Diario": {
-      const d = now.toISOString().split("T")[0];
-      return { startDate: d, endDate: d };
+      return { startDate: todayStr, endDate: todayStr };
     }
     case "Semanal": {
-      const day = now.getDay();
+      const day = now.getDay(); // 0: Dom, 1: Lun, ...
       const monday = new Date(now);
       monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
+
+      const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+
+      // La fecha fin NO debe superar el día de hoy
       return {
-        startDate: monday.toISOString().split("T")[0],
-        endDate: sunday.toISOString().split("T")[0],
+        startDate: mondayStr,
+        endDate: todayStr,
       };
     }
-    case "Mensual":
+    case "Mensual": {
+      const startOfMonth = `${y}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
       return {
-        startDate: `${y}-${String(now.getMonth() + 1).padStart(2, "0")}-01`,
-        endDate: now.toISOString().split("T")[0],
+        startDate: startOfMonth,
+        endDate: todayStr,
       };
+    }
     default: {
+      let startDate = `${y}-01-01`;
+      let endDate = todayStr;
+
       const matchVerano = period.match(/^Verano (\d{4})$/);
-      if (matchVerano) {
-        return { startDate: `${matchVerano[1]}-01-01`, endDate: `${matchVerano[1]}-01-31` };
-      }
+      if (matchVerano) startDate = `${matchVerano[1]}-01-01`;
+
       const matchInvierno = period.match(/^Invierno (\d{4})$/);
-      if (matchInvierno) {
-        return { startDate: `${matchInvierno[1]}-07-01`, endDate: `${matchInvierno[1]}-07-31` };
-      }
+      if (matchInvierno) startDate = `${matchInvierno[1]}-07-01`;
+
       const match1 = period.match(/^1-(\d{4})$/);
-      if (match1) {
-        return { startDate: `${match1[1]}-02-01`, endDate: `${match1[1]}-06-30` };
-      }
+      if (match1) startDate = `${match1[1]}-02-01`;
+
       const match2 = period.match(/^2-(\d{4})$/);
-      if (match2) {
-        return { startDate: `${match2[1]}-08-01`, endDate: `${match2[1]}-12-31` };
+      if (match2) startDate = `${match2[1]}-08-01`;
+
+      // Siempre topar la fecha fin al día actual si la fecha del período va más allá de hoy
+      if (endDate > todayStr) {
+        endDate = todayStr;
       }
-      return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+
+      return { startDate, endDate };
     }
   }
 }

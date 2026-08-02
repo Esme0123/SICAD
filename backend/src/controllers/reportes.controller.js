@@ -26,6 +26,13 @@ async function getAnalisis(req, res) {
       return res.status(400).json({ ok: false, message: 'startDate y endDate son requeridos' });
     }
 
+    // Topar la fecha fin hasta HOY (Bolivia) para no generar métricas de días futuros
+    const hoyBolivia = getBoliviaDate();
+    const hoyStr = `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`;
+    if (endDate > hoyStr) {
+      endDate = hoyStr;
+    }
+
     const { start, end } = getDateRange(startDate, endDate);
 
     // ── Filtro de usuario (search por CI/código, cargo opcional) ──
@@ -112,7 +119,16 @@ async function getAnalisis(req, res) {
     // 2. gráficoBarras — agrupado por día (4 estados)
     // ════════════════════════════════════════════════════════════════
 
-    const totalEmpleados = usuarios.length;
+    // ── Empleados esperados por día de la semana según horarios asignados ──
+    const horariosAsignadosDia = await prisma.horarioAsignado.findMany({
+      where: { usuarioId: { in: userIds } },
+      select: { usuarioId: true, diaSemana: true },
+    });
+    const esperadosPorDia = {}; // diaSemana -> Set(usuarioId)
+    for (const h of horariosAsignadosDia) {
+      if (!esperadosPorDia[h.diaSemana]) esperadosPorDia[h.diaSemana] = new Set();
+      esperadosPorDia[h.diaSemana].add(h.usuarioId);
+    }
 
     // Per-day attendance breakdown (puntual vs tardanza)
     const dayAttendance = {};
@@ -147,19 +163,22 @@ async function getAnalisis(req, res) {
     );
 
     // Generate entries for ALL days in the range
-    const dateLabels = [];
+    const dateEntries = [];
     const rangeStart = new Date(start.getTime());
     const rangeEnd = new Date(end.getTime());
     for (let dt = new Date(rangeStart); dt <= rangeEnd; dt.setDate(dt.getDate() + 1)) {
       if (dt.getDay() === 0) continue;
-      const diaSemana = DIAS[dt.getDay()].substring(0, 3);
-      dateLabels.push(`${diaSemana} ${dt.getDate()}`);
+      const diaSemana = DIAS[dt.getDay()];
+      dateEntries.push({ label: `${diaSemana.substring(0, 3)} ${dt.getDate()}`, diaSemana });
     }
 
-    const graficoBarras = dateLabels.map((label) => {
+    const graficoBarras = dateEntries.map(({ label, diaSemana }) => {
       const data = dayAttendance[label] || { total: 0, tardanza: 0 };
       const justificados = justificadosMap[label] || 0;
-      const ausentes = Math.max(0, totalEmpleados - data.total - justificados);
+      // Esperados = empleados con al menos un horario asignado ese día de la semana
+      const esperados = (esperadosPorDia[diaSemana] || new Set()).size;
+      // Ausentes = esperados - (Puntual + Tardanza + Justificados), nunca negativo
+      const ausentes = Math.max(0, esperados - data.total - justificados);
       return { fecha: label, puntual: data.total - data.tardanza, tardanza: data.tardanza, ausentes, justificados };
     });
 
