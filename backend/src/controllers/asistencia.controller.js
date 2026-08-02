@@ -135,6 +135,34 @@ function agruparBloquesContinuos(horarios) {
 }
 
 /**
+ * Agrupa horarios de un mismo día en bloques maestros (Jornada Continua).
+ * Dos horarios son contiguos si horaFin del primero === horaInicio del siguiente.
+ * @param {Array} horarios - Array de { horaInicio, horaFin }
+ * @returns {Array<{ horarios: Array, horaInicio: string, horaFin: string }>}
+ */
+function agruparHorariosContiguos(horarios) {
+  if (!horarios || horarios.length === 0) return [];
+  const sorted = [...horarios].sort((a, b) =>
+    timeToMinutes(a.horaInicio) - timeToMinutes(b.horaInicio)
+  );
+  const bloques = [];
+  let bloque = { horarios: [sorted[0]], horaInicio: sorted[0].horaInicio, horaFin: sorted[0].horaFin };
+  for (let i = 1; i < sorted.length; i++) {
+    const anterior = sorted[i - 1];
+    const actual = sorted[i];
+    if (anterior.horaFin === actual.horaInicio) {
+      bloque.horarios.push(actual);
+      bloque.horaFin = actual.horaFin;
+    } else {
+      bloques.push(bloque);
+      bloque = { horarios: [actual], horaInicio: actual.horaInicio, horaFin: actual.horaFin };
+    }
+  }
+  bloques.push(bloque);
+  return bloques;
+}
+
+/**
  * Encuentra el bloque activo y el periodo activo dentro del bloque
  * considerando tolerancia de 20 min antes del inicio.
  * @param {Array} bloques - Bloques continuos
@@ -1109,15 +1137,13 @@ async function miHistorial(req, res) {
       return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
     }
 
-    // ── Indexar asistencias por (fecha × periodoLabel) ──
-    const asistenciaIdx = new Map();
+    // ── Indexar asistencias por fecha ──
+    const asistenciaPorFecha = new Map();
     for (const a of asistencias) {
       const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
       const fechaStr = fd.toISOString().split('T')[0];
-      const pLabel = a.periodo ? a.periodo.replace(/\s*-\s*/g, '–') : '';
-      if (!pLabel) continue;
-      if (!asistenciaIdx.has(fechaStr)) asistenciaIdx.set(fechaStr, new Map());
-      asistenciaIdx.get(fechaStr).set(pLabel, a);
+      if (!asistenciaPorFecha.has(fechaStr)) asistenciaPorFecha.set(fechaStr, []);
+      asistenciaPorFecha.get(fechaStr).push(a);
     }
 
     // ── Indexar permisos APROBADOS por fecha ──
@@ -1158,69 +1184,84 @@ async function miHistorial(req, res) {
       const horariosDia = horarioPorDia.get(diaSemana) || [];
       if (horariosDia.length === 0) continue;
 
-      const asistenciasFecha = asistenciaIdx.get(fechaStr) || new Map();
-      const permisosFecha = permisosIdx.get(fechaStr) || [];
-      const esHoy = fechaStr === hoyStr;
-
-      for (const h of horariosDia) {
+      // Solo periodos ya asignados para esa fecha
+      const horariosValidos = horariosDia.filter(h => {
         const createdAtStr = typeof h.createdAt === 'string'
           ? h.createdAt.split('T')[0]
           : h.createdAt instanceof Date
             ? h.createdAt.toISOString().split('T')[0]
             : '';
-        if (fechaStr < createdAtStr) continue;
+        return fechaStr >= createdAtStr;
+      });
+      if (horariosValidos.length === 0) continue;
 
-        const periodoLabel = `${h.horaInicio}–${h.horaFin}`;
+      const asistenciasFecha = asistenciaPorFecha.get(fechaStr) || [];
+      const permisosFecha = permisosIdx.get(fechaStr) || [];
+      const esHoy = fechaStr === hoyStr;
+      const asignadasIds = new Set();
 
-        // ── ¿Tiene marcación? ──
-        const a = asistenciasFecha.get(periodoLabel);
-        if (a) {
+      // ── Agrupar periodos contiguos en bloques maestros (Jornada Continua) ──
+      const bloques = agruparHorariosContiguos(horariosValidos);
+
+      for (const bloque of bloques) {
+        const inicioBloqueMin = timeToMinutes(bloque.horaInicio);
+        const finBloqueMin = timeToMinutes(bloque.horaFin);
+        const periodoLabel = `${bloque.horaInicio}–${bloque.horaFin}`;
+
+        // ── Marcaciones cuya entrada cae dentro del bloque maestro ──
+        const asistenciasBloque = asistenciasFecha.filter(a => {
+          if (!a.horaEntrada) return false;
+          const min = getBoliviaDate(a.horaEntrada).getHours() * 60 + getBoliviaDate(a.horaEntrada).getMinutes();
+          return min >= inicioBloqueMin - 20 && min <= finBloqueMin;
+        });
+
+        if (asistenciasBloque.length > 0) {
+          for (const a of asistenciasBloque) asignadasIds.add(a.id);
+
+          // Primera entrada y última salida del día dentro del bloque
+          const primera = asistenciasBloque.reduce((acc, a) =>
+            (!acc || a.horaEntrada < acc.horaEntrada) ? a : acc, null);
+          const ultima = asistenciasBloque.reduce((acc, a) =>
+            (!acc || (a.horaSalida && a.horaSalida > acc.horaSalida)) ? a : acc, null);
+
+          const entradaMin = getBoliviaDate(primera.horaEntrada).getHours() * 60 + getBoliviaDate(primera.horaEntrada).getMinutes();
           let estado = 'Puntual';
           let minutosRetraso = null;
-          if (a.horaEntrada) {
-            const obs = (a.observacion || '').toLowerCase();
-            if (obs.startsWith('llegó') || obs.includes('tarde')) {
-              estado = 'Tardanza';
-              const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
-              if (match) minutosRetraso = parseInt(match[1]);
-            }
+          if (entradaMin > inicioBloqueMin) {
+            estado = 'Tardanza';
+            minutosRetraso = entradaMin - inicioBloqueMin;
           }
-          const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-          const fStr2 = fd2.toISOString().split('T')[0];
+
           data.push({
-            id: a.id,
-            fecha: fStr2,
-            fechaLegible: new Date(fStr2 + 'T12:00:00').toLocaleDateString('es-BO', {
+            id: primera.id,
+            fecha: fechaStr,
+            fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
               timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
             }),
-            horaEntrada: fmtTime(a.horaEntrada),
-            horaSalida: fmtTime(a.horaSalida),
+            horaEntrada: fmtTime(primera.horaEntrada),
+            horaSalida: ultima && ultima.horaSalida ? fmtTime(ultima.horaSalida) : null,
             estado,
             periodo: periodoLabel,
-            observacion: a.observacion,
+            observacion: null,
             minutosRetraso,
-            salidaOmitida: a.salidaOmitida,
+            salidaOmitida: (ultima && ultima.horaSalida) ? !!ultima.salidaOmitida : !!primera.salidaOmitida,
           });
           continue;
         }
 
         // ── Sin marcación → ¿cubre permiso aprobado? ──
-        const permisoCubre = permisosFecha.some(p => {
+        const permisoCubre = permisosFecha.find(p => {
           const tienePeriodos = p.periodos && p.periodos.length > 0;
           if (!tienePeriodos) return true;
-          return p.periodos.some(pp =>
-            pp.periodo.horaInicio === h.horaInicio && pp.periodo.horaFin === h.horaFin
+          return bloque.horarios.some(h =>
+            p.periodos.some(pp =>
+              pp.periodo.horaInicio === h.horaInicio && pp.periodo.horaFin === h.horaFin
+            )
           );
         });
 
         if (permisoCubre) {
-          const p = permisosFecha.find(p2 => {
-            const tienePeriodos = p2.periodos && p2.periodos.length > 0;
-            if (!tienePeriodos) return true;
-            return p2.periodos.some(pp =>
-              pp.periodo.horaInicio === h.horaInicio && pp.periodo.horaFin === h.horaFin
-            );
-          });
+          const p = permisoCubre;
           const obsTexto = `${p.tipoPermiso?.nombre || 'Permiso'}: ${p.motivo || ''}`;
           const tienePeriodos = p.periodos && p.periodos.length > 0;
           const nombrePeriodos = tienePeriodos
@@ -1243,10 +1284,9 @@ async function miHistorial(req, res) {
           continue;
         }
 
-        // ── Sin marcación ni permiso → Ausente (solo si el turno ya pasó hoy) ──
+        // ── Sin marcación ni permiso → Ausente (solo si el bloque ya pasó hoy) ──
         if (esHoy) {
-          const [hFin, mFin] = h.horaFin.split(':').map(Number);
-          if (ahoraMin < hFin * 60 + mFin) continue;
+          if (ahoraMin < finBloqueMin) continue;
         }
 
         data.push({
@@ -1262,6 +1302,37 @@ async function miHistorial(req, res) {
           observacion: `Sin marcación en ${periodoLabel}`,
           minutosRetraso: null,
           salidaOmitida: false,
+        });
+      }
+
+      // ── Marcaciones que no caen en ningún bloque (fuera de horario) ──
+      for (const a of asistenciasFecha) {
+        if (asignadasIds.has(a.id)) continue;
+        const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+        const fStr2 = fd2.toISOString().split('T')[0];
+        let estado = 'Puntual';
+        let minutosRetraso = null;
+        if (a.horaEntrada) {
+          const obs = (a.observacion || '').toLowerCase();
+          if (obs.startsWith('llegó') || obs.includes('tarde')) {
+            estado = 'Tardanza';
+            const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
+            if (match) minutosRetraso = parseInt(match[1]);
+          }
+        }
+        data.push({
+          id: a.id,
+          fecha: fStr2,
+          fechaLegible: new Date(fStr2 + 'T12:00:00').toLocaleDateString('es-BO', {
+            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          }),
+          horaEntrada: fmtTime(a.horaEntrada),
+          horaSalida: fmtTime(a.horaSalida),
+          estado,
+          periodo: a.periodo || null,
+          observacion: a.observacion,
+          minutosRetraso,
+          salidaOmitida: a.salidaOmitida,
         });
       }
     }

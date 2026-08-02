@@ -575,28 +575,7 @@ export const MobileHistorial: React.FC = () => {
               </button>
             </div>
           )}
-          {(() => {
-            const grouped = [...dataFiltrada].sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.periodo || "").localeCompare(b.periodo || ""));
-            const merged: typeof dataFiltrada = [];
-            for (const item of grouped) {
-              const last = merged[merged.length - 1];
-              if (
-                last && last.estado === "Ausente" && item.estado === "Ausente" &&
-                last.fecha === item.fecha &&
-                last.periodo && item.periodo &&
-                last.periodo.split("–")[1]?.trim() === item.periodo.split("–")[0]?.trim()
-              ) {
-                merged[merged.length - 1] = {
-                  ...last,
-                  periodo: `${last.periodo.split("–")[0].trim()}–${item.periodo.split("–")[1].trim()}`,
-                  observacion: `Sin marcación en ${last.periodo.split("–")[0].trim()}–${item.periodo.split("–")[1].trim()}`,
-                };
-              } else {
-                merged.push(item);
-              }
-            }
-            return merged;
-          })().map((m) => {
+          {dataFiltrada.map((m) => {
             const cfg = estadoConfig[m.estado] || estadoConfig.Puntual;
             const Icon = cfg.icon;
             const f = parseLocalDate(m.fecha);
