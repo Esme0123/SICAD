@@ -145,24 +145,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         return;
       }
 
-      // Sort por hora de inicio del bloque
-      group.sort((a, b) => (a.period || "").localeCompare(b.period || ""));
-
-      // Extraer hora de inicio del primer bloque (ej: "07:00")
-      const startTime = group[0].period?.split("–")[0]?.trim() || group[0].period?.split("-")[0]?.trim() || "";
-      // Extraer hora de fin del último bloque (ej: "16:15")
-      const lastItem = group[group.length - 1];
-      const endTime = lastItem.period?.split("–")[1]?.trim() || lastItem.period?.split("-")[1]?.trim() || "";
-
-      const fullPeriodRange = (startTime && endTime) ? `${startTime}–${endTime}` : group[0].period;
-
-      // Buscar la primera hora de entrada válida y la última hora de salida válida del grupo
+      // El backend ya retorna el rango consolidado de la jornada en `period`;
+      // solo se conserva la primera entrada y la última salida válidas del grupo.
       const primeraEntrada = group.find(g => g.horaEntrada && g.horaEntrada !== "—")?.horaEntrada || group[0].horaEntrada;
       const ultimaSalida = group.slice().reverse().find(g => g.horaSalida && g.horaSalida !== "—")?.horaSalida || group[0].horaSalida;
 
       mergedList.push({
         ...group[0],
-        period: fullPeriodRange,
+        period: group[0].period,
         horaEntrada: primeraEntrada,
         horaSalida: ultimaSalida,
         academicPeriod: computedAcademicPeriod,

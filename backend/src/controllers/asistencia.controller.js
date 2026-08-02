@@ -216,8 +216,11 @@ async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMi
   const bloques = agruparBloquesContinuos(horarios);
   let encontrado = encontrarBloqueYPeriodoActivo(bloques, ahoraMin, 20);
   if (!encontrado.bloque) {
-    return { estado: 'Fuera de horario', periodoLabel: null, observacion: null, bloque: null, periodoActivo: null };
+    return { estado: 'Fuera de horario', periodoLabel: null, periodoConsolidado: null, observacion: null, bloque: null, periodoActivo: null };
   }
+
+  // Rango consolidado de la jornada completa (bloque maestro), ej. "07:00–16:15"
+  const periodoConsolidado = `${encontrado.bloque.horaInicio}–${encontrado.bloque.horaFin}`;
 
   // Verificar justificaciones dentro del bloque
   const ahora = new Date();
@@ -227,7 +230,7 @@ async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMi
     if (justificado) {
       // Si el periodo activo está justificado, todo el bloque está cubierto
       if (i === encontrado.posicion) {
-        return { estado: 'PUNTUAL', periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: h };
+        return { estado: 'PUNTUAL', periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, periodoConsolidado, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: h };
       }
       continue;
     }
@@ -240,12 +243,12 @@ async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMi
       estado = 'PUNTUAL';
       observacion = null;
     }
-    return { estado, periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, observacion, bloque: encontrado.bloque, periodoActivo: h };
+    return { estado, periodoLabel: `${h.periodo.horaInicio}–${h.periodo.horaFin}`, periodoConsolidado, observacion, bloque: encontrado.bloque, periodoActivo: h };
   }
 
   // Todos los periodos del bloque están justificados
   const ultimo = encontrado.bloque.horarios[encontrado.bloque.horarios.length - 1];
-  return { estado: 'PUNTUAL', periodoLabel: `${ultimo.periodo.horaInicio}–${ultimo.periodo.horaFin}`, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: ultimo };
+  return { estado: 'PUNTUAL', periodoLabel: `${ultimo.periodo.horaInicio}–${ultimo.periodo.horaFin}`, periodoConsolidado, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: ultimo };
 }
 
 // ── Endpoints ────────────────────────────────────────────────
@@ -328,7 +331,8 @@ async function registrar(req, res) {
         const bloqueInfo = await calcularBloqueYEstado(uid, horariosHoy, ahoraMin, toleranciaMin);
         estado = bloqueInfo.estado;
         observacion = bloqueInfo.observacion;
-        periodoLabel = bloqueInfo.periodoLabel;
+        // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+        periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
       }
 
       resultado = await prisma.asistencia.create({
@@ -406,6 +410,71 @@ async function getAll(req, res) {
       orderBy: [{ fecha: 'desc' }, { horaEntrada: 'desc' }],
     });
 
+    // Horarios asignados para resolver dinámicamente el rango consolidado de cada registro
+    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const horariosAsignados = await prisma.horarioAsignado.findMany({
+      select: {
+        usuarioId: true,
+        diaSemana: true,
+        periodo: { select: { horaInicio: true, horaFin: true } },
+      },
+    });
+    const horariosPorUsuarioDia = new Map(); // key: `${usuarioId}_${diaSemana}`
+    for (const h of horariosAsignados) {
+      const key = `${h.usuarioId}_${h.diaSemana}`;
+      if (!horariosPorUsuarioDia.has(key)) horariosPorUsuarioDia.set(key, []);
+      horariosPorUsuarioDia.get(key).push({ inicio: h.periodo.horaInicio, fin: h.periodo.horaFin });
+    }
+
+    /**
+     * Resuelve el rango consolidado de la jornada (ej. "07:00–16:15") según los
+     * bloques contiguos asignados al empleado en la fecha del registro.
+     */
+    const resolverPeriodoConsolidado = (a) => {
+      if (!a.fecha) return null;
+      const fechaStr = a.fecha instanceof Date ? a.fecha.toISOString().split('T')[0] : String(a.fecha).split('T')[0];
+      const diaSemana = diasSemana[new Date(fechaStr + 'T12:00:00Z').getUTCDay()];
+      const bloques = horariosPorUsuarioDia.get(`${a.usuarioId}_${diaSemana}`) || [];
+      if (bloques.length === 0) return null;
+
+      bloques.sort((x, y) => timeToMinutes(x.inicio) - timeToMinutes(y.inicio));
+
+      // Consolidar bloques contiguos (fin del anterior === inicio del siguiente)
+      const consolidados = [];
+      let bloque = { inicio: bloques[0].inicio, fin: bloques[0].fin };
+      for (let i = 1; i < bloques.length; i++) {
+        const anterior = bloques[i - 1];
+        const actual = bloques[i];
+        if (anterior.fin === actual.inicio) {
+          bloque.fin = actual.fin;
+        } else {
+          consolidados.push(bloque);
+          bloque = { inicio: actual.inicio, fin: actual.fin };
+        }
+      }
+      consolidados.push(bloque);
+
+      // Hora de referencia: inicio del periodo guardado o, en su defecto, la hora de entrada
+      let inicioPeriodo = null;
+      if (a.periodo) {
+        if (a.periodo.includes('–')) inicioPeriodo = a.periodo.split('–')[0].trim();
+        else if (a.periodo.includes('-')) inicioPeriodo = a.periodo.split('-')[0].trim();
+      }
+      const horaEntradaMin = a.horaEntrada
+        ? getBoliviaDate(a.horaEntrada).getHours() * 60 + getBoliviaDate(a.horaEntrada).getMinutes()
+        : null;
+      const referenciaMin = inicioPeriodo ? timeToMinutes(inicioPeriodo) : horaEntradaMin;
+      if (referenciaMin === null) return null;
+
+      const match = consolidados.find(c => {
+        const inicioC = timeToMinutes(c.inicio) - 20;
+        const finC = timeToMinutes(c.fin);
+        return referenciaMin >= inicioC && referenciaMin <= finC;
+      });
+
+      return match ? `${match.inicio}–${match.fin}` : null;
+    };
+
     const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
     const toleranciaGlobal = config?.tiempoTolerancia ?? 20;
 
@@ -418,7 +487,10 @@ async function getAll(req, res) {
         ? calcularEstadoAsistencia(horaEntradaStr, horaInicioStr, tolerancia)
         : (horaEntradaStr ? 'PUNTUAL' : 'AUSENTE');
 
-      return { ...a, estado };
+      // Reemplazar el periodo guardado por el rango consolidado cuando se puede resolver
+      const periodoResuelto = resolverPeriodoConsolidado(a);
+
+      return { ...a, periodo: periodoResuelto || a.periodo, estado };
     });
 
     res.json({ ok: true, data });
@@ -536,7 +608,8 @@ async function marcar(req, res) {
       const bloqueInfo = await calcularBloqueYEstado(uid, horarios, ahoraMin, toleranciaMin);
       estado = bloqueInfo.estado;
       observacion = bloqueInfo.observacion;
-      periodoLabel = bloqueInfo.periodoLabel;
+      // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+      periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
     }
 
     // 5. Registrar entrada o salida
@@ -704,7 +777,8 @@ async function marcarMovil(req, res) {
           const bloqueInfo = await calcularBloqueYEstado(usuario.id, horarios, ahoraMin, toleranciaMin, tx);
           estado = bloqueInfo.estado;
           observacion = bloqueInfo.observacion;
-          periodoLabel = bloqueInfo.periodoLabel;
+          // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+          periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
         }
 
         // Registrar entrada o salida
