@@ -14,6 +14,8 @@ export interface AttendanceRecord {
   horaEntrada: string;
   horaSalida: string | null;
   status: AttendanceStatus;
+  academicPeriod?: string;
+  periodoAcademico?: string;
 }
 
 export interface RegisterAttendancePayload {

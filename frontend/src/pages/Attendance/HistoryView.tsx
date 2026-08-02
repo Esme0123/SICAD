@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import { getAttendanceHistory, AttendanceRecord } from "@/services/attendance.service";
-import { getPeriods, Periodo } from "@/services/schedules.service";
+import { getPeriods, Periodo, getSchedules, Schedule, getGestionesAcademicas, GestionAcademica } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,6 +13,22 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 interface HistoryViewProps {
   dark: boolean;
 }
+
+function toMinute(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** True si `container` (rango "HH:mm–HH:mm") contiene o es igual a `block`. */
+function periodContains(container: string, block: string): boolean {
+  if (container === block) return true;
+  const c = container.split("–").map(s => s.trim());
+  const b = block.split("–").map(s => s.trim());
+  if (c.length < 2 || b.length < 2) return false;
+  return toMinute(c[0]) <= toMinute(b[0]) && toMinute(c[1]) >= toMinute(b[1]);
+}
+
+const DAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
@@ -24,6 +40,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [periodOptions, setPeriodOptions] = useState<Periodo[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [academicPeriodOptions, setAcademicPeriodOptions] = useState<GestionAcademica[]>([]);
+  const [quickDateFilter, setQuickDateFilter] = useState<"todos" | "hoy" | "semana" | "mes">("todos");
+  const [academicPeriodFilter, setAcademicPeriodFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 30;
   const searchRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -45,10 +67,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     Promise.all([
       getAttendanceHistory(),
       getPeriods(),
+      getGestionesAcademicas(),
+      getSchedules(),
     ])
-      .then(([attendanceData, periodsData]) => {
+      .then(([attendanceData, periodsData, gestionesData, schedulesData]) => {
         setRows(attendanceData);
         setPeriodOptions(periodsData);
+        setAcademicPeriodOptions(gestionesData);
+        setSchedules(schedulesData);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -70,18 +96,124 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       ).slice(0, 5)
     : [];
 
+  const scheduleLookup = useMemo(() => {
+    const map = new Map<string, Schedule[]>();
+    schedules.forEach(s => {
+      const list = map.get(s.employeeCode) || [];
+      list.push(s);
+      map.set(s.employeeCode, list);
+    });
+    return map;
+  }, [schedules]);
+
+  const getAcademicPeriod = useCallback(
+    (row: AttendanceRecord): string | undefined => {
+      if (!row.period || !row.date) return undefined;
+      const [d, m, y] = row.date.split("/").map(Number);
+      if (!d || !m || !y) return undefined;
+      const day = DAYS[new Date(y, m - 1, d).getDay()];
+      const start = row.period.split("–")[0]?.trim();
+      if (!start) return undefined;
+      const list = scheduleLookup.get(row.code) || [];
+      const match = list.find(s => s.day === day && s.startTime === start);
+      return match?.periodoAcademico || undefined;
+    },
+    [scheduleLookup]
+  );
+
+  // ── Consolidación de filas para mostrar la jornada continua completa ──
+  const consolidatedRows = useMemo(() => {
+    const groups: Record<string, AttendanceRecord[]> = {};
+
+    // Agrupar por empleado (código) y fecha
+    rows.forEach(row => {
+      const key = `${row.code}_${row.date}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+
+    const mergedList: AttendanceRecord[] = [];
+
+    Object.values(groups).forEach(group => {
+      if (group.length === 1) {
+        mergedList.push({ ...group[0], academicPeriod: getAcademicPeriod(group[0]) });
+        return;
+      }
+
+      // Ordenar bloques por hora de inicio si contienen guion (ej: "07:00–08:15")
+      group.sort((a, b) => (a.period || "").localeCompare(b.period || ""));
+
+      const firstBlock = group[0].period?.split("–")[0]?.trim() || "";
+      const lastBlock = group[group.length - 1].period?.split("–")[1]?.trim() || "";
+
+      // Unificar rango de periodo: ej. "07:00–16:15"
+      const periodRange = firstBlock && lastBlock ? `${firstBlock}–${lastBlock}` : group[0].period;
+
+      // Retornar registro consolidado usando la primera entrada y última salida registrada
+      mergedList.push({
+        ...group[0],
+        period: periodRange,
+        // Conservar la marcación válida del grupo
+        horaEntrada: group.find(g => g.horaEntrada)?.horaEntrada || group[0].horaEntrada,
+        horaSalida: group.slice().reverse().find(g => g.horaSalida)?.horaSalida || group[0].horaSalida,
+        academicPeriod: getAcademicPeriod(group[0]),
+      });
+    });
+
+    return mergedList;
+  }, [rows, getAcademicPeriod]);
+
   const filteredRows = useMemo(() => {
-    return rows.filter(row => {
+    const hoyDate = new Date();
+
+    return consolidatedRows.filter(row => {
+      // Filtro por fecha específica (Calendar)
       const matchDate = !filterDate || row.date === format(filterDate, "dd/MM/yyyy");
-      const matchPeriod = filterPeriod === "" || row.period === filterPeriod;
+
+      // Filtro por Periodo Académico (ej: "2-2026", "Invierno 2026")
+      const matchAcademicPeriod = !academicPeriodFilter || row.academicPeriod === academicPeriodFilter || row.periodoAcademico === academicPeriodFilter;
+
+      // Filtro por Horario (compatibilidad con rangos consolidados de jornada continua)
+      const matchPeriod = filterPeriod === "" || periodContains(row.period || "", filterPeriod);
+
+      // Filtro por Estado
       const matchStatus = filterStatus === "" || row.status === filterStatus;
+
+      // Búsqueda por texto
       const matchEmployee = searchQuery === "" ||
         row.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         row.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         row.ci.includes(searchQuery);
-      return matchDate && matchPeriod && matchStatus && matchEmployee;
+
+      // Filtros rápidos
+      let matchQuickDate = true;
+      if (quickDateFilter === "hoy") {
+        const [d, m, y] = row.date.split("/").map(Number);
+        const rowD = new Date(y, m - 1, d);
+        matchQuickDate = rowD.toDateString() === hoyDate.toDateString();
+      } else if (quickDateFilter === "semana") {
+        const [d, m, y] = row.date.split("/").map(Number);
+        const rowD = new Date(y, m - 1, d);
+        const diffDays = Math.abs((hoyDate.getTime() - rowD.getTime()) / (1000 * 3600 * 24));
+        matchQuickDate = diffDays <= 7;
+      } else if (quickDateFilter === "mes") {
+        const [d, m, y] = row.date.split("/").map(Number);
+        matchQuickDate = (m - 1) === hoyDate.getMonth() && y === hoyDate.getFullYear();
+      }
+
+      return matchDate && matchAcademicPeriod && matchPeriod && matchStatus && matchEmployee && matchQuickDate;
     });
-  }, [rows, filterDate, filterPeriod, filterStatus, searchQuery]);
+  }, [consolidatedRows, filterDate, academicPeriodFilter, filterPeriod, filterStatus, searchQuery, quickDateFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterDate, filterPeriod, filterStatus, quickDateFilter, academicPeriodFilter]);
+
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE) || 1;
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, currentPage]);
 
   const renderStatusBadge = (status: string) => {
     let style = { bg: "", text: "", dot: "" };
@@ -253,6 +385,40 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           </div>
         </div>
 
+        <div className={`flex flex-wrap items-center gap-3 px-5 py-3 border-b ${dark ? "border-white/8" : "border-slate-100"}`}>
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
+            {(["todos", "hoy", "semana", "mes"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => { setQuickDateFilter(mode); setFilterDate(undefined); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
+                  quickDateFilter === mode
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-slate-600 dark:text-white/60 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                {mode === "todos" ? "Todos" : mode === "hoy" ? "Hoy" : mode === "semana" ? "Esta Semana" : "Este Mes"}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"}`}>
+              <FileText size={12} />
+            </span>
+            <select
+              value={academicPeriodFilter}
+              onChange={(e) => setAcademicPeriodFilter(e.target.value)}
+              className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
+            >
+              <option value="" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todos los Periodos Académicos</option>
+              {academicPeriodOptions.map(p => (
+                <option key={p.id} value={p.nombre} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">{p.nombre}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full">
             <thead>
@@ -272,7 +438,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                   </td>
                 </tr>
               ) : filteredRows.length > 0 ? (
-                filteredRows.map((r, i) => (
+                paginatedRows.map((r, i) => (
                   <tr key={i} className={`border-t transition-colors ${dark ? "border-white/6 hover:bg-primary/10" : "border-slate-100 hover:bg-primary/5"}`}>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
@@ -302,10 +468,32 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           </table>
         </div>
 
-        <div className={`flex items-center justify-between px-5 py-3 border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
-          <p className={`text-xs ${dark ? "text-white/30" : "text-slate-500"}`}>
-            Mostrando {filteredRows.length} de {rows.length} registros
+        <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3 border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
+          <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
+            Mostrando {paginatedRows.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} a {Math.min(currentPage * PAGE_SIZE, filteredRows.length)} de {filteredRows.length} registros
           </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-40 transition-colors cursor-pointer ${dark ? "border-white/10 text-white hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+            >
+              Anterior
+            </button>
+
+            <span className={`text-xs font-semibold px-2 ${dark ? "text-white" : "text-slate-700"}`}>
+              Página {currentPage} de {totalPages}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-40 transition-colors cursor-pointer ${dark ? "border-white/10 text-white hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </div>
     </div>
