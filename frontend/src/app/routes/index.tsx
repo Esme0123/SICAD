@@ -15,6 +15,7 @@ import { PeriodsView } from "@/pages/Attendance/PeriodsView";
 import { HistoryView } from "@/pages/Attendance/HistoryView";
 import { Reports } from "@/pages/Reports";
 import { Settings } from "@/pages/Settings";
+import { ControlHorasView } from "@/views/ControlHorasView";
 import { ScanProcessor } from "@/pages/Mobile/ScanProcessor";
 import { MobileLogin } from "@/pages/MobileLogin";
 import { MobileInicio } from "@/pages/MobileApp/Inicio";
@@ -52,6 +53,7 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         </Route>
 
         <Route path="/reports" element={<Reports dark={dark} />} />
+        <Route path="/control-horas" element={<ControlHorasView dark={dark} />} />
         <Route path="/settings" element={<Settings dark={dark} />} />
       </Route>
 

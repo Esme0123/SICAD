@@ -1451,5 +1451,104 @@ async function miHistorial(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, getEstadoHoy, miHistorial };
+/**
+ * GET /api/asistencia/cumplimiento-semanal
+ * Query: ?semanaOffset=0&horasContratadas=todas|20|40
+ *
+ * Calcula el avance semanal acumulado de horas trabajadas (suma de
+ * horaSalida - horaEntrada en marcaciones cerradas) contra las horas
+ * contratadas (horasBase) de cada empleado activo, en el rango
+ * Lunes–Domingo de la semana seleccionada.
+ */
+async function cumplimientoSemanal(req, res) {
+  try {
+    const semanaOffset = parseInt(req.query.semanaOffset, 10) || 0;
+    const horasParam = req.query.horasContratadas || 'todas';
+    const fechaStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const hoy = getBoliviaDate();
+    const diffToMonday = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - diffToMonday + semanaOffset * 7);
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+
+    const start = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 0, 0, 0, 0);
+    const end = new Date(domingo.getFullYear(), domingo.getMonth(), domingo.getDate(), 23, 59, 59, 999);
+
+    // Empleados activos (rol EMPLEADO)
+    const empleados = await prisma.usuario.findMany({
+      where: { activo: true, rol: 'EMPLEADO' },
+      select: { id: true, nombre: true, codigo: true, ci: true, horasBase: true },
+    });
+
+    // Marcaciones cerradas dentro del rango de la semana
+    const asistencias = await prisma.asistencia.findMany({
+      where: {
+        fecha: { gte: start, lte: end },
+        horaEntrada: { not: null },
+        horaSalida: { not: null },
+      },
+      select: { usuarioId: true, horaEntrada: true, horaSalida: true },
+    });
+
+    // Suma de horas trabajadas por empleado
+    const horasPorEmpleado = new Map();
+    for (const a of asistencias) {
+      const duracionMs = new Date(a.horaSalida).getTime() - new Date(a.horaEntrada).getTime();
+      if (duracionMs <= 0) continue;
+      const horas = duracionMs / 3600000;
+      horasPorEmpleado.set(a.usuarioId, (horasPorEmpleado.get(a.usuarioId) || 0) + horas);
+    }
+
+    const data = empleados.map((emp) => {
+      const horasContratadas = emp.horasBase || 0;
+      const horasTrabajadas = Math.round((horasPorEmpleado.get(emp.id) || 0) * 100) / 100;
+      const porcentajeCumplimiento = horasContratadas > 0
+        ? Math.round((horasTrabajadas / horasContratadas) * 1000) / 10
+        : 0;
+
+      let estadoCumplimiento = 'En Riesgo';
+      if (horasTrabajadas > horasContratadas) estadoCumplimiento = 'Superado';
+      else if (porcentajeCumplimiento >= 100) estadoCumplimiento = 'Cumplido';
+      else if (porcentajeCumplimiento >= 60) estadoCumplimiento = 'En Progreso';
+
+      return {
+        id: emp.id,
+        nombre: emp.nombre,
+        codigo: emp.codigo || `CC-${String(emp.id).padStart(3, '0')}`,
+        ci: emp.ci || '',
+        horasContratadas,
+        horasTrabajadas,
+        porcentajeCumplimiento,
+        estadoCumplimiento,
+      };
+    });
+
+    // Filtro por horas contratadas (todas | 20 | 40)
+    const dataFiltrada = horasContratadas === 'todas'
+      ? data
+      : data.filter((emp) => emp.horasContratadas === parseInt(horasContratadas, 10));
+
+    res.json({
+      ok: true,
+      data: dataFiltrada,
+      resumen: {
+        semana: { lunes: fechaStr(lunes), domingo: fechaStr(domingo), semanaOffset },
+        totalEmpleados: dataFiltrada.length,
+        cumplidos: dataFiltrada.filter((e) => e.estadoCumplimiento === 'Cumplido' || e.estadoCumplimiento === 'Superado').length,
+        enProgreso: dataFiltrada.filter((e) => e.estadoCumplimiento === 'En Progreso').length,
+        enRiesgo: dataFiltrada.filter((e) => e.estadoCumplimiento === 'En Riesgo').length,
+        promedioHoras: dataFiltrada.length
+          ? Math.round((dataFiltrada.reduce((s, e) => s + e.horasTrabajadas, 0) / dataFiltrada.length) * 10) / 10
+          : 0,
+      },
+    });
+  } catch (error) {
+    console.error('[asistencia.cumplimientoSemanal]', error);
+    res.status(500).json({ ok: false, message: 'Error al calcular el cumplimiento semanal' });
+  }
+}
+
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, getEstadoHoy, miHistorial, cumplimientoSemanal };
 

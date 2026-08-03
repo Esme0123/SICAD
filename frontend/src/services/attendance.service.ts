@@ -102,6 +102,45 @@ export async function getCurrentQRToken(): Promise<{ token: string; expiresIn: n
   return Promise.reject(new Error("Attendance service not connected to backend yet"));
 }
 
+export type EstadoCumplimiento = "En Riesgo" | "En Progreso" | "Cumplido" | "Superado";
+
+export interface CumplimientoSemanalEmpleado {
+  id: number;
+  nombre: string;
+  codigo: string;
+  ci: string;
+  horasContratadas: number;
+  horasTrabajadas: number;
+  porcentajeCumplimiento: number;
+  estadoCumplimiento: EstadoCumplimiento;
+}
+
+export interface CumplimientoSemanalResumen {
+  semana: { lunes: string; domingo: string; semanaOffset: number };
+  totalEmpleados: number;
+  cumplidos: number;
+  enProgreso: number;
+  enRiesgo: number;
+  promedioHoras: number;
+}
+
+export interface CumplimientoSemanalResponse {
+  data: CumplimientoSemanalEmpleado[];
+  resumen: CumplimientoSemanalResumen;
+}
+
+export async function getCumplimientoSemanal(
+  semanaOffset = 0,
+  horasContratadas: "todas" | "20" | "40" = "todas"
+): Promise<CumplimientoSemanalResponse> {
+  const { data } = await api.get<{ ok: boolean; data: CumplimientoSemanalEmpleado[]; resumen: CumplimientoSemanalResumen }>(
+    "/asistencia/cumplimiento-semanal",
+    { params: { semanaOffset, horasContratadas } }
+  );
+  if (!data.ok) throw new Error("Error al obtener el cumplimiento semanal");
+  return { data: data.data, resumen: data.resumen };
+}
+
 export default {
   getAttendanceHistory,
   registerAttendance,

@@ -1,7 +1,7 @@
 // src/routes/asistencia.routes.js
 
 const { Router } = require('express');
-const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, getEstadoHoy, getQrDashboard, miHistorial } = require('../controllers/asistencia.controller');
+const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, getEstadoHoy, getQrDashboard, miHistorial, cumplimientoSemanal } = require('../controllers/asistencia.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
@@ -22,6 +22,7 @@ router.get('/',                   getAll);
 router.get('/qr-dashboard',       getQrDashboard);
 router.get('/estado-hoy',         getEstadoHoy);
 router.get('/mi-historial',       miHistorial);
+router.get('/cumplimiento-semanal', cumplimientoSemanal);
 router.get('/:id',                getById);
 
 // PATCH /api/asistencia/:id/cerrar — cronjob cierre automático de turnos (solo ADMIN)
