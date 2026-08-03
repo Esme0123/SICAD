@@ -12,6 +12,7 @@ import { saveAs } from "file-saver";
 
 const API = import.meta.env.VITE_API_URL;
 const BO_TZ = "America/La_Paz";
+const TOLERANCIA_MINUTOS = 10;
 
 type Filtro = "hoy" | "semana" | "mes" | "periodo";
 
@@ -577,22 +578,25 @@ export const MobileHistorial: React.FC = () => {
             </div>
           )}
           {dataFiltrada.map((m) => {
-            const cfg = estadoConfig[m.estado] || estadoConfig.Puntual;
+            // Un retraso solo se considera "Tardanza" si supera los minutos de tolerancia
+            const esTardanzaReal = m.estado === "Tardanza" && (m.minutosRetraso ?? 0) > TOLERANCIA_MINUTOS;
+            const estadoEfectivo = esTardanzaReal ? "Tardanza" : (m.estado === "Tardanza" ? "Puntual" : m.estado);
+            const cfg = estadoConfig[estadoEfectivo] || estadoConfig.Puntual;
             const Icon = cfg.icon;
             const f = parseLocalDate(m.fecha);
             const hoyBool = m.fecha === hoy;
 
-            const borderClr = m.estado === "Puntual" ? "#10B981" :
-              m.estado === "Tardanza" ? "#F59E0B" :
-                m.estado === "Ausente" ? "#EF4444" :
+            const borderClr = estadoEfectivo === "Puntual" ? "#10B981" :
+              estadoEfectivo === "Tardanza" ? "#F59E0B" :
+                estadoEfectivo === "Ausente" ? "#EF4444" :
                   "#3B82F6";
 
-            const bgGlow = m.estado === "Puntual" ? "#10B98108" :
-              m.estado === "Tardanza" ? "#F59E0B08" :
-                m.estado === "Ausente" ? "#EF444408" :
+            const bgGlow = estadoEfectivo === "Puntual" ? "#10B98108" :
+              estadoEfectivo === "Tardanza" ? "#F59E0B08" :
+                estadoEfectivo === "Ausente" ? "#EF444408" :
                   "#3B82F608";
 
-            const tardanzaMin = m.estado === "Tardanza" ? m.minutosRetraso : null;
+            const tardanzaMin = esTardanzaReal ? m.minutosRetraso : null;
 
             return (
               <div
@@ -623,7 +627,7 @@ export const MobileHistorial: React.FC = () => {
                   </div>
                   <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
                     <Icon size={10} />
-                    <span>{m.estado}</span>
+                    <span>{estadoEfectivo}</span>
                   </div>
                 </div>
 

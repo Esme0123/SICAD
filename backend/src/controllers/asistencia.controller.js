@@ -1126,6 +1126,10 @@ async function miHistorial(req, res) {
     const ahoraBolivia = getBoliviaDate();
     let startDate, endDate;
 
+    // Tolerancia de marcación de la institución (configuracion_sistema) con default 10 min
+    const configTol = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const toleranciaMin = configTol?.tiempoTolerancia ?? 10;
+
     const { filtro, fechaInicio, fechaFin } = req.query;
 
     function fechaLocalMedioDia(isoStr) {
@@ -1312,10 +1316,11 @@ async function miHistorial(req, res) {
 
           const entradaMin = getBoliviaDate(primera.horaEntrada).getHours() * 60 + getBoliviaDate(primera.horaEntrada).getMinutes();
           let estado = 'Puntual';
-          let minutosRetraso = null;
-          if (entradaMin > inicioBloqueMin) {
+          let minutosRetraso = entradaMin > inicioBloqueMin ? entradaMin - inicioBloqueMin : null;
+          if (minutosRetraso !== null && minutosRetraso > toleranciaMin) {
             estado = 'Tardanza';
-            minutosRetraso = entradaMin - inicioBloqueMin;
+          } else {
+            minutosRetraso = null;
           }
 
           data.push({
@@ -1401,9 +1406,13 @@ async function miHistorial(req, res) {
         if (a.horaEntrada) {
           const obs = (a.observacion || '').toLowerCase();
           if (obs.startsWith('llegó') || obs.includes('tarde')) {
-            estado = 'Tardanza';
             const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
-            if (match) minutosRetraso = parseInt(match[1]);
+            minutosRetraso = match ? parseInt(match[1]) : null;
+            if (minutosRetraso !== null && minutosRetraso > toleranciaMin) {
+              estado = 'Tardanza';
+            } else {
+              minutosRetraso = null;
+            }
           }
         }
         data.push({
