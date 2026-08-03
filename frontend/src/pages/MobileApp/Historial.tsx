@@ -160,7 +160,7 @@ export const MobileHistorial: React.FC = () => {
 
   // ── Data state ──
   const [data, setData] = useState<Marcacion[]>([]);
-  const [resumen, setResumen] = useState<HistorialResponse["resumen"] | null>(null);
+  const [, setResumen] = useState<HistorialResponse["resumen"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
@@ -169,6 +169,19 @@ export const MobileHistorial: React.FC = () => {
     if (!filtroEstado) return data;
     return data.filter((m) => m.estado === filtroEstado);
   }, [data, filtroEstado]);
+
+  const resumenEfectivo = useMemo(() => {
+    const counts = { total: data.length, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 };
+    data.forEach((m) => {
+      const esTardanzaReal = m.estado === "Tardanza" && (m.minutosRetraso ?? 0) > TOLERANCIA_MINUTOS;
+      const estadoEfectivo = esTardanzaReal ? "Tardanza" : (m.estado === "Tardanza" ? "Puntual" : m.estado);
+      if (estadoEfectivo === "Puntual") counts.puntual++;
+      else if (estadoEfectivo === "Tardanza") counts.tardanza++;
+      else if (estadoEfectivo === "Justificado") counts.justificado++;
+      else if (estadoEfectivo === "Ausente") counts.ausente++;
+    });
+    return counts;
+  }, [data]);
 
   // Load periodos academicos once
   useEffect(() => {
@@ -508,13 +521,13 @@ export const MobileHistorial: React.FC = () => {
               <div className="h-3 bg-muted rounded w-12 mx-auto" />
             </div>
           ))
-        ) : resumen ? (
+        ) : resumenEfectivo ? (
           [
-            { key: null, label: "Total", value: resumen.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
-            { key: "Puntual", label: "Puntual", value: resumen.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
-            { key: "Tardanza", label: "Atrasos", value: resumen.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
-            { key: "Justificado", label: "Justif.", value: resumen.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
-            { key: "Ausente", label: "Ausente", value: resumen.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
+            { key: null, label: "Total", value: resumenEfectivo.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
+            { key: "Puntual", label: "Puntual", value: resumenEfectivo.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
+            { key: "Tardanza", label: "Atrasos", value: resumenEfectivo.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
+            { key: "Justificado", label: "Justif.", value: resumenEfectivo.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
+            { key: "Ausente", label: "Ausente", value: resumenEfectivo.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
           ].map((s) => {
             const isActive = s.key !== null && filtroEstado === s.key;
             return (
