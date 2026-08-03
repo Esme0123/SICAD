@@ -120,13 +120,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
       ).slice(0, 5)
     : [];
 
-  // ── Consolidación de filas para mostrar la jornada continua completa ──
+  // ── Consolidación de filas para soportar jornadas discontinuas / puentes ──
   const consolidatedRows = useMemo(() => {
     const groups: Record<string, AttendanceRecord[]> = {};
 
-    // 1. Agrupar por código de empleado y fecha
+    // 1. Agrupar por código de empleado, fecha Y período/bloque de horario
     rows.forEach(row => {
-      const key = `${row.code}_${row.date}`;
+      const key = `${row.code}_${row.date}_${row.period || 'bloque_unico'}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(row);
     });
@@ -134,7 +134,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     const mergedList: AttendanceRecord[] = [];
 
     Object.values(groups).forEach(group => {
-      // Asignar siempre el periodo correcto según la fecha
       const computedAcademicPeriod = getPeriodoByDate(group[0].date);
 
       if (group.length === 1) {
@@ -145,13 +144,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         return;
       }
 
-      // El backend ya retorna el rango consolidado de la jornada en `period`;
-      // solo se conserva la primera entrada y la última salida válidas del grupo.
-      const primeraEntrada = group.find(g => g.horaEntrada && g.horaEntrada !== "—")?.horaEntrada || group[0].horaEntrada;
-      const ultimaSalida = group.slice().reverse().find(g => g.horaSalida && g.horaSalida !== "—")?.horaSalida || group[0].horaSalida;
+      // Ordenar los registros cronológicamente para no cruzar horas de entrada/salida
+      const sortedGroup = [...group].sort((a, b) => {
+        const hA = a.horaEntrada && a.horaEntrada !== "—" ? a.horaEntrada : "23:59";
+        const hB = b.horaEntrada && b.horaEntrada !== "—" ? b.horaEntrada : "23:59";
+        return hA.localeCompare(hB);
+      });
+
+      const primeraEntrada = sortedGroup.find(g => g.horaEntrada && g.horaEntrada !== "—")?.horaEntrada || group[0].horaEntrada;
+      const ultimaSalida = [...sortedGroup].reverse().find(g => g.horaSalida && g.horaSalida !== "—")?.horaSalida || group[0].horaSalida;
 
       mergedList.push({
-        ...group[0],
+        ...sortedGroup[0],
         period: group[0].period,
         horaEntrada: primeraEntrada,
         horaSalida: ultimaSalida,

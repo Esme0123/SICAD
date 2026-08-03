@@ -305,13 +305,26 @@ async function registrar(req, res) {
       orderBy: { periodo: { horaInicio: 'asc' } },
     });
 
-    // 5. Buscar asistencia abierta del día
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const toleranciaMin = config?.tiempoTolerancia ?? 20;
+    const ahoraMin = getBoliviaTimeMinutes(ahora);
+
+    // Identificar el bloque activo de la jornada (soporta puentes / jornadas partidas)
+    let bloqueInfo = null;
+    if (horariosHoy.length > 0) {
+      bloqueInfo = await calcularBloqueYEstado(uid, horariosHoy, ahoraMin, toleranciaMin);
+    }
+    const periodoBloque = bloqueInfo?.periodoConsolidado || null;
+
+    // 5. Buscar asistencia abierta SOLO del bloque activo, para no cruzar
+    //    entrada/salida entre turnos separados por un puente en el mismo día
     const asistenciaAbierta = await prisma.asistencia.findFirst({
       where: {
         usuarioId: uid,
         fecha: { gte: start, lte: end },
         horaSalida: null,
         salidaOmitida: false,
+        ...(periodoBloque ? { periodo: periodoBloque } : {}),
       },
       orderBy: { horaEntrada: 'desc' },
     });
@@ -321,17 +334,12 @@ async function registrar(req, res) {
     let estado = 'PUNTUAL';
     let observacion = null;
     let periodoLabel = null;
-    const ahoraMin = getBoliviaTimeMinutes(ahora);
 
     if (!asistenciaAbierta) {
-      const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
-      const toleranciaMin = config?.tiempoTolerancia ?? 20;
-
-      if (horariosHoy.length > 0) {
-        const bloqueInfo = await calcularBloqueYEstado(uid, horariosHoy, ahoraMin, toleranciaMin);
+      if (bloqueInfo) {
         estado = bloqueInfo.estado;
         observacion = bloqueInfo.observacion;
-        // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+        // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
         periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
       }
 
@@ -603,16 +611,17 @@ async function marcar(req, res) {
     let estado = 'Fuera de horario';
     let observacion = null;
     let periodoLabel = null;
+    let bloqueInfo = null;
 
     if (horarios.length > 0) {
-      const bloqueInfo = await calcularBloqueYEstado(uid, horarios, ahoraMin, toleranciaMin);
+      bloqueInfo = await calcularBloqueYEstado(uid, horarios, ahoraMin, toleranciaMin);
       estado = bloqueInfo.estado;
       observacion = bloqueInfo.observacion;
-      // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+      // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
       periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
     }
 
-    // 5. Registrar entrada o salida
+    // 5. Registrar entrada o salida (por bloque para soportar jornadas discontinuas / puentes)
     const { start, end } = getDayRange(ahora);
 
     const asistenciaAbierta = await prisma.asistencia.findFirst({
@@ -621,6 +630,7 @@ async function marcar(req, res) {
         fecha: { gte: start, lte: end },
         horaSalida: null,
         salidaOmitida: false,
+        ...(bloqueInfo?.periodoConsolidado ? { periodo: bloqueInfo.periodoConsolidado } : {}),
       },
       orderBy: { horaEntrada: 'desc' },
     });
@@ -772,16 +782,17 @@ async function marcarMovil(req, res) {
         let estado = 'Fuera de horario';
         let observacion = null;
         let periodoLabel = null;
+        let bloqueInfo = null;
 
         if (horarios.length > 0) {
-          const bloqueInfo = await calcularBloqueYEstado(usuario.id, horarios, ahoraMin, toleranciaMin, tx);
+          bloqueInfo = await calcularBloqueYEstado(usuario.id, horarios, ahoraMin, toleranciaMin, tx);
           estado = bloqueInfo.estado;
           observacion = bloqueInfo.observacion;
-          // Guardar el rango consolidado de la jornada (ej. "07:00–16:15")
+          // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
           periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
         }
 
-        // Registrar entrada o salida
+        // Registrar entrada o salida (por bloque para soportar jornadas discontinuas / puentes)
         const { start, end } = getDayRange(ahora);
 
         const asistenciaAbierta = await tx.asistencia.findFirst({
@@ -790,6 +801,7 @@ async function marcarMovil(req, res) {
             fecha: { gte: start, lte: end },
             horaSalida: null,
             salidaOmitida: false,
+            ...(bloqueInfo?.periodoConsolidado ? { periodo: bloqueInfo.periodoConsolidado } : {}),
           },
           orderBy: { horaEntrada: 'desc' },
         });
