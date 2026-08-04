@@ -1517,17 +1517,21 @@ async function cumplimientoSemanal(req, res) {
       select: { id: true, nombre: true, codigo: true, ci: true, horasBase: true },
     });
 
-    // ── 3. Marcaciones en el rango (horaEntrada no nula) ──
+    // ── 3. Marcaciones en el rango (sin filtro de null en Prisma) ──
     const marcaciones = await prisma.asistencia.findMany({
       where: {
         fecha: { gte: start, lte: end },
-        horaEntrada: { not: null },
       },
       select: { usuarioId: true, fecha: true, horaEntrada: true, horaSalida: true },
     });
 
+    // Filtrar en memoria las marcaciones con entrada válida
+    const marcacionesValidas = marcaciones.filter(
+      (m) => m.horaEntrada !== null && m.horaEntrada !== undefined && m.horaEntrada !== ""
+    );
+
     const porEmpleado = new Map();
-    for (const m of marcaciones) {
+    for (const m of marcacionesValidas) {
       if (!porEmpleado.has(m.usuarioId)) porEmpleado.set(m.usuarioId, []);
       porEmpleado.get(m.usuarioId).push(m);
     }

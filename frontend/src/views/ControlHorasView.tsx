@@ -68,36 +68,49 @@ function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${doisDigit(d.getMonth() + 1)}-${doisDigit(d.getDate())}`;
 }
 
-/** Devuelve las semanas (Lunes a Domingo) que caen dentro del mes indicado. */
+/** Devuelve las semanas del mes, delimitadas por el primer y último día del mes. */
 function getSemanasDelMes(year: number, monthZeroBased: number) {
   const semanas: Array<{ id: string; label: string; fechaInicio: string; fechaFin: string }> = [];
-  const primerDia = new Date(year, monthZeroBased, 1);
-  const ultimoDia = new Date(year, monthZeroBased + 1, 0);
+  const primerDiaMes = new Date(year, monthZeroBased, 1);
+  const ultimoDiaMes = new Date(year, monthZeroBased + 1, 0);
 
-  let actual = new Date(primerDia);
-  const dayOfWeek = actual.getDay();
-  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  actual.setDate(actual.getDate() + diffToMonday);
+  let curr = new Date(primerDiaMes);
 
-  let numSemana = 1;
-  while (actual <= ultimoDia) {
-    const inicioSemana = new Date(actual);
-    const finSemana = new Date(actual);
-    finSemana.setDate(finSemana.getDate() + 6);
+  while (curr <= ultimoDiaMes) {
+    const inicioSemana = new Date(curr);
 
-    const fmt = (d: Date) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD
-    const labelFmt = (d: Date) => d.toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit" });
+    // Calcular el domingo de la semana actual
+    const dayOfWeek = curr.getDay(); // 0 = Domingo, 1 = Lunes...
+    const diasHastaDomingo = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+
+    const finSemana = new Date(curr);
+    finSemana.setDate(curr.getDate() + diasHastaDomingo);
+
+    // Ajustar el fin de semana para no sobrepasar el último día del mes
+    const finEfectivo = finSemana > ultimoDiaMes ? new Date(ultimoDiaMes) : finSemana;
+
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+
+    const labelFmt = (d: Date) =>
+      `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 
     semanas.push({
-      id: `semana-${numSemana}`,
-      label: `Semana ${numSemana} (${labelFmt(inicioSemana)} - ${labelFmt(finSemana)})`,
+      id: `semana-${semanas.length + 1}`,
+      label: `Semana ${semanas.length + 1} (${labelFmt(inicioSemana)} - ${labelFmt(finEfectivo)})`,
       fechaInicio: fmt(inicioSemana),
-      fechaFin: fmt(finSemana),
+      fechaFin: fmt(finEfectivo),
     });
 
-    actual.setDate(actual.getDate() + 7);
-    numSemana++;
+    // La siguiente semana comienza al día siguiente del fin efectivo de esta semana
+    curr = new Date(finEfectivo);
+    curr.setDate(curr.getDate() + 1);
   }
+
   return semanas;
 }
 
@@ -612,17 +625,23 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
           {/* Filtro por estado */}
           <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 p-1 rounded-xl">
-            {(["Todos", "En Riesgo", "En Progreso", "Cumplido"] as const).map((estado) => (
+            {([
+              { value: "Todos", label: "Todos" },
+              { value: "En Riesgo", label: "En Riesgo 🔴" },
+              { value: "En Progreso", label: "En Progreso 🟡" },
+              { value: "Cumplido", label: "Cumplido 🟢" },
+              { value: "Superado", label: "Superado 🔵" },
+            ] as const).map((opcion) => (
               <button
-                key={estado}
-                onClick={() => setEstadoFiltro(estado)}
+                key={opcion.value}
+                onClick={() => setEstadoFiltro(opcion.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  estadoFiltro === estado
+                  estadoFiltro === opcion.value
                     ? "bg-primary text-white shadow-sm"
                     : "text-slate-600 dark:text-white/60 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                {estado === "En Riesgo" ? "En Riesgo 🔴" : estado === "En Progreso" ? "En Progreso 🟡" : estado === "Cumplido" ? "Cumplido 🟢" : "Todos"}
+                {opcion.label}
               </button>
             ))}
           </div>
