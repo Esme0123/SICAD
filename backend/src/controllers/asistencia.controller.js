@@ -37,6 +37,19 @@ function toBoliviaDateStr(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Formatea un Date a "YYYY-MM-DD" usando SOLO getters locales (getFullYear,
+ * getMonth, getDate). NUNCA use .toISOString().split('T')[0] ni getUTCDate(),
+ * ya que en UTC-4 desplazan las marcas de 00:00 a 03:59 al día anterior.
+ */
+function getLocalDateString(d) {
+  const date = new Date(d);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function dateOnly(date = new Date()) {
   const str = toBoliviaDateStr(date);
   return new Date(`${str}T00:00:00`);
@@ -1541,10 +1554,14 @@ async function cumplimientoSemanal(req, res) {
       // Agrupar por día (soporta múltiples turnos / puentes en el mismo día)
       const marcacionesPorDia = {};
       misMarcaciones.forEach((m) => {
-        const bd = getBoliviaDate(m.fecha || m.horaEntrada);
+        // Deriva el día de la marcación desde el instante real (horaEntrada),
+        // NO desde m.fecha (campo @db.Date que Prisma lee como medianoche UTC),
+        // para no desplazar marcas de 00:00–03:59 hacia el día anterior.
+        const instante = m.horaEntrada || m.fecha;
+        const bd = getBoliviaDate(instante);
         if (bd.getDay() === 0) return; // Excluir domingos
 
-        const fechaKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
+        const fechaKey = getLocalDateString(bd);
         const entradaMs = m.horaEntrada ? new Date(m.horaEntrada).getTime() : NaN;
         const salidaMs = m.horaSalida ? new Date(m.horaSalida).getTime() : NaN;
 

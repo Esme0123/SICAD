@@ -64,6 +64,19 @@ function doisDigit(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/**
+ * Formatea un Date a "YYYY-MM-DD" usando SOLO getters locales (getFullYear,
+ * getMonth, getDate). NUNCA use .toISOString().split('T')[0] ni getUTCDate(),
+ * ya que en UTC-4 desplazaría las marcas de 00:00 a 03:59 al día anterior.
+ */
+function getLocalDateString(d: Date): string {
+  const date = new Date(d);
+  const year = date.getFullYear();
+  const month = doisDigit(date.getMonth() + 1);
+  const day = doisDigit(date.getDate());
+  return `${year}-${month}-${day}`;
+}
+
 /** Crea una fecha en hora local (America/La_Paz) desde una cadena YYYY-MM-DD, sin desfase UTC. */
 function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -71,7 +84,7 @@ function parseLocalDate(dateStr: string): Date {
 }
 
 function fmtDate(d: Date): string {
-  return `${d.getFullYear()}-${doisDigit(d.getMonth() + 1)}-${doisDigit(d.getDate())}`;
+  return getLocalDateString(d);
 }
 
 /** Devuelve las semanas del mes, delimitadas por el primer y último día del mes. */
@@ -95,12 +108,7 @@ function getSemanasDelMes(year: number, monthZeroBased: number) {
     // Ajustar el fin de semana para no sobrepasar el último día del mes
     const finEfectivo = finSemana > ultimoDiaMes ? new Date(ultimoDiaMes) : finSemana;
 
-    const fmt = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
+    const fmt = (d: Date) => getLocalDateString(d);
 
     const labelFmt = (d: Date) =>
       `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
