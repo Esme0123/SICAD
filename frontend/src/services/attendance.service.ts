@@ -104,6 +104,13 @@ export async function getCurrentQRToken(): Promise<{ token: string; expiresIn: n
 
 export type EstadoCumplimiento = "En Riesgo" | "En Progreso" | "Cumplido" | "Superado";
 
+export interface DesgloseDiario {
+  fecha: string;
+  horas: number;
+  entrada: string | null;
+  salida: string | null;
+}
+
 export interface CumplimientoSemanalEmpleado {
   id: number;
   nombre: string;
@@ -113,10 +120,11 @@ export interface CumplimientoSemanalEmpleado {
   horasTrabajadas: number;
   porcentajeCumplimiento: number;
   estadoCumplimiento: EstadoCumplimiento;
+  desgloseDiario: DesgloseDiario[];
 }
 
 export interface CumplimientoSemanalResumen {
-  semana: { lunes: string; domingo: string; semanaOffset: number };
+  semana: { fechaInicio: string; fechaFin: string; label: string };
   totalEmpleados: number;
   cumplidos: number;
   enProgreso: number;
@@ -129,13 +137,24 @@ export interface CumplimientoSemanalResponse {
   resumen: CumplimientoSemanalResumen;
 }
 
-export async function getCumplimientoSemanal(
-  semanaOffset = 0,
-  horasContratadas: "todas" | "20" | "40" = "todas"
-): Promise<CumplimientoSemanalResponse> {
+export interface CumplimientoSemanalQuery {
+  fechaInicio: string;
+  fechaFin: string;
+  horasContratadas?: string;
+  periodoAcademico?: string;
+}
+
+export async function getCumplimientoSemanal(query: CumplimientoSemanalQuery): Promise<CumplimientoSemanalResponse> {
+  const params: Record<string, string> = {
+    fechaInicio: query.fechaInicio,
+    fechaFin: query.fechaFin,
+    horasContratadas: query.horasContratadas ?? "todas",
+  };
+  if (query.periodoAcademico) params.periodoAcademico = query.periodoAcademico;
+
   const { data } = await api.get<{ ok: boolean; data: CumplimientoSemanalEmpleado[]; resumen: CumplimientoSemanalResumen }>(
     "/asistencia/cumplimiento-semanal",
-    { params: { semanaOffset, horasContratadas } }
+    { params }
   );
   if (!data.ok) throw new Error("Error al obtener el cumplimiento semanal");
   return { data: data.data, resumen: data.resumen };

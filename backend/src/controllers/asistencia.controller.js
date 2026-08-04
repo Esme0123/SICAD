@@ -1453,64 +1453,131 @@ async function miHistorial(req, res) {
 
 /**
  * GET /api/asistencia/cumplimiento-semanal
- * Query: ?semanaOffset=0&horasContratadas=todas|20|40
+ * Query:
+ *   ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD          → rango explícito (Lunes–Domingo)
+ *   &horasContratadas=todas|20|40|20 hrs|40 hrs          → filtro de meta (opcional)
+ *   &periodoAcademico=1-2026                             → filtro por periodo académico (opcional)
+ *   &semanaOffset=0                                      → compat: rango semanal por offset (si no hay fechas)
  *
- * Calcula el avance semanal acumulado de horas trabajadas (suma de
- * horaSalida - horaEntrada en marcaciones cerradas) contra las horas
- * contratadas (horasBase) de cada empleado activo, en el rango
- * Lunes–Domingo de la semana seleccionada.
+ * Calcula el avance acumulado de horas trabajadas (suma de horaSalida -
+ * horaEntrada en marcaciones cerradas) contra las horas contratadas
+ * (horasBase) de cada empleado activo, devolviendo además un desglose
+ * día a día para la vista de detalle.
  */
 async function cumplimientoSemanal(req, res) {
   try {
-    const semanaOffset = parseInt(req.query.semanaOffset, 10) || 0;
-    const horasParam = req.query.horasContratadas || 'todas';
-    const fechaStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const reDate = /^\d{4}-\d{2}-\d{2}$/;
+    const { fechaInicio, fechaFin, periodoAcademico } = req.query;
+    const horasParam = String(req.query.horasContratadas || 'todas').trim();
 
-    const hoy = getBoliviaDate();
-    const diffToMonday = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
-    const lunes = new Date(hoy);
-    lunes.setDate(hoy.getDate() - diffToMonday + semanaOffset * 7);
-    const domingo = new Date(lunes);
-    domingo.setDate(lunes.getDate() + 6);
+    // ── 1. Rango de fechas (Lunes–Domingo por defecto) ──
+    let start, end, semanaLabel;
+    if (fechaInicio && fechaFin) {
+      if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
+        return res.status(400).json({ ok: false, message: 'fechaInicio y fechaFin deben tener formato YYYY-MM-DD' });
+      }
+      start = new Date(`${fechaInicio}T00:00:00.000Z`);
+      end = new Date(`${fechaFin}T23:59:59.999Z`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ ok: false, message: 'fechaInicio o fechaFin no son fechas válidas' });
+      }
+      semanaLabel = `${fechaInicio} – ${fechaFin}`;
+    } else {
+      // Compatibilidad con el selector anterior por offset de semana
+      const semanaOffset = parseInt(req.query.semanaOffset, 10) || 0;
+      const hoy = getBoliviaDate();
+      const diffToMonday = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() - diffToMonday + semanaOffset * 7);
+      const domingo = new Date(lunes);
+      domingo.setDate(lunes.getDate() + 6);
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      start = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 0, 0, 0, 0);
+      end = new Date(domingo.getFullYear(), domingo.getMonth(), domingo.getDate(), 23, 59, 59, 999);
+      semanaLabel = `${fmt(lunes)} – ${fmt(domingo)}`;
+    }
 
-    const start = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 0, 0, 0, 0);
-    const end = new Date(domingo.getFullYear(), domingo.getMonth(), domingo.getDate(), 23, 59, 59, 999);
+    // ── 2. Filtro de empleados activos ──
+    const whereEmpleado = { activo: true, rol: 'EMPLEADO' };
 
-    // Empleados activos (rol EMPLEADO)
+    // horasContratadas: acepta "todas", "20", "40", "20 hrs", "40 hrs"
+    if (horasParam && horasParam !== 'todas') {
+      const numHoras = parseInt(horasParam, 10);
+      if (!isNaN(numHoras)) {
+        whereEmpleado.horasBase = numHoras;
+      }
+    }
+
+    if (periodoAcademico) {
+      whereEmpleado.horariosAsignados = { some: { periodoAcademico } };
+    }
+
     const empleados = await prisma.usuario.findMany({
-      where: { activo: true, rol: 'EMPLEADO' },
+      where: whereEmpleado,
       select: { id: true, nombre: true, codigo: true, ci: true, horasBase: true },
     });
 
-    // Marcaciones cerradas dentro del rango de la semana
-    const asistencias = await prisma.asistencia.findMany({
+    // ── 3. Marcaciones en el rango (horaEntrada no nula) ──
+    const marcaciones = await prisma.asistencia.findMany({
       where: {
         fecha: { gte: start, lte: end },
         horaEntrada: { not: null },
-        horaSalida: { not: null },
       },
-      select: { usuarioId: true, horaEntrada: true, horaSalida: true },
+      select: { usuarioId: true, fecha: true, horaEntrada: true, horaSalida: true },
     });
 
-    // Suma de horas trabajadas por empleado
-    const horasPorEmpleado = new Map();
-    for (const a of asistencias) {
-      const duracionMs = new Date(a.horaSalida).getTime() - new Date(a.horaEntrada).getTime();
-      if (duracionMs <= 0) continue;
-      const horas = duracionMs / 3600000;
-      horasPorEmpleado.set(a.usuarioId, (horasPorEmpleado.get(a.usuarioId) || 0) + horas);
+    const porEmpleado = new Map();
+    for (const m of marcaciones) {
+      if (!porEmpleado.has(m.usuarioId)) porEmpleado.set(m.usuarioId, []);
+      porEmpleado.get(m.usuarioId).push(m);
     }
 
+    // ── 4. Cálculo seguro de horas + desglose diario ──
     const data = empleados.map((emp) => {
-      const horasContratadas = emp.horasBase || 0;
-      const horasTrabajadas = Math.round((horasPorEmpleado.get(emp.id) || 0) * 100) / 100;
-      const porcentajeCumplimiento = horasContratadas > 0
-        ? Math.round((horasTrabajadas / horasContratadas) * 1000) / 10
-        : 0;
+      const misMarcaciones = porEmpleado.get(emp.id) || [];
+
+      let totalSegundos = 0;
+      const porFecha = new Map();
+
+      for (const m of misMarcaciones) {
+        const entradaMs = m.horaEntrada ? new Date(m.horaEntrada).getTime() : NaN;
+        const salidaMs = m.horaSalida ? new Date(m.horaSalida).getTime() : NaN;
+        if (isNaN(entradaMs)) continue;
+
+        // Solo suman las marcaciones cerradas (con horaSalida válida)
+        let segundos = 0;
+        if (!isNaN(salidaMs)) {
+          segundos = Math.max(0, (salidaMs - entradaMs) / 1000);
+        }
+        totalSegundos += segundos;
+
+        // Clave de fecha en hora Bolivia (grupo día a día)
+        const bd = getBoliviaDate(m.fecha || new Date(entradaMs));
+        const fechaKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
+        if (!porFecha.has(fechaKey)) {
+          porFecha.set(fechaKey, { horas: 0, entrada: null, salida: null });
+        }
+        const acc = porFecha.get(fechaKey);
+        acc.horas += segundos / 3600;
+        if (!acc.entrada) acc.entrada = toBoliviaTimeStr(m.horaEntrada);
+        if (!isNaN(salidaMs)) acc.salida = toBoliviaTimeStr(m.horaSalida);
+      }
+
+      const desgloseDiario = Array.from(porFecha.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([fecha, acc]) => ({
+          fecha,
+          horas: Number(acc.horas.toFixed(2)),
+          entrada: acc.entrada,
+          salida: acc.salida,
+        }));
+
+      const horasTrabajadas = Number((totalSegundos / 3600).toFixed(2));
+      const metaHoras = emp.horasBase || 20;
+      const porcentajeCumplimiento = Number(((horasTrabajadas / metaHoras) * 100).toFixed(1));
 
       let estadoCumplimiento = 'En Riesgo';
-      if (horasTrabajadas > horasContratadas) estadoCumplimiento = 'Superado';
-      else if (porcentajeCumplimiento >= 100) estadoCumplimiento = 'Cumplido';
+      if (porcentajeCumplimiento >= 100) estadoCumplimiento = porcentajeCumplimiento > 100 ? 'Superado' : 'Cumplido';
       else if (porcentajeCumplimiento >= 60) estadoCumplimiento = 'En Progreso';
 
       return {
@@ -1518,29 +1585,29 @@ async function cumplimientoSemanal(req, res) {
         nombre: emp.nombre,
         codigo: emp.codigo || `CC-${String(emp.id).padStart(3, '0')}`,
         ci: emp.ci || '',
-        horasContratadas,
+        horasContratadas: metaHoras,
         horasTrabajadas,
         porcentajeCumplimiento,
         estadoCumplimiento,
+        desgloseDiario,
       };
     });
 
-    // Filtro por horas contratadas (todas | 20 | 40)
-    const dataFiltrada = horasContratadas === 'todas'
-      ? data
-      : data.filter((emp) => emp.horasContratadas === parseInt(horasContratadas, 10));
-
     res.json({
       ok: true,
-      data: dataFiltrada,
+      data,
       resumen: {
-        semana: { lunes: fechaStr(lunes), domingo: fechaStr(domingo), semanaOffset },
-        totalEmpleados: dataFiltrada.length,
-        cumplidos: dataFiltrada.filter((e) => e.estadoCumplimiento === 'Cumplido' || e.estadoCumplimiento === 'Superado').length,
-        enProgreso: dataFiltrada.filter((e) => e.estadoCumplimiento === 'En Progreso').length,
-        enRiesgo: dataFiltrada.filter((e) => e.estadoCumplimiento === 'En Riesgo').length,
-        promedioHoras: dataFiltrada.length
-          ? Math.round((dataFiltrada.reduce((s, e) => s + e.horasTrabajadas, 0) / dataFiltrada.length) * 10) / 10
+        semana: {
+          fechaInicio: fechaInicio || semanaLabel.split(' – ')[0],
+          fechaFin: fechaFin || semanaLabel.split(' – ')[1],
+          label: semanaLabel,
+        },
+        totalEmpleados: data.length,
+        cumplidos: data.filter((e) => e.estadoCumplimiento === 'Cumplido' || e.estadoCumplimiento === 'Superado').length,
+        enProgreso: data.filter((e) => e.estadoCumplimiento === 'En Progreso').length,
+        enRiesgo: data.filter((e) => e.estadoCumplimiento === 'En Riesgo').length,
+        promedioHoras: data.length
+          ? Number((data.reduce((s, e) => s + e.horasTrabajadas, 0) / data.length).toFixed(1))
           : 0,
       },
     });

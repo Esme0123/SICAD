@@ -4,10 +4,7 @@ import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import {
-  ChevronLeft,
-  ChevronRight,
   Search,
-  Download,
   FileText,
   FileSpreadsheet,
   Users,
@@ -16,6 +13,7 @@ import {
   Clock,
   AlertTriangle,
   CalendarRange,
+  X,
 } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +25,17 @@ import {
   CumplimientoSemanalEmpleado,
   CumplimientoSemanalResumen,
   EstadoCumplimiento,
+  DesgloseDiario,
 } from "@/services/attendance.service";
+import { getGestionesAcademicas } from "@/services/schedules.service";
+import { obtenerPeriodoActual } from "@/utils/periodo.utils";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from "@/components/ui/drawer";
 
 interface ControlHorasViewProps {
   dark: boolean;
@@ -36,6 +44,10 @@ interface ControlHorasViewProps {
 const BO_TIMEZONE = "America/La_Paz";
 const CORP_BLUE: [number, number, number] = [15, 76, 151];
 const CORP_ARGB = "FF0F4C97";
+
+function boNow(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: BO_TIMEZONE }));
+}
 
 function boDateTime(): string {
   return new Date().toLocaleString("es-BO", {
@@ -48,14 +60,73 @@ function boDateTime(): string {
   });
 }
 
-/** Devuelve { lunes, domingo, label } de la semana según offset (0 = actual, -1 = anterior). */
-function getWeekRange(offset: number) {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: BO_TIMEZONE }));
-  const diff = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff + offset * 7);
-  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-  return { monday, sunday, label: `${fmt(monday)} – ${fmt(sunday)}` };
+function doisDigit(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${doisDigit(d.getMonth() + 1)}-${doisDigit(d.getDate())}`;
+}
+
+/** Devuelve las semanas (Lunes a Domingo) que caen dentro del mes indicado. */
+function getSemanasDelMes(year: number, monthZeroBased: number) {
+  const semanas: Array<{ id: string; label: string; fechaInicio: string; fechaFin: string }> = [];
+  const primerDia = new Date(year, monthZeroBased, 1);
+  const ultimoDia = new Date(year, monthZeroBased + 1, 0);
+
+  let actual = new Date(primerDia);
+  const dayOfWeek = actual.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  actual.setDate(actual.getDate() + diffToMonday);
+
+  let numSemana = 1;
+  while (actual <= ultimoDia) {
+    const inicioSemana = new Date(actual);
+    const finSemana = new Date(actual);
+    finSemana.setDate(finSemana.getDate() + 6);
+
+    const fmt = (d: Date) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD
+    const labelFmt = (d: Date) => d.toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit" });
+
+    semanas.push({
+      id: `semana-${numSemana}`,
+      label: `Semana ${numSemana} (${labelFmt(inicioSemana)} - ${labelFmt(finSemana)})`,
+      fechaInicio: fmt(inicioSemana),
+      fechaFin: fmt(finSemana),
+    });
+
+    actual.setDate(actual.getDate() + 7);
+    numSemana++;
+  }
+  return semanas;
+}
+
+/** Extrae el año (YYYY) de un periodo académico, ej. "2-2026" / "Verano 2026". */
+function yearFromPeriod(periodo: string): number {
+  const m = periodo.match(/(\d{4})/);
+  return m ? parseInt(m[1], 10) : boNow().getFullYear();
+}
+
+/** id de la semana (del arreglo) que contiene la fecha de hoy, o la primera. */
+function semanaActualId(semanas: ReturnType<typeof getSemanasDelMes>): string {
+  const hoy = fmtDate(boNow());
+  const found = semanas.find((s) => hoy >= s.fechaInicio && hoy <= s.fechaFin);
+  return found?.id || semanas[0]?.id || "";
+}
+
+/** Devuelve los 7 días (Lunes a Domingo) de la semana cuya fechaInicio se indica. */
+function getDiasSemana(fechaInicio: string): Array<{ fecha: string; label: string; diaNum: number }> {
+  const [y, m, d] = fechaInicio.split("-").map(Number);
+  const days: Array<{ fecha: string; label: string; diaNum: number }> = [];
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(y, m - 1, d + i);
+    days.push({
+      fecha: fmtDate(dt),
+      diaNum: dt.getDay(),
+      label: dt.toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "2-digit" }).replace(/^\w/, (c) => c.toUpperCase()),
+    });
+  }
+  return days;
 }
 
 /** Color hex de la barra de progreso según el porcentaje (para texto/acentos). */
@@ -100,24 +171,64 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
   const [rows, setRows] = useState<CumplimientoSemanalEmpleado[]>([]);
   const [resumen, setResumen] = useState<CumplimientoSemanalResumen | null>(null);
   const [loading, setLoading] = useState(true);
-  const [semanaOffset, setSemanaOffset] = useState(0);
-  const [horasFiltro, setHorasFiltro] = useState<"todas" | "20" | "40">("todas");
+  const [horasFiltro, setHorasFiltro] = useState<string>("todas");
   const [estadoFiltro, setEstadoFiltro] = useState<"Todos" | EstadoCumplimiento>("Todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
 
-  const weekRange = useMemo(() => getWeekRange(semanaOffset), [semanaOffset]);
+  // ── Jerarquía Periodo ➔ Mes ➔ Semana ──
+  const hoy = boNow();
+  const [gestiones, setGestiones] = useState<Array<{ nombre: string }>>([]);
+  const [periodo, setPeriodo] = useState<string>(obtenerPeriodoActual());
+  const [mesSel, setMesSel] = useState<number>(hoy.getMonth());
+  const [semanaId, setSemanaId] = useState<string>("");
+
+  const year = useMemo(() => yearFromPeriod(periodo), [periodo]);
+
+  const semanas = useMemo(() => getSemanasDelMes(year, mesSel), [year, mesSel]);
+
+  const semanaSeleccionada = useMemo(
+    () => semanas.find((s) => s.id === semanaId) || semanas[semanas.length - 1],
+    [semanas, semanaId]
+  );
+
+  // ── Detalle diario (drawer) ──
+  const [empleadoDetalle, setEmpleadoDetalle] = useState<CumplimientoSemanalEmpleado | null>(null);
+  const diasSemana = useMemo(
+    () => (semanaSeleccionada ? getDiasSemana(semanaSeleccionada.fechaInicio) : []),
+    [semanaSeleccionada]
+  );
+
+  // Cargar periodos académicos y fijar la semana por defecto (la actual del mes)
+  useEffect(() => {
+    getGestionesAcademicas()
+      .then((g) => {
+        const nombres = g.map((x) => ({ nombre: x.nombre }));
+        if (nombres.length > 0) setGestiones(nombres);
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
+    setSemanaId((cur) => cur && semanas.some((s) => s.id === cur) ? cur : semanaActualId(semanas));
+  }, [semanas]);
+
+  useEffect(() => {
+    if (!semanaSeleccionada) return;
     setLoading(true);
-    getCumplimientoSemanal(semanaOffset, horasFiltro)
+    getCumplimientoSemanal({
+      fechaInicio: semanaSeleccionada.fechaInicio,
+      fechaFin: semanaSeleccionada.fechaFin,
+      horasContratadas: horasFiltro,
+      periodoAcademico: periodo,
+    })
       .then((res) => {
         setRows(res.data);
         setResumen(res.resumen);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [semanaOffset, horasFiltro]);
+  }, [semanaSeleccionada?.id, horasFiltro, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -174,13 +285,12 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
   );
 
   const exportPDF = async () => {
-    if (filteredRows.length === 0) return;
+    if (filteredRows.length === 0 || !semanaSeleccionada) return;
     setExporting("pdf");
     try {
       const institutionName = await getInstitutionName();
       const doc = new jsPDF("landscape");
 
-      // Encabezado institucional
       doc.setFontSize(20);
       doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
       doc.text(institutionName, 14, 18);
@@ -189,9 +299,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       doc.text("Control de Horas — Cumplimiento Semanal", 14, 27);
       doc.setFontSize(9);
       doc.setTextColor(120);
-      doc.text(`Semana: ${weekRange.label}  |  Generado: ${boDateTime()}${searchQuery ? `  |  Filtro: ${searchQuery}` : ""}`, 14, 34);
+      doc.text(`Semana: ${semanaSeleccionada.label}  |  Generado: ${boDateTime()}${searchQuery ? `  |  Filtro: ${searchQuery}` : ""}`, 14, 34);
 
-      // Resumen general de la semana
       doc.setFontSize(10);
       doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
       doc.text("Resumen General de la Semana", 14, 44);
@@ -213,7 +322,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         margin: { bottom: 10 },
       });
 
-      // Tabla detallada de cumplimiento por empleado
       let lastY = (doc as any).lastAutoTable.finalY + 8;
       doc.setFontSize(10);
       doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
@@ -252,7 +360,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       const pageCount = doc.getNumberOfPages();
       addFooter(doc, pageCount);
-      const filename = `Control_Horas_Semana_${weekRange.label.replace(/\//g, "-").replace(/\s/g, "_")}`;
+      const filename = `Control_Horas_${periodo}_sem${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
       doc.save(`${filename}.pdf`);
     } catch (error) {
       console.error("[ControlHoras.exportPDF]", error);
@@ -262,7 +370,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
   };
 
   const exportExcel = async () => {
-    if (filteredRows.length === 0) return;
+    if (filteredRows.length === 0 || !semanaSeleccionada) return;
     setExporting("excel");
     try {
       const institutionName = await getInstitutionName();
@@ -272,7 +380,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       const columns = ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
       const totalCols = columns.length;
 
-      // Encabezado institucional
       ws.mergeCells(1, 1, 1, totalCols);
       const titleCell = ws.getCell(1, 1);
       titleCell.value = institutionName;
@@ -282,7 +389,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       ws.mergeCells(2, 1, 2, totalCols);
       const subtitleCell = ws.getCell(2, 1);
-      subtitleCell.value = `Control de Horas — Cumplimiento Semanal (${weekRange.label})`;
+      subtitleCell.value = `Control de Horas — Cumplimiento Semanal (${semanaSeleccionada.label})`;
       subtitleCell.font = { name: "Calibri", size: 12, color: { argb: "FF333333" } };
 
       ws.mergeCells(3, 1, 3, totalCols);
@@ -290,7 +397,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       dateCell.value = `Generado: ${boDateTime()}`;
       dateCell.font = { name: "Calibri", size: 10, italic: true, color: { argb: "FF888888" } };
 
-      // Resumen general
       const resumenStart = 5;
       const resumenData = [
         ["Total Empleados", String(resumen?.totalEmpleados ?? 0)],
@@ -319,7 +425,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         });
       });
 
-      // Tabla detallada
       const tableStart = resumenStart + resumenData.length + 2;
       const headerRow = ws.getRow(tableStart);
       columns.forEach((col, i) => {
@@ -349,7 +454,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           cell.alignment = { horizontal: c >= 4 && c <= 6 ? "center" : "left", vertical: "middle" };
         });
 
-        // Celda de estado con color semántico
         const estadoCell = row.getCell(7);
         const pct = e.porcentajeCumplimiento;
         let fill = "FFDC2626";
@@ -359,7 +463,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
         estadoCell.alignment = { horizontal: "center", vertical: "middle" };
 
-        // Barra de estado: columna de celdas proporcionales al porcentaje
         const barCol = 8;
         row.getCell(barCol).value = `${e.porcentajeCumplimiento}%`;
         row.getCell(barCol).font = { name: "Calibri", size: 9, color: { argb: "FF666666" } };
@@ -367,7 +470,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         row.getCell(barCol).border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
       });
 
-      // Barra de progreso visual (columna extra) con gradiente por porcentaje
       const barStart = tableStart + 1;
       const barEnd = tableStart + filteredRows.length;
       ws.addConditionalFormatting({
@@ -381,7 +483,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         ],
       });
 
-      // Encabezado de la columna de barra
       const barHeader = ws.getRow(tableStart).getCell(8);
       barHeader.value = "Avance";
       barHeader.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
@@ -389,7 +490,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       barHeader.alignment = { horizontal: "center", vertical: "middle" };
       barHeader.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
 
-      // Anchos
       ws.getColumn(1).width = 30;
       ws.getColumn(2).width = 14;
       ws.getColumn(3).width = 14;
@@ -401,7 +501,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const filename = `Control_Horas_Semana_${weekRange.label.replace(/\//g, "-").replace(/\s/g, "_")}`;
+      const filename = `Control_Horas_${periodo}_semana_${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
       saveAs(blob, `${filename}.xlsx`);
     } catch (error) {
       console.error("[ControlHoras.exportExcel]", error);
@@ -409,6 +509,10 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       setExporting(null);
     }
   };
+
+  const SELECT_CLASSES = `pl-3 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark
+    ? "bg-slate-800 border-slate-700 text-gray-100"
+    : "bg-white border-gray-300 text-gray-900"}`;
 
   return (
     <div className="flex-1 overflow-y-auto p-6" style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}>
@@ -442,57 +546,67 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         </div>
       </div>
 
-      {/* Filtros principales */}
+      {/* Filtros jerárquicos */}
       <div className={card(dark, "overflow-hidden mb-5")}>
-        <div className="flex flex-wrap items-center gap-4 p-5">
-          {/* Selector de semana */}
-          <div className={`flex items-center gap-1 p-1 rounded-xl border ${dark ? "border-white/10" : "border-slate-200"} bg-transparent`}>
-            <button
-              onClick={() => setSemanaOffset((o) => o - 1)}
-              className={`p-2 rounded-lg cursor-pointer transition-colors ${dark ? "text-white/60 hover:bg-white/10" : "text-slate-500 hover:bg-slate-100"}`}
-              title="Semana anterior"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <div className="flex items-center gap-2 px-3">
-              <CalendarRange size={14} className={dark ? "text-white/40" : "text-slate-400"} />
-              <div className="leading-tight">
-                <p className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-700"}`}>{weekRange.label}</p>
-                <p className={`text-[11px] ${dark ? "text-white/40" : "text-slate-400"}`}>
-                  {semanaOffset === 0 ? "Semana actual" : semanaOffset === -1 ? "Semana anterior" : `Hace ${Math.abs(semanaOffset)} semanas`}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setSemanaOffset((o) => o + 1)}
-              className={`p-2 rounded-lg cursor-pointer transition-colors ${dark ? "text-white/60 hover:bg-white/10" : "text-slate-500 hover:bg-slate-100"}`}
-              title="Semana siguiente"
-            >
-              <ChevronRight size={16} />
-            </button>
-            {semanaOffset !== 0 && (
-              <button
-                onClick={() => setSemanaOffset(0)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${dark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"}`}
-              >
-                Hoy
-              </button>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center gap-3 p-5">
+          <span className={`flex items-center gap-1.5 text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+            <CalendarRange size={13} /> Periodo
+          </span>
+          <select
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+            className={SELECT_CLASSES}
+          >
+            {(gestiones.length ? gestiones : [{ nombre: obtenerPeriodoActual() }]).map((g) => (
+              <option key={g.nombre} value={g.nombre} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
+                {g.nombre}
+              </option>
+            ))}
+          </select>
+
+          <span className={`flex items-center gap-1.5 text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+            Mes
+          </span>
+          <select
+            value={mesSel}
+            onChange={(e) => setMesSel(parseInt(e.target.value, 10))}
+            className={SELECT_CLASSES}
+          >
+            {[
+              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+            ].map((mes, i) => (
+              <option key={mes} value={i} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
+                {mes} {year}
+              </option>
+            ))}
+          </select>
+
+          <span className={`flex items-center gap-1.5 text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
+            <CalendarRange size={13} /> Semana
+          </span>
+          <select
+            value={semanaId}
+            onChange={(e) => setSemanaId(e.target.value)}
+            className={`${SELECT_CLASSES} min-w-[210px]`}
+          >
+            {semanas.map((s) => (
+              <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
+                {s.label}
+              </option>
+            ))}
+          </select>
 
           {/* Filtro por horas contratadas */}
           <div className="relative">
-            <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${dark ? "text-white/30" : "text-slate-400"}`}>
-              <Clock size={12} />
-            </span>
             <select
               value={horasFiltro}
-              onChange={(e) => setHorasFiltro(e.target.value as "todas" | "20" | "40")}
-              className={`pl-7 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark ? "bg-slate-800 border-slate-700 text-gray-100" : "bg-white border-gray-300 text-gray-900"}`}
+              onChange={(e) => setHorasFiltro(e.target.value)}
+              className={SELECT_CLASSES}
             >
-              <option value="todas" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Todas las horas</option>
-              <option value="20" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">20 hrs</option>
-              <option value="40" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">40 hrs</option>
+              <option value="todas" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Horas: Todas</option>
+              <option value="20" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Horas: 20 hrs</option>
+              <option value="40" className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">Horas: 40 hrs</option>
             </select>
           </div>
 
@@ -532,11 +646,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
-        {renderKpi("Total Empleados", resumen?.totalEmpleados ?? 0, `Semana ${weekRange.label}`, COLORS.primary, <Users size={20} />)}
+        {renderKpi("Periodo", periodo, semanas.length ? `${semanas.length} semanas` : "", COLORS.primary, <CalendarRange size={20} />)}
+        {renderKpi("Total Empleados", resumen?.totalEmpleados ?? 0, semanaSeleccionada?.label ?? "", COLORS.primary, <Users size={20} />)}
         {renderKpi("Cumplidos", resumen?.cumplidos ?? 0, ">= 100%", COLORS.success, <CheckCircle2 size={20} />)}
         {renderKpi("En Progreso", resumen?.enProgreso ?? 0, "60% – 99%", COLORS.warning, <TrendingUp size={20} />)}
         {renderKpi("En Riesgo", resumen?.enRiesgo ?? 0, "< 60%", COLORS.danger, <AlertTriangle size={20} />)}
-        {renderKpi("Promedio Semanal", `${resumen?.promedioHoras ?? 0} h`, "horas trabajadas", "#0EA5E9", <TrendingUp size={20} />)}
       </div>
 
       {/* Tabla de cumplimiento */}
@@ -564,7 +678,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                   const color = progressColor(e.porcentajeCumplimiento);
                   const barValue = Math.min(e.porcentajeCumplimiento, 100);
                   return (
-                    <tr key={e.id} className={`border-t transition-colors ${dark ? "border-white/6 hover:bg-primary/10" : "border-slate-100 hover:bg-primary/5"}`}>
+                    <tr
+                      key={e.id}
+                      onClick={() => setEmpleadoDetalle(e)}
+                      className={`border-t transition-colors cursor-pointer ${dark ? "border-white/6 hover:bg-primary/10" : "border-slate-100 hover:bg-primary/5"}`}
+                    >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar name={e.nombre} size={30} bg={COLORS.primary} />
@@ -605,7 +723,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
         <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3 border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
           <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
-            Mostrando {filteredRows.length} de {resumen?.totalEmpleados ?? 0} empleados
+            Mostrando {filteredRows.length} de {resumen?.totalEmpleados ?? 0} empleados · Promedio semanal: {resumen?.promedioHoras ?? 0} h
+            <span className="ml-2">· Haz clic en una fila para ver el desglose diario</span>
           </p>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-xs"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>{"< 60%"}</span>
@@ -615,6 +734,103 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           </div>
         </div>
       </div>
+
+      {/* Drawer de desglose diario por empleado */}
+      <Drawer open={!!empleadoDetalle} onOpenChange={(open) => { if (!open) setEmpleadoDetalle(null); }}>
+        <DrawerContent className={dark ? "bg-[#0F172A] text-white" : "bg-white text-slate-800"}>
+          <DrawerHeader className="border-b" >
+            <div className="flex items-center justify-between">
+              <DrawerTitle className="flex items-center gap-3">
+                {empleadoDetalle && (
+                  <>
+                    <Avatar name={empleadoDetalle.nombre} size={36} bg={COLORS.primary} />
+                    <div className="leading-tight">
+                      <p className="text-base font-bold">{empleadoDetalle.nombre}</p>
+                      <p className="text-xs font-mono text-primary">{empleadoDetalle.codigo} · CI {empleadoDetalle.ci || "—"}</p>
+                    </div>
+                  </>
+                )}
+              </DrawerTitle>
+              <DrawerClose asChild>
+                <button className={`p-2 rounded-lg cursor-pointer transition-colors ${dark ? "hover:bg-white/10 text-white" : "hover:bg-slate-100 text-slate-500"}`}>
+                  <X size={18} />
+                </button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+
+          <div className="px-5 py-4 max-h-[70vh] overflow-y-auto">
+            {semanaSeleccionada && (
+              <p className={`text-xs mb-3 ${dark ? "text-white/40" : "text-slate-400"}`}>
+                {semanaSeleccionada.label} · {periodo}
+              </p>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className={dark ? "bg-white/5" : "bg-slate-50"}>
+                    {["Día", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"].map((c) => (
+                      <th key={c} className={`px-4 py-2.5 text-left text-xs font-semibold ${dark ? "text-white/30" : "text-slate-400"}`}>
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {diasSemana.map((d, idx) => {
+                    const detalle = (empleadoDetalle?.desgloseDiario || []).find((dd: DesgloseDiario) => dd.fecha === d.fecha);
+                    const parcial = detalle?.horas ?? 0;
+                    const acumulado = rows.find((r) => empleadoDetalle && r.id === empleadoDetalle.id)
+                      ? (empleadoDetalle?.desgloseDiario || [])
+                          .filter((dd) => dd.fecha <= d.fecha)
+                          .reduce((s, dd) => s + dd.horas, 0)
+                      : 0;
+                    return (
+                      <tr key={d.fecha} className={`border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
+                        <td className={`px-4 py-3 text-sm font-medium ${dark ? "text-white" : "text-slate-700"}`}>
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold mr-2 ${idx % 7 === 6 ? "bg-red-500 text-white" : "bg-primary text-white"}`}>{idx + 1}</span>
+                          <span className="capitalize">{d.label}</span>
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-green-400" : "text-green-700"}`}>
+                          {detalle?.entrada || "—"}
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>
+                          {detalle?.salida || "—"}
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-semibold ${dark ? "text-white" : "text-slate-700"}`}>
+                          {parcial.toFixed(1)} hrs
+                        </td>
+                        <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>
+                          {acumulado.toFixed(1)} hrs
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className={`mt-4 flex items-center justify-between rounded-xl p-4 ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+              <div>
+                <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Total semanal</p>
+                <p className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+                  {empleadoDetalle ? empleadoDetalle.horasTrabajadas.toFixed(1) : "0.0"} / {empleadoDetalle?.horasContratadas.toFixed(1)} hrs
+                </p>
+              </div>
+              {empleadoDetalle && (
+                <div className="text-right">
+                  <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Cumplimiento</p>
+                  <p className="text-2xl font-bold" style={{ color: progressColor(empleadoDetalle.porcentajeCumplimiento) }}>
+                    {empleadoDetalle.porcentajeCumplimiento.toFixed(1)}%
+                  </p>
+                  {renderStatusBadge(empleadoDetalle.estadoCumplimiento)}
+                </div>
+              )}
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };
