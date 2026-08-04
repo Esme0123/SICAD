@@ -1454,15 +1454,14 @@ async function miHistorial(req, res) {
 /**
  * GET /api/asistencia/cumplimiento-semanal
  * Query:
- *   ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD          → rango explícito (Lunes–Domingo)
- *   &horasContratadas=todas|20|40|20 hrs|40 hrs          → filtro de meta (opcional)
- *   &periodoAcademico=1-2026                             → filtro por periodo académico (opcional)
- *   &semanaOffset=0                                      → compat: rango semanal por offset (si no hay fechas)
+* ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD          → rango explícito (Lunes–Sábado, se omite domingo)
+ *   &horasContratadas=todas|20|40|20 hrs|40 hrs        → filtro de meta (opcional)
+ *   &periodoAcademico=1-2026                           → filtro por periodo académico (opcional)
  *
- * Calcula el avance acumulado de horas trabajadas (suma de horaSalida -
- * horaEntrada en marcaciones cerradas) contra las horas contratadas
- * (horasBase) de cada empleado activo, devolviendo además un desglose
- * día a día para la vista de detalle.
+ * Calcula el avance acumulado de horas trabajadas (diferencia salaSalida -
+ * horaEntrada en cada bloque) contra las horas contratadas (horasBase) de
+ * cada empleado activo, soportando múltiples turnos por día. Devuelve un
+ * desglose día a día (Lunes a Sábado) para la vista de detalle.
  */
 async function cumplimientoSemanal(req, res) {
   try {
@@ -1530,51 +1529,73 @@ async function cumplimientoSemanal(req, res) {
       (m) => m.horaEntrada !== null && m.horaEntrada !== undefined && m.horaEntrada !== ""
     );
 
-    const porEmpleado = new Map();
-    for (const m of marcacionesValidas) {
-      if (!porEmpleado.has(m.usuarioId)) porEmpleado.set(m.usuarioId, []);
-      porEmpleado.get(m.usuarioId).push(m);
-    }
+    // ── 4. Cálculo seguro de horas + desglose diario (Lunes a Sábado) ──
+    const diasNombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
-    // ── 4. Cálculo seguro de horas + desglose diario ──
     const data = empleados.map((emp) => {
-      const misMarcaciones = porEmpleado.get(emp.id) || [];
+      const misMarcaciones = marcacionesValidas.filter((m) => m.usuarioId === emp.id);
 
-      let totalSegundos = 0;
-      const porFecha = new Map();
+      // Agrupar por día (soporta múltiples turnos / puentes en el mismo día)
+      const marcacionesPorDia = {};
+      misMarcaciones.forEach((m) => {
+        const bd = getBoliviaDate(m.fecha || m.horaEntrada);
+        if (bd.getDay() === 0) return; // Excluir domingos
 
-      for (const m of misMarcaciones) {
+        const fechaKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
         const entradaMs = m.horaEntrada ? new Date(m.horaEntrada).getTime() : NaN;
         const salidaMs = m.horaSalida ? new Date(m.horaSalida).getTime() : NaN;
-        if (isNaN(entradaMs)) continue;
 
-        // Solo suman las marcaciones cerradas (con horaSalida válida)
-        let segundos = 0;
-        if (!isNaN(salidaMs)) {
-          segundos = Math.max(0, (salidaMs - entradaMs) / 1000);
+        let minutosTurno = 0;
+        if (!isNaN(entradaMs) && !isNaN(salidaMs)) {
+          minutosTurno = Math.round(Math.max(0, (salidaMs - entradaMs) / 60000));
         }
-        totalSegundos += segundos;
 
-        // Clave de fecha en hora Bolivia (grupo día a día)
-        const bd = getBoliviaDate(m.fecha || new Date(entradaMs));
-        const fechaKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
-        if (!porFecha.has(fechaKey)) {
-          porFecha.set(fechaKey, { horas: 0, entrada: null, salida: null });
+        if (!marcacionesPorDia[fechaKey]) marcacionesPorDia[fechaKey] = [];
+        marcacionesPorDia[fechaKey].push({
+          entrada: isNaN(entradaMs) ? null : toBoliviaTimeStr(m.horaEntrada),
+          salida: isNaN(salidaMs) ? null : toBoliviaTimeStr(m.horaSalida),
+          minutos: minutosTurno,
+        });
+      });
+
+      // Semana laboral de Lunes a Sábado (omite domingo)
+      let totalSegundos = 0;
+      let acumuladoHoras = 0;
+      const desgloseDiario = [];
+
+      const [y0, m0, d0] = fechaInicio.split('-').map(Number);
+      const [y1, m1, d1] = fechaFin.split('-').map(Number);
+      const curDate = new Date(y0, m0 - 1, d0);
+      const finDate = new Date(y1, m1 - 1, d1);
+
+      while (curDate <= finDate) {
+        const diaSemana = curDate.getDay();
+        if (diaSemana !== 0) {
+          const day = String(curDate.getDate()).padStart(2, '0');
+          const month = String(curDate.getMonth() + 1).padStart(2, '0');
+          const fKey = `${curDate.getFullYear()}-${month}-${day}`;
+
+          const turnos = marcacionesPorDia[fKey] || [];
+          const minutosDia = turnos.reduce((acc, t) => acc + t.minutos, 0);
+          const horasDia = Number((minutosDia / 60).toFixed(2));
+          totalSegundos += minutosDia * 60;
+          acumuladoHoras = Number((acumuladoHoras + horasDia).toFixed(2));
+
+          const entradas = turnos.map((t) => t.entrada).filter(Boolean);
+          const salidas = turnos.map((t) => t.salida).filter(Boolean);
+
+          desgloseDiario.push({
+            diaNombre: `${diasNombres[diaSemana]}, ${day}/${month}`,
+            fecha: fKey,
+            horaEntrada: entradas.length > 0 ? entradas.join(', ') : '—',
+            horaSalida: salidas.length > 0 ? salidas.join(', ') : '—',
+            subtotalHoras: horasDia,
+            acumuladoHoras,
+            turnosCount: turnos.length,
+          });
         }
-        const acc = porFecha.get(fechaKey);
-        acc.horas += segundos / 3600;
-        if (!acc.entrada) acc.entrada = toBoliviaTimeStr(m.horaEntrada);
-        if (!isNaN(salidaMs)) acc.salida = toBoliviaTimeStr(m.horaSalida);
+        curDate.setDate(curDate.getDate() + 1);
       }
-
-      const desgloseDiario = Array.from(porFecha.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([fecha, acc]) => ({
-          fecha,
-          horas: Number(acc.horas.toFixed(2)),
-          entrada: acc.entrada,
-          salida: acc.salida,
-        }));
 
       const horasTrabajadas = Number((totalSegundos / 3600).toFixed(2));
       const metaHoras = emp.horasBase || 20;

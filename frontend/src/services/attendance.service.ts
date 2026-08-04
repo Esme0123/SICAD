@@ -105,10 +105,13 @@ export async function getCurrentQRToken(): Promise<{ token: string; expiresIn: n
 export type EstadoCumplimiento = "En Riesgo" | "En Progreso" | "Cumplido" | "Superado";
 
 export interface DesgloseDiario {
+  diaNombre: string;
   fecha: string;
-  horas: number;
-  entrada: string | null;
-  salida: string | null;
+  horaEntrada: string;
+  horaSalida: string;
+  subtotalHoras: number;
+  acumuladoHoras: number;
+  turnosCount: number;
 }
 
 export interface CumplimientoSemanalEmpleado {

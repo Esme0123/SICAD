@@ -4,7 +4,6 @@ import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import {
-  Search,
   FileText,
   FileSpreadsheet,
   Users,
@@ -16,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
+import { SearchAutocomplete } from "@/components/common/SearchAutocomplete";
 import { Progress } from "@/components/ui/progress";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
@@ -128,19 +128,6 @@ function semanaActualId(semanas: ReturnType<typeof getSemanasDelMes>): string {
 }
 
 /** Devuelve los 7 días (Lunes a Domingo) de la semana cuya fechaInicio se indica. */
-function getDiasSemana(fechaInicio: string): Array<{ fecha: string; label: string; diaNum: number }> {
-  const [y, m, d] = fechaInicio.split("-").map(Number);
-  const days: Array<{ fecha: string; label: string; diaNum: number }> = [];
-  for (let i = 0; i < 7; i++) {
-    const dt = new Date(y, m - 1, d + i);
-    days.push({
-      fecha: fmtDate(dt),
-      diaNum: dt.getDay(),
-      label: dt.toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "2-digit" }).replace(/^\w/, (c) => c.toUpperCase()),
-    });
-  }
-  return days;
-}
 
 /** Color hex de la barra de progreso según el porcentaje (para texto/acentos). */
 function progressColor(pct: number): string {
@@ -207,10 +194,6 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
   // ── Detalle diario (drawer) ──
   const [empleadoDetalle, setEmpleadoDetalle] = useState<CumplimientoSemanalEmpleado | null>(null);
-  const diasSemana = useMemo(
-    () => (semanaSeleccionada ? getDiasSemana(semanaSeleccionada.fechaInicio) : []),
-    [semanaSeleccionada]
-  );
 
   // Cargar periodos académicos y fijar la semana por defecto (la actual del mes)
   useEffect(() => {
@@ -254,6 +237,17 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           e.ci.toLowerCase().includes(q))
     );
   }, [rows, estadoFiltro, searchQuery]);
+
+  // Ítems para el buscador autocompletado (nombre, código y CI)
+  const searchItems = useMemo(
+    () =>
+      rows.map((e) => ({
+        name: e.nombre,
+        code: e.codigo,
+        ci: e.ci,
+      })),
+    [rows]
+  );
 
   const renderStatusBadge = (estado: EstadoCumplimiento) => {
     let style = { bg: "", text: "", dot: "" };
@@ -646,18 +640,16 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
             ))}
           </div>
 
-          {/* Buscador */}
+          {/* Buscador con autocompletado */}
           <div className="relative ml-auto w-full md:w-72">
-            <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? "text-white/40" : "text-slate-400"}`} />
-            <input
-              type="text"
-              placeholder="Buscar por nombre, código o CI..."
+            <SearchAutocomplete
+              items={searchItems}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-9 pr-4 py-2 rounded-xl text-sm border outline-none transition-all ${dark
-                  ? "bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-primary/60"
-                  : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-primary/50 focus:bg-white"
-                }`}
+              onChange={(val) => setSearchQuery(val)}
+              onSelect={(item) => setSearchQuery(item.name)}
+              placeholder="Buscar por nombre, código o CI..."
+              dark={dark}
+              maxSuggestions={6}
             />
           </div>
         </div>
@@ -797,35 +789,31 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {diasSemana.map((d, idx) => {
-                    const detalle = (empleadoDetalle?.desgloseDiario || []).find((dd: DesgloseDiario) => dd.fecha === d.fecha);
-                    const parcial = detalle?.horas ?? 0;
-                    const acumulado = rows.find((r) => empleadoDetalle && r.id === empleadoDetalle.id)
-                      ? (empleadoDetalle?.desgloseDiario || [])
-                          .filter((dd) => dd.fecha <= d.fecha)
-                          .reduce((s, dd) => s + dd.horas, 0)
-                      : 0;
-                    return (
-                      <tr key={d.fecha} className={`border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
-                        <td className={`px-4 py-3 text-sm font-medium ${dark ? "text-white" : "text-slate-700"}`}>
-                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold mr-2 ${idx % 7 === 6 ? "bg-red-500 text-white" : "bg-primary text-white"}`}>{idx + 1}</span>
-                          <span className="capitalize">{d.label}</span>
-                        </td>
-                        <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-green-400" : "text-green-700"}`}>
-                          {detalle?.entrada || "—"}
-                        </td>
-                        <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>
-                          {detalle?.salida || "—"}
-                        </td>
-                        <td className={`px-4 py-3 text-sm font-semibold ${dark ? "text-white" : "text-slate-700"}`}>
-                          {parcial.toFixed(1)} hrs
-                        </td>
-                        <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>
-                          {acumulado.toFixed(1)} hrs
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {(empleadoDetalle?.desgloseDiario || []).map((dd: DesgloseDiario, idx) => (
+                    <tr key={dd.fecha} className={`border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
+                      <td className={`px-4 py-3 text-sm font-medium ${dark ? "text-white" : "text-slate-700"}`}>
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold mr-2 ${dark ? "bg-white/10" : "bg-slate-100"}`}>{idx + 1}</span>
+                        <span className="capitalize">{dd.diaNombre}</span>
+                        {dd.turnosCount > 1 && (
+                          <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                            {dd.turnosCount} turnos
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-green-400" : "text-green-700"}`}>
+                        {dd.horaEntrada || "—"}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>
+                        {dd.horaSalida || "—"}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-semibold ${dark ? "text-white" : "text-slate-700"}`}>
+                        {dd.subtotalHoras.toFixed(2)} hrs
+                      </td>
+                      <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>
+                        {dd.acumuladoHoras.toFixed(2)} hrs
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
