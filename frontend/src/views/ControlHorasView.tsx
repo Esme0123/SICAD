@@ -64,6 +64,12 @@ function doisDigit(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** Crea una fecha en hora local (America/La_Paz) desde una cadena YYYY-MM-DD, sin desfase UTC. */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${doisDigit(d.getMonth() + 1)}-${doisDigit(d.getDate())}`;
 }
@@ -554,7 +560,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       </div>
 
       {/* Filtros jerárquicos */}
-      <div className={card(dark, "overflow-hidden mb-5")}>
+      <div className={card(dark, "overflow-visible relative z-20 mb-5")}>
         <div className="flex flex-wrap items-center gap-3 p-5">
           <span className={`flex items-center gap-1.5 text-xs font-semibold ${dark ? "text-white/40" : "text-slate-400"}`}>
             <CalendarRange size={13} /> Periodo
@@ -641,7 +647,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           </div>
 
           {/* Buscador con autocompletado */}
-          <div className="relative ml-auto w-full md:w-72">
+          <div className="relative ml-auto z-30 w-full md:w-72">
             <SearchAutocomplete
               items={searchItems}
               value={searchQuery}

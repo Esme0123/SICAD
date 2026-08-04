@@ -1475,8 +1475,11 @@ async function cumplimientoSemanal(req, res) {
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.status(400).json({ ok: false, message: 'fechaInicio y fechaFin deben tener formato YYYY-MM-DD' });
       }
-      start = new Date(`${fechaInicio}T00:00:00.000Z`);
-      end = new Date(`${fechaFin}T23:59:59.999Z`);
+      // Parse en hora local (America/La_Paz) para evitar el desfase UTC de new Date("YYYY-MM-DD")
+      const [sy, sm, sd] = fechaInicio.split('-').map(Number);
+      const [ey, em, ed] = fechaFin.split('-').map(Number);
+      start = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         return res.status(400).json({ ok: false, message: 'fechaInicio o fechaFin no son fechas válidas' });
       }
@@ -1507,9 +1510,9 @@ async function cumplimientoSemanal(req, res) {
       }
     }
 
-    if (periodoAcademico) {
-      whereEmpleado.horariosAsignados = { some: { periodoAcademico } };
-    }
+    // periodoAcademico se usa solo como referencia; NO filtra con INNER JOIN
+    // (evita excluir contrataciones/asignaciones recientes que aún no tienen
+    //  registro en asignacion_horarios para el periodo seleccionado).
 
     const empleados = await prisma.usuario.findMany({
       where: whereEmpleado,
