@@ -21,6 +21,27 @@ function timeToMinutes(timeStr) {
 }
 
 /**
+ * Calcula el límite inferior (minutos desde medianoche) de la ventana de
+ * búsqueda de una marcación de ENTRADA para un bloque de horario.
+ *
+ * Early Check-in: la ventana previa de un bloque se expande hasta el fin del
+ * bloque anterior del mismo día (o el inicio del día si es el primer bloque),
+ * permitiendo que una entrada anticipada (1, 2 o más horas antes de la hora
+ * nominal de inicio) se asocie al turno correspondiente, siempre que no
+ * pertenezca a un turno anterior del mismo día.
+ *
+ * @param {Array} bloques - Bloques ordenados cronológicamente (horaFin/horaInicio o fin/inicio)
+ * @param {number} idx - Índice del bloque actual dentro del array
+ * @returns {number} minutos desde medianoche
+ */
+function obtenerLimiteInferiorVentanaEntrada(bloques, idx) {
+  if (idx === 0) return 0;
+  const anterior = bloques[idx - 1];
+  const finAnterior = anterior.horaFin !== undefined ? anterior.horaFin : anterior.fin;
+  return typeof finAnterior === 'number' ? finAnterior : timeToMinutes(finAnterior);
+}
+
+/**
  * Devuelve el nombre del día en español (sin tilde en Miercoles/Sabado)
  * según el formato que usa HorarioAsignado.diaSemana.
  */
@@ -178,14 +199,19 @@ function agruparHorariosContiguos(horarios) {
 /**
  * Encuentra el bloque activo y el periodo activo dentro del bloque
  * considerando tolerancia de 20 min antes del inicio.
+ *
+ * La ventana previa del bloque se expande hasta el fin del bloque anterior
+ * (Early Check-in), de modo que una entrada anticipada se asocie al turno
+ * correspondiente del día sin solaparse con un turno anterior.
  * @param {Array} bloques - Bloques continuos
  * @param {number} ahoraMin - Minutos actuales desde medianoche
  * @param {number} toleranciaMin - Minutos de tolerancia
  * @returns {{ bloque: Object|null, periodoActivo: Object|null, posicion: number }}
  */
 function encontrarBloqueYPeriodoActivo(bloques, ahoraMin, toleranciaMin = 20) {
-  for (const bloque of bloques) {
-    const inicioBloqueMin = timeToMinutes(bloque.horaInicio) - toleranciaMin;
+  for (let i = 0; i < bloques.length; i++) {
+    const bloque = bloques[i];
+    const inicioBloqueMin = obtenerLimiteInferiorVentanaEntrada(bloques, i);
     const finBloqueMin = timeToMinutes(bloque.horaFin);
     if (ahoraMin >= inicioBloqueMin && ahoraMin <= finBloqueMin) {
       for (let i = 0; i < bloque.horarios.length; i++) {
@@ -487,8 +513,11 @@ async function getAll(req, res) {
       const referenciaMin = inicioPeriodo ? timeToMinutes(inicioPeriodo) : horaEntradaMin;
       if (referenciaMin === null) return null;
 
-      const match = consolidados.find(c => {
-        const inicioC = timeToMinutes(c.inicio) - 20;
+      // Early Check-in: el inicio de búsqueda se expande hasta el fin del
+      // bloque consolidado anterior (o el inicio del día si es el primero),
+      // para asociar entradas anticipadas al turno correspondiente.
+      const match = consolidados.find((c, ci) => {
+        const inicioC = obtenerLimiteInferiorVentanaEntrada(consolidados, ci);
         const finC = timeToMinutes(c.fin);
         return referenciaMin >= inicioC && referenciaMin <= finC;
       });
@@ -1055,10 +1084,13 @@ async function getEstadoHoy(req, res) {
     for (const [usuarioId, bloques] of bloquesPorUsuario) {
       const mins = entradaPorUsuario.get(usuarioId);
       if (!mins) continue;
-      for (const bloque of bloques) {
+      for (let bi = 0; bi < bloques.length; bi++) {
+        const bloque = bloques[bi];
         let cubierto = false;
+        // Early Check-in: cubre desde el fin del bloque anterior (o inicio del día)
+        const inicioVentana = bi > 0 ? bloques[bi - 1].fin : 0;
         for (const m of mins) {
-          if (m >= (bloque.inicio - 20) && m <= bloque.fin) { cubierto = true; break; }
+          if (m >= inicioVentana && m <= bloque.fin) { cubierto = true; break; }
         }
         if (cubierto) {
           for (const pid of bloque.periodoIds) {
@@ -1306,16 +1338,22 @@ async function miHistorial(req, res) {
       // ── Agrupar periodos contiguos en bloques maestros (Jornada Continua) ──
       const bloques = agruparHorariosContiguos(horariosValidos);
 
-      for (const bloque of bloques) {
+      for (let bi = 0; bi < bloques.length; bi++) {
+        const bloque = bloques[bi];
         const inicioBloqueMin = timeToMinutes(bloque.horaInicio);
         const finBloqueMin = timeToMinutes(bloque.horaFin);
         const periodoLabel = `${bloque.horaInicio}–${bloque.horaFin}`;
 
         // ── Marcaciones cuya entrada cae dentro del bloque maestro ──
+        // Early Check-in: la ventana previa se expande hasta el fin del bloque
+        // anterior del día (o el inicio del día si es el primero), de modo que
+        // una entrada anticipada se asocie a este turno y no genere un registro
+        // huérfano ni marque el bloque como Ausente.
+        const inicioVentanaMin = bi > 0 ? timeToMinutes(bloques[bi - 1].horaFin) : 0;
         const asistenciasBloque = asistenciasFecha.filter(a => {
           if (!a.horaEntrada) return false;
           const min = getBoliviaDate(a.horaEntrada).getHours() * 60 + getBoliviaDate(a.horaEntrada).getMinutes();
-          return min >= inicioBloqueMin - 20 && min <= finBloqueMin;
+          return min >= inicioVentanaMin && min <= finBloqueMin;
         });
 
         if (asistenciasBloque.length > 0) {
