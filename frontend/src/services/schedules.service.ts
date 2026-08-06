@@ -51,6 +51,11 @@ export interface GestionAcademica {
   updatedAt?: string;
 }
 
+export interface PeriodoDisponible {
+  value: string;
+  label: string;
+}
+
 const mapDayToFrontend = (day: string): "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado" => {
   if (day === "Miercoles") return "Miércoles";
   if (day === "Sabado") return "Sábado";
@@ -145,6 +150,14 @@ export async function getGestionesAcademicas(): Promise<GestionAcademica[]> {
   return data.data;
 }
 
+export async function getPeriodosDisponibles(): Promise<PeriodoDisponible[]> {
+  const { data } = await api.get<{ ok: boolean; data: PeriodoDisponible[] }>("/periodos/disponibles");
+  if (!data.ok) {
+    throw new Error("Error al obtener los periodos disponibles");
+  }
+  return data.data;
+}
+
 export async function setGestionVisibilidad(id: number, esVisibleMovil: boolean): Promise<GestionAcademica> {
   const { data } = await api.patch<{ ok: boolean; data: GestionAcademica }>(`/periodos/${id}/visibilidad`, {
     esVisibleMovil,
@@ -162,5 +175,6 @@ export default {
   deleteSchedule,
   getPeriods,
   getGestionesAcademicas,
+  getPeriodosDisponibles,
   setGestionVisibilidad,
 };

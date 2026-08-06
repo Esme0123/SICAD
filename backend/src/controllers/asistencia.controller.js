@@ -118,6 +118,21 @@ function extraerHoraInicio(periodoStr) {
 }
 
 /**
+ * Devuelve el nombre del periodo académico al que pertenece una fecha.
+ * Ej: "2026-08-03" → "2-2026", "2026-07-15" → "Invierno 2026".
+ *
+ * @param {string} isoStr - Fecha en formato "YYYY-MM-DD"
+ * @returns {string}
+ */
+function obtenerPeriodoDeFechaStr(isoStr) {
+  const [y, m] = isoStr.split('-').map(Number);
+  if (m === 1) return `Verano ${y}`;
+  if (m >= 2 && m <= 6) return `1-${y}`;
+  if (m === 7) return `Invierno ${y}`;
+  return `2-${y}`;
+}
+
+/**
  * Calcula PUNTUAL vs TARDANZA comparando matemáticamente la hora de entrada
  * contra el inicio del periodo más la tolerancia.
  *
@@ -1158,8 +1173,12 @@ async function getEstadoHoy(req, res) {
  * GET /api/asistencia/mi-historial
  * Auth: Requiere JWT de empleado
  * Query: ?mes=1-12&anio=YYYY (default: mes y año actual en Bolivia)
+ *        ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD&periodoAcademico=2-2026
  *
- * Devuelve las marcaciones del empleado autenticado en el mes especificado.
+ * Devuelve las marcaciones del empleado autenticado en el rango especificado.
+ * Cada fecha se asocia estrictamente a su periodoAcademico real (ej. "2-2026")
+ * y los horarios asignados se filtran por ese periodo, evitando que horarios
+ * de periodos concluidos se crucen con fechas de periodos diferentes.
  */
 async function miHistorial(req, res) {
   try {
@@ -1175,7 +1194,7 @@ async function miHistorial(req, res) {
     const configTol = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
     const toleranciaMin = configTol?.tiempoTolerancia ?? 10;
 
-    const { filtro, fechaInicio, fechaFin } = req.query;
+    const { filtro, fechaInicio, fechaFin, periodoAcademico } = req.query;
 
     function fechaLocalMedioDia(isoStr) {
       const [y, m, d] = isoStr.split('-').map(Number);
@@ -1254,8 +1273,11 @@ async function miHistorial(req, res) {
 
     const horarioPorDia = new Map();
     for (const h of horariosAsignados) {
-      if (!horarioPorDia.has(h.diaSemana)) horarioPorDia.set(h.diaSemana, []);
-      horarioPorDia.get(h.diaSemana).push({
+      // Clave: "diaSemana|periodoAcademico" — evita cruzar horarios de periodos
+      // académicos concluidos con fechas que pertenecen a periodos diferentes.
+      const key = `${h.diaSemana}|${h.periodoAcademico}`;
+      if (!horarioPorDia.has(key)) horarioPorDia.set(key, []);
+      horarioPorDia.get(key).push({
         id: h.id,
         periodoId: h.periodo.id,
         horaInicio: h.periodo.horaInicio,
@@ -1263,13 +1285,6 @@ async function miHistorial(req, res) {
         nombre: h.periodo.nombre,
         createdAt: h.createdAt,
       });
-    }
-
-    function getPeriodoHorario(fecha) {
-      const diaNum = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getDay();
-      const horarios = horarioPorDia.get(diasSemana[diaNum]);
-      if (!horarios || horarios.length === 0) return null;
-      return horarios.map(p => `${p.horaInicio} - ${p.horaFin}`).join(', ');
     }
 
     // ── Indexar asistencias por fecha ──
@@ -1316,7 +1331,15 @@ async function miHistorial(req, res) {
       const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
       if (diaNum === 0) continue;
       const diaSemana = diasSemana[diaNum];
-      const horariosDia = horarioPorDia.get(diaSemana) || [];
+
+      // ── Filtrado estricto por periodo académico ──
+      // Determina a qué periodoAcademico pertenece la fecha (ej. "2-2026") y
+      // filtra obligatoriamente los horarios asignados por ese periodo exacto,
+      // evitando que bloques de periodos concluidos (ej. "Invierno 2026") se
+      // crucen con fechas de periodos diferentes.
+      const periodoFecha = obtenerPeriodoDeFechaStr(fechaStr);
+      if (periodoAcademico && periodoAcademico !== periodoFecha) continue;
+      const horariosDia = horarioPorDia.get(`${diaSemana}|${periodoFecha}`) || [];
       if (horariosDia.length === 0) continue;
 
       // Solo periodos ya asignados para esa fecha

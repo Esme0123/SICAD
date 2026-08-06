@@ -12,13 +12,15 @@ import {
   deleteSchedule,
   getPeriods,
   getGestionesAcademicas,
+  getPeriodosDisponibles,
   setGestionVisibilidad,
   Periodo,
   GestionAcademica,
   Schedule,
+  PeriodoDisponible,
 } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
-import { obtenerPeriodoActual, generatePeriodOptions, getPreviousPeriod } from "@/utils/periodo.utils";
+import { obtenerPeriodoActual } from "@/utils/periodo.utils";
 
 interface PeriodsViewProps {
   dark: boolean;
@@ -55,7 +57,7 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
   });
   const [filterPeriod, setFilterPeriod] = useState(obtenerPeriodoActual());
   const [selectedPeriod, setSelectedPeriod] = useState(obtenerPeriodoActual());
-  const periodOptions = generatePeriodOptions(10);
+  const [periodOptions, setPeriodOptions] = useState<PeriodoDisponible[]>([]);
 
   const totalSelectedSlots = Object.values(draftSchedules).flat().length;
 
@@ -87,6 +89,21 @@ export const PeriodsView: React.FC<PeriodsViewProps> = ({ dark }) => {
       }
     }
   };
+
+  // ── Carga SOLO los periodos académicos con datos reales en la BD ──
+  useEffect(() => {
+    getPeriodosDisponibles()
+      .then((opts) => {
+        setPeriodOptions(opts);
+        // Por defecto el periodo más reciente con datos (backend los ordena desc)
+        if (opts.length > 0) {
+          const primer = opts[0].value;
+          setFilterPeriod(primer);
+          setSelectedPeriod(primer);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   // Carga inicial solo 1 vez al montar:
   useEffect(() => {

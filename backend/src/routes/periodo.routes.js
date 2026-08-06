@@ -2,10 +2,13 @@
 // Gestión de periodos académicos (gestiones_academicas)
 
 const { Router } = require('express');
-const { getGestionesAcademicas, updateVisibilidadMovil } = require('../controllers/periodo.controller');
+const { getGestionesAcademicas, updateVisibilidadMovil, getPeriodosDisponibles } = require('../controllers/periodo.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
+
+// GET  /api/periodos/disponibles — Solo periodos con datos reales (horarios/marcaciones)
+router.get('/disponibles', authMiddleware, getPeriodosDisponibles);
 
 // GET  /api/periodos                — Lista gestiones académicas (filtrada por rol)
 router.get('/', authMiddleware, getGestionesAcademicas);

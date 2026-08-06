@@ -14,7 +14,8 @@ import {
   Employee,
 } from "@/services/employees.service";
 import { getPermisos, PermisoBackend } from "@/services/permisos.service";
-import { obtenerPeriodoActual, generatePeriodOptions } from "@/utils/periodo.utils";
+import { getPeriodosDisponibles, PeriodoDisponible } from "@/services/schedules.service";
+import { obtenerPeriodoActual } from "@/utils/periodo.utils";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { toast } from "sonner";
 
@@ -35,7 +36,7 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
   // Period state
   const [selectedPeriod, setSelectedPeriod] = useState<string>(obtenerPeriodoActual());
-  const periodOptions = generatePeriodOptions(10);
+  const [periodOptions, setPeriodOptions] = useState<PeriodoDisponible[]>([]);
 
   // Modals state
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -83,6 +84,16 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
     loadEmployees(selectedPeriod);
     setCurrentPage(1);
   }, [selectedPeriod]);
+
+  // Carga SOLO los periodos académicos con datos reales en la BD
+  useEffect(() => {
+    getPeriodosDisponibles()
+      .then((opts) => {
+        setPeriodOptions(opts);
+        if (opts.length > 0) setSelectedPeriod(opts[0].value);
+      })
+      .catch(console.error);
+  }, []);
 
   useRefetchOnFocus(() => loadEmployees(selectedPeriod));
 

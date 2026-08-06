@@ -18,7 +18,8 @@ import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
 import { getAnalisis, AnalisisResponse } from "@/services/report.service";
 import { getEmployees, Employee } from "@/services/employees.service";
-import { generatePeriodOptions } from "@/utils/periodo.utils";
+import { getPeriodosDisponibles, PeriodoDisponible } from "@/services/schedules.service";
+import { obtenerPeriodoActual } from "@/utils/periodo.utils";
 import { exportAnalyticsPDF, exportAnalyticsExcel } from "@/utils/export.utils";
 
 const CHART_COLORS = ["#0EA5E9", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#F97316", "#06B6D4"];
@@ -104,8 +105,8 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
   // Estados de Filtros
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const periodOptions = useMemo(() => generatePeriodOptions(10), []);
-  const [selectedPeriod, setSelectedPeriod] = useState(periodOptions[0]?.value ?? "1-2026");
+  const [periodOptions, setPeriodOptions] = useState<PeriodoDisponible[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(obtenerPeriodoActual());
 
   // Estado para API
   const [analisisData, setAnalisisData] = useState<AnalisisResponse | null>(null);
@@ -134,6 +135,16 @@ export const Reports: React.FC<ReportsProps> = ({ dark }) => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ── Cargar SOLO los periodos académicos con datos reales en la BD ──
+  useEffect(() => {
+    getPeriodosDisponibles()
+      .then((opts) => {
+        setPeriodOptions(opts);
+        if (opts.length > 0) setSelectedPeriod(opts[0].value);
+      })
+      .catch(console.error);
   }, []);
 
   // ── Cargar empleados reales para las sugerencias ──
