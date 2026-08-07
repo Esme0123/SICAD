@@ -659,7 +659,12 @@ async function marcar(req, res) {
       orderBy: { createdAt: 'desc' },
     });
     if (ultimaMarcacion) {
-      const ultimaMs = new Date(ultimaMarcacion.createdAt).getTime();
+      const eventosMs = [
+        new Date(ultimaMarcacion.createdAt).getTime(),
+        new Date(ultimaMarcacion.horaSalida).getTime(),
+        new Date(ultimaMarcacion.updatedAt).getTime(),
+      ].filter((ms) => !Number.isNaN(ms));
+      const ultimaMs = eventosMs.length ? Math.max(...eventosMs) : Date.now();
       const diffSeg = Math.floor((Date.now() - ultimaMs) / 1000);
       if (diffSeg < 120) {
         const espera = Math.max(1, 120 - diffSeg);

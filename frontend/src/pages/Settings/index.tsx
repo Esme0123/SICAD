@@ -8,6 +8,10 @@ import {
   Download,
   Upload,
   Loader2,
+  CalendarDays,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
@@ -19,10 +23,15 @@ import {
   createBackup,
   downloadBackup,
   restoreBackup,
+  getFeriados,
+  createFeriado,
+  deleteFeriado,
   SystemSettings,
   AuditLog,
   BackupInfo,
+  Feriado,
 } from "@/services/settings.service";
+import { getPeriodosDisponibles, PeriodoDisponible } from "@/services/schedules.service";
 import { UsersView } from "@/pages/Users";
 
 interface SettingsProps {
@@ -40,17 +49,33 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [feriados, setFeriados] = useState<Feriado[]>([]);
+  const [periodOptions, setPeriodOptions] = useState<PeriodoDisponible[]>([]);
+  const [showFeriadoModal, setShowFeriadoModal] = useState(false);
+  const [feriadoForm, setFeriadoForm] = useState({
+    fecha: "",
+    descripcion: "",
+    periodoAcademico: "",
+    esAcreditado: true,
+  });
+  const [savingFeriado, setSavingFeriado] = useState(false);
+  const [deletingFeriadoId, setDeletingFeriadoId] = useState<number | null>(null);
+
   const loadSettingsData = async () => {
     setLoading(true);
     try {
-      const [settings, auditList, backupList] = await Promise.all([
+      const [settings, auditList, backupList, feriadoList, periodos] = await Promise.all([
         getSystemSettings(),
         getAuditLogs(),
         getBackups(),
+        getFeriados(),
+        getPeriodosDisponibles(),
       ]);
       setSystemSettings(settings);
       setAudits(auditList);
       setBackups(backupList);
+      setFeriados(feriadoList);
+      setPeriodOptions(periodos);
     } catch (err) {
       console.error("Error al cargar configuración:", err);
     } finally {
@@ -116,10 +141,56 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
     }
   };
 
+  const openFeriadoModal = () => {
+    setFeriadoForm({
+      fecha: "",
+      descripcion: "",
+      periodoAcademico: periodOptions[0]?.value || "",
+      esAcreditado: true,
+    });
+    setShowFeriadoModal(true);
+  };
+
+  const handleCreateFeriado = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feriadoForm.fecha || !feriadoForm.descripcion || !feriadoForm.periodoAcademico) {
+      alert("Fecha, descripción y período académico son requeridos");
+      return;
+    }
+    setSavingFeriado(true);
+    try {
+      const nuevo = await createFeriado(feriadoForm);
+      setFeriados((prev) => [nuevo, ...prev]);
+      setShowFeriadoModal(false);
+      alert("Feriado registrado exitosamente");
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.response?.data?.message ?? err?.message ?? "Error al crear el feriado");
+    } finally {
+      setSavingFeriado(false);
+    }
+  };
+
+  const handleDeleteFeriado = async (f: Feriado) => {
+    if (!window.confirm(`¿Eliminar el feriado "${f.descripcion}" del ${f.fecha}?`)) return;
+    setDeletingFeriadoId(f.id);
+    try {
+      await deleteFeriado(f.id);
+      setFeriados((prev) => prev.filter((x) => x.id !== f.id));
+      alert("Feriado eliminado exitosamente");
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.response?.data?.message ?? err?.message ?? "Error al eliminar el feriado");
+    } finally {
+      setDeletingFeriadoId(null);
+    }
+  };
+
   const tabs = [
     { id: "sistema", label: "Sistema", icon: <SettingsIcon size={14} /> },
     { id: "usuarios", label: "Usuarios", icon: <Users size={14} /> },
     { id: "roles", label: "Roles", icon: <Shield size={14} /> },
+    { id: "feriados", label: "Feriados", icon: <CalendarDays size={14} /> },
     { id: "auditoria", label: "Auditoría", icon: <Activity size={14} /> },
     { id: "respaldos", label: "Respaldos", icon: <Database size={14} /> },
   ];
@@ -434,6 +505,239 @@ export const Settings: React.FC<SettingsProps> = ({ dark }) => {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB: FERIADOS */}
+          {tab === "feriados" && (
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className={`font-semibold text-base ${dark ? "text-white" : "text-slate-800"}`}>
+                    Gestión de Feriados
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${dark ? "text-white/35" : "text-slate-400"}`}>
+                    Registra días no laborables. En un feriado acreditado se cuentan las horas programadas del día
+                  </p>
+                </div>
+                <button
+                  onClick={openFeriadoModal}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold cursor-pointer transition-all hover:opacity-90"
+                  style={{ background: COLORS.primary }}
+                >
+                  <Plus size={15} /> Agregar Feriado
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className={dark ? "bg-white/3" : "bg-slate-50"}>
+                      {["Fecha", "Descripción", "Período Académico", "Acreditado", "Acciones"].map((c) => (
+                        <th
+                          key={c}
+                          className={`px-4 py-3 text-left text-xs font-semibold ${dark ? "text-white/30" : "text-slate-400"
+                            }`}
+                        >
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feriados.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className={`px-4 py-10 text-center text-sm ${dark ? "text-white/35" : "text-slate-400"
+                            }`}
+                        >
+                          Sin feriados registrados. Usa "Agregar Feriado" para registrar uno.
+                        </td>
+                      </tr>
+                    ) : (
+                      feriados.map((f) => (
+                        <tr key={f.id} className={`border-t ${dark ? "border-white/6" : "border-slate-100"}`}>
+                          <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-white" : "text-slate-800"}`}>
+                            {f.fecha}
+                          </td>
+                          <td className={`px-4 py-3 text-sm ${dark ? "text-white/70" : "text-slate-700"}`}>
+                            {f.descripcion}
+                          </td>
+                          <td className={`px-4 py-3 text-sm ${dark ? "text-white/50" : "text-slate-500"}`}>
+                            {f.periodoAcademico}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                f.esAcreditado
+                                  ? dark
+                                    ? "bg-green-500/10 text-green-400 border border-green-500/25"
+                                    : "bg-green-50 text-green-700 border border-green-200"
+                                  : dark
+                                    ? "bg-red-500/10 text-red-400 border border-red-500/25"
+                                    : "bg-red-50 text-red-600 border border-red-200"
+                              }`}
+                            >
+                              {f.esAcreditado ? "Sí" : "No"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleDeleteFeriado(f)}
+                              disabled={deletingFeriadoId === f.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                              style={{
+                                background: "color-mix(in srgb, #EF4444 10%, transparent)",
+                                color: "#EF4444",
+                                border: "1px solid color-mix(in srgb, #EF4444 25%, transparent)",
+                              }}
+                            >
+                              {deletingFeriadoId === f.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={12} />
+                              )}
+                              {deletingFeriadoId === f.id ? "Eliminando..." : "Eliminar"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {showFeriadoModal && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                  style={{ background: "rgba(0,0,0,0.5)" }}
+                  onClick={() => setShowFeriadoModal(false)}
+                >
+                  <form
+                    onSubmit={handleCreateFeriado}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`w-full max-w-md rounded-2xl border p-6 space-y-4 shadow-2xl ${
+                      dark ? "bg-[#111827] border-white/10" : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className={`font-semibold text-base ${dark ? "text-white" : "text-slate-800"}`}>
+                        Agregar Feriado
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setShowFeriadoModal(false)}
+                        className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                          dark ? "text-white/40 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+                        }`}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1.5 ${dark ? "text-white/60" : "text-slate-500"}`}>
+                        Fecha
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={feriadoForm.fecha}
+                        onChange={(e) => setFeriadoForm({ ...feriadoForm, fecha: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                            ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                            : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                          }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1.5 ${dark ? "text-white/60" : "text-slate-500"}`}>
+                        Descripción
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={255}
+                        placeholder="Ej. Feriado nacional - 6 de agosto"
+                        value={feriadoForm.descripcion}
+                        onChange={(e) => setFeriadoForm({ ...feriadoForm, descripcion: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                            ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                            : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                          }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1.5 ${dark ? "text-white/60" : "text-slate-500"}`}>
+                        Período Académico
+                      </label>
+                      {periodOptions.length > 0 ? (
+                        <select
+                          required
+                          value={feriadoForm.periodoAcademico}
+                          onChange={(e) => setFeriadoForm({ ...feriadoForm, periodoAcademico: e.target.value })}
+                          className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                              ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60 [&>option]:text-slate-900"
+                              : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                            }`}
+                        >
+                          {periodOptions.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej. 2-2026"
+                          value={feriadoForm.periodoAcademico}
+                          onChange={(e) => setFeriadoForm({ ...feriadoForm, periodoAcademico: e.target.value })}
+                          className={`w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all ${dark
+                              ? "bg-white/5 border-white/10 text-white focus:border-blue-500/60"
+                              : "bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-600/50"
+                            }`}
+                        />
+                      )}
+                    </div>
+
+                    <label className={`flex items-center gap-2.5 text-sm cursor-pointer ${dark ? "text-white/70" : "text-slate-700"}`}>
+                      <input
+                        type="checkbox"
+                        checked={feriadoForm.esAcreditado}
+                        onChange={(e) => setFeriadoForm({ ...feriadoForm, esAcreditado: e.target.checked })}
+                        className="w-4 h-4 rounded accent-blue-600"
+                      />
+                      Acreditar horas programadas del día
+                    </label>
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowFeriadoModal(false)}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
+                          dark ? "text-white/60 hover:bg-white/10" : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingFeriado}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold cursor-pointer transition-all hover:opacity-90 disabled:opacity-50"
+                        style={{ background: COLORS.primary }}
+                      >
+                        {savingFeriado && <Loader2 size={14} className="animate-spin" />}
+                        {savingFeriado ? "Guardando..." : "Guardar Feriado"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 

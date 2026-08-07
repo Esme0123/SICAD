@@ -41,16 +41,17 @@ export const MobileEscanerQR: React.FC = () => {
       try {
         const jwt = localStorage.getItem("sicad_emp_token") || "";
         const res = await marcarAsistenciaConAuth(token, jwt);
+        const nombre = res.empleado?.nombre || "Empleado";
         setResultado({
           tipo: "success",
           accion: res.accion,
           estado: res.estado,
-          mensaje: res.accion === "ENTRADA" ? "Entrada registrada con éxito" : "Salida registrada con éxito",
+          mensaje: res.accion === "ENTRADA" ? `Entrada registrada exitosamente para ${nombre}` : `Salida registrada exitosamente para ${nombre}`,
           hora: res.horaEntrada || undefined,
           periodo: res.periodo || undefined,
           empleadoNombre: res.empleado?.nombre,
         });
-        anunciarAsistencia(res.empleado?.nombre || "Empleado");
+        anunciarAsistencia(nombre);
         setTimeout(() => {
           setResultado(null);
           isProcessingRef.current = false;

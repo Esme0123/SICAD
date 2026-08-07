@@ -26,6 +26,7 @@ const usuarioSistemaRoutes = require('./routes/usuarioSistema.routes');
 const auditoriaRoutes = require('./routes/auditoria.routes');
 const respaldosRoutes = require('./routes/respaldos.routes');
 const notificacionRoutes = require('./routes/notificacion.routes');
+const feriadoRoutes = require('./routes/feriado.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -107,6 +108,8 @@ app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
 // Respaldos
 app.use('/api/respaldos', respaldosRoutes);
+// Feriados
+app.use('/api/feriados', feriadoRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {

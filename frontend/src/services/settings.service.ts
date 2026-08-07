@@ -29,6 +29,14 @@ export interface BackupInfo {
   sizeKb:      number;
 }
 
+export interface Feriado {
+  id:               number;
+  fecha:            string;
+  descripcion:      string;
+  periodoAcademico: string;
+  esAcreditado:     boolean;
+}
+
 // ── Configuracion API ──────────────────────────────────────────
 
 export async function getSystemSettings(): Promise<SystemSettings> {
@@ -150,6 +158,42 @@ export async function restoreBackup(file: File): Promise<void> {
   if (!json.ok) throw new Error(json.message || "Error al restaurar respaldo");
 }
 
+// ── Feriados API ─────────────────────────────────────────────
+
+export async function getFeriados(): Promise<Feriado[]> {
+  const { data } = await api.get<{ ok: boolean; data: any[] }>("/feriados");
+  if (!data.ok) throw new Error("Error al obtener los feriados");
+  return data.data.map((r: any) => ({
+    id: Number(r.id),
+    fecha: typeof r.fecha === "string" ? r.fecha.slice(0, 10) : new Date(r.fecha).toISOString().slice(0, 10),
+    descripcion: r.descripcion,
+    periodoAcademico: r.periodoAcademico,
+    esAcreditado: Boolean(r.esAcreditado),
+  }));
+}
+
+export async function createFeriado(input: {
+  fecha: string;
+  descripcion: string;
+  periodoAcademico: string;
+  esAcreditado: boolean;
+}): Promise<Feriado> {
+  const { data } = await api.post<{ ok: boolean; data: any }>("/feriados", input);
+  if (!data.ok) throw new Error(data.message || "Error al crear el feriado");
+  return {
+    id: Number(data.data.id),
+    fecha: typeof data.data.fecha === "string" ? data.data.fecha.slice(0, 10) : new Date(data.data.fecha).toISOString().slice(0, 10),
+    descripcion: data.data.descripcion,
+    periodoAcademico: data.data.periodoAcademico,
+    esAcreditado: Boolean(data.data.esAcreditado),
+  };
+}
+
+export async function deleteFeriado(id: number): Promise<void> {
+  const { data } = await api.delete<{ ok: boolean }>(`/feriados/${id}`);
+  if (!data.ok) throw new Error("Error al eliminar el feriado");
+}
+
 export default {
   getSystemSettings,
   updateSystemSettings,
@@ -159,4 +203,7 @@ export default {
   createBackup,
   downloadBackup,
   restoreBackup,
+  getFeriados,
+  createFeriado,
+  deleteFeriado,
 };
