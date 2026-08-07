@@ -813,6 +813,16 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                             {dd.turnosCount} turnos
                           </span>
                         )}
+                        {dd.estado === "FERIADO" && (
+                          <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500">
+                            FERIADO
+                          </span>
+                        )}
+                        {dd.estado === "AUSENTE" && (
+                          <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-500">
+                            AUSENTE
+                          </span>
+                        )}
                       </td>
                       <td className={`px-4 py-3 text-sm font-mono ${dark ? "text-green-400" : "text-green-700"}`}>
                         {dd.horaEntrada || "—"}

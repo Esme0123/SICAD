@@ -17,7 +17,14 @@ export const MobileEscanerQR: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [resultado, setResultado] = useState<{ tipo: "success" | "error"; accion?: string; estado?: string; mensaje: string; hora?: string; periodo?: string; empleadoNombre?: string } | null>(null);
 
+  // Evita ejecuciones concurrentes en el bucle del escáner mientras se procesa
+  // la marcación (petición de red + tarjeta de respuesta de 3s).
+  const isProcessingRef = useRef<boolean>(false);
+
   const onScanSuccess = useCallback(async (decodedText: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     let token = "";
     try {
       const url = new URL(decodedText);
@@ -27,6 +34,7 @@ export const MobileEscanerQR: React.FC = () => {
     }
     if (!token) {
       setError("QR inválido: no contiene token de marcación");
+      isProcessingRef.current = false;
       return;
     }
     if (isAuthenticated && user) {
@@ -43,13 +51,20 @@ export const MobileEscanerQR: React.FC = () => {
           empleadoNombre: res.empleado?.nombre,
         });
         anunciarAsistencia(res.empleado?.nombre || "Empleado");
-        setTimeout(() => setResultado(null), 3000);
+        setTimeout(() => {
+          setResultado(null);
+          isProcessingRef.current = false;
+        }, 3000);
       } catch (err: any) {
         const msg = err?.response?.data?.message ?? err?.message ?? "Error al registrar";
         setResultado({ tipo: "error", mensaje: msg });
-        setTimeout(() => setResultado(null), 3000);
+        setTimeout(() => {
+          setResultado(null);
+          isProcessingRef.current = false;
+        }, 3000);
       }
     } else {
+      isProcessingRef.current = false;
       navigate(`/app/marcar?qrToken=${encodeURIComponent(token)}`);
     }
   }, [isAuthenticated, user, navigate]);
@@ -67,7 +82,6 @@ export const MobileEscanerQR: React.FC = () => {
         const code = jsQR(imageData.data, imageData.width, imageData.height);
         if (code && code.data) {
           onScanSuccess(code.data);
-          return;
         }
       }
     }

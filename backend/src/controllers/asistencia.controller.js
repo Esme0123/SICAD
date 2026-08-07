@@ -653,6 +653,23 @@ async function marcar(req, res) {
     const diaSemana  = getDiaSemanaHoy();
     const uid        = parseInt(usuarioId);
 
+    // ── Anti-duplicado: rechazar marcaciones repetidas en <120 segundos ──
+    const ultimaMarcacion = await prisma.asistencia.findFirst({
+      where: { usuarioId: uid },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (ultimaMarcacion) {
+      const ultimaMs = new Date(ultimaMarcacion.createdAt).getTime();
+      const diffSeg = Math.floor((Date.now() - ultimaMs) / 1000);
+      if (diffSeg < 120) {
+        const espera = Math.max(1, 120 - diffSeg);
+        return res.status(400).json({
+          ok: false,
+          message: `Marcación duplicada. Por favor espera ${espera} segundos antes de volver a marcar.`,
+        });
+      }
+    }
+
     // 2. Leer configuración de tolerancia
     const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
     const toleranciaMin = config?.tiempoTolerancia ?? 10;
@@ -1606,6 +1623,58 @@ async function cumplimientoSemanal(req, res) {
       (m) => m.horaEntrada !== null && m.horaEntrada !== undefined && m.horaEntrada !== ""
     );
 
+    // ── 3b. Feriados en el rango ──
+    // Los días en `feriados` se marcan como "FERIADO" y se acreditan las horas
+    // programadas del horario asignado para ese día.
+    const feriados = await prisma.feriado.findMany({
+      where: { fecha: { gte: start, lte: end } },
+    });
+    // `fecha` es @db.Date (medianoche UTC) → usar getters UTC para obtener la fecha calendario
+    const feriadoSet = new Set();
+    for (const f of feriados) {
+      const fd = f.fecha instanceof Date ? f.fecha : new Date(f.fecha);
+      feriadoSet.add(
+        `${fd.getUTCFullYear()}-${String(fd.getUTCMonth() + 1).padStart(2, '0')}-${String(fd.getUTCDate()).padStart(2, '0')}`
+      );
+    }
+
+    // ── 3c. Horas programadas del horario asignado por (empleado, día) ──
+    // Solo los periodos académicos que cubre el rango de fechas.
+    const diasKey = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const periodosEnRango = new Set();
+    for (let d = new Date(start.getTime()); d <= end; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() === 0) continue;
+      periodosEnRango.add(obtenerPeriodoDeFechaStr(getLocalDateString(d)));
+    }
+
+    const horariosAsignados = await prisma.horarioAsignado.findMany({
+      where: {
+        usuario: { rol: 'EMPLEADO', activo: true },
+        periodoAcademico: { in: [...periodosEnRango] },
+      },
+      select: {
+        usuarioId: true,
+        diaSemana: true,
+        periodo: { select: { duracion: true, horaInicio: true, horaFin: true } },
+      },
+    });
+
+    function minutosProgramadosHorario(h) {
+      if (typeof h.periodo.duracion === 'number' && h.periodo.duracion > 0) return h.periodo.duracion;
+      const [hi, mi] = (h.periodo.horaInicio || '').split(':').map(Number);
+      const [hf, mf] = (h.periodo.horaFin || '').split(':').map(Number);
+      if (!isNaN(hi) && !isNaN(hf)) return (hf * 60 + mf) - (hi * 60 + mi);
+      return 0;
+    }
+
+    // programadoPorEmpleado: empId → { diaSemana: minutosTotales }
+    const programadoPorEmpleado = new Map();
+    for (const h of horariosAsignados) {
+      if (!programadoPorEmpleado.has(h.usuarioId)) programadoPorEmpleado.set(h.usuarioId, {});
+      const mapa = programadoPorEmpleado.get(h.usuarioId);
+      mapa[h.diaSemana] = (mapa[h.diaSemana] || 0) + minutosProgramadosHorario(h);
+    }
+
     // ── 4. Cálculo seguro de horas + desglose diario (Lunes a Sábado) ──
     const diasNombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -1657,7 +1726,17 @@ async function cumplimientoSemanal(req, res) {
           const fKey = `${curDate.getFullYear()}-${month}-${day}`;
 
           const turnos = marcacionesPorDia[fKey] || [];
-          const minutosDia = turnos.reduce((acc, t) => acc + t.minutos, 0);
+          let minutosDia = turnos.reduce((acc, t) => acc + t.minutos, 0);
+          let estadoDia = turnos.length > 0 ? 'PRESENTE' : 'AUSENTE';
+
+          // Feriado: marcar el día como FERIADO y acreditar las horas programadas
+          // del horario asignado para ese día (evita contarlo como AUSENTE con 0 h).
+          if (feriadoSet.has(fKey)) {
+            estadoDia = 'FERIADO';
+            const programado = (programadoPorEmpleado.get(emp.id) || {})[diasKey[diaSemana]] || 0;
+            minutosDia = Math.max(minutosDia, programado);
+          }
+
           const horasDia = Number((minutosDia / 60).toFixed(2));
           totalSegundos += minutosDia * 60;
           acumuladoHoras = Number((acumuladoHoras + horasDia).toFixed(2));
@@ -1668,6 +1747,7 @@ async function cumplimientoSemanal(req, res) {
           desgloseDiario.push({
             diaNombre: `${diasNombres[diaSemana]}, ${day}/${month}`,
             fecha: fKey,
+            estado: estadoDia,
             horaEntrada: entradas.length > 0 ? entradas.join(', ') : '—',
             horaSalida: salidas.length > 0 ? salidas.join(', ') : '—',
             subtotalHoras: horasDia,

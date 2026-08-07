@@ -267,6 +267,27 @@ model PermisoPeriodo {
 }
 
 // ============================================================
+// FERIADOS
+// Días no laborables dinámicos. En el cumplimiento semanal se
+// marcan como "FERIADO" y se acreditan las horas programadas
+// del horario asignado para ese día.
+// ============================================================
+
+model Feriado {
+  id               Int      @id @default(autoincrement())
+  /// Fecha del feriado (única, se indexa automáticamente)
+  fecha            DateTime @db.Date @unique
+  /// Motivo del feriado (ej. "Feriado nacional - 6 de agosto")
+  descripcion      String   @db.VarChar(255)
+  /// Periodo académico al que aplica (ej. "2-2026")
+  periodoAcademico String
+  /// true: las horas programadas del día se acreditan como trabajadas
+  esAcreditado     Boolean  @default(true)
+
+  @@map("feriados")
+}
+
+// ============================================================
 // CONFIGURACIÓN DEL SISTEMA
 // Una sola fila (id = 1). Se usa upsert desde la app.
 // Campos extraídos directamente de la UI de configuración.

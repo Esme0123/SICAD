@@ -107,6 +107,7 @@ export type EstadoCumplimiento = "En Riesgo" | "En Progreso" | "Cumplido" | "Sup
 export interface DesgloseDiario {
   diaNombre: string;
   fecha: string;
+  estado?: string | null;
   horaEntrada: string;
   horaSalida: string;
   subtotalHoras: number;
