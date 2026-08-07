@@ -78,6 +78,82 @@ function boDateTime(): string {
   });
 }
 
+function boDate(date?: Date): Date {
+  const d = date || new Date();
+  return new Date(d.toLocaleString("en-US", { timeZone: "America/La_Paz" }));
+}
+
+function fmtDateISO(d: Date): string {
+  const b = boDate(d);
+  return `${b.getFullYear()}-${String(b.getMonth() + 1).padStart(2, "0")}-${String(b.getDate()).padStart(2, "0")}`;
+}
+
+function parsePeriod(value: string): { idx: number; year: number } | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+
+  let m = trimmed.match(/verano[\s\-_/]*(\d{4})/i);
+  if (m) return { idx: 0, year: parseInt(m[1]) };
+
+  m = trimmed.match(/invierno[\s\-_/]*(\d{4})/i);
+  if (m) return { idx: 2, year: parseInt(m[1]) };
+
+  m = trimmed.match(/(?:2|II)[\s\-_/]+(\d{4})/) || trimmed.match(/^2-(\d{4})$/);
+  if (m) return { idx: 3, year: parseInt(m[2] || m[1]) };
+
+  m = trimmed.match(/(?:1|I)[\s\-_/]+(\d{4})/) || trimmed.match(/^1-(\d{4})$/);
+  if (m) return { idx: 1, year: parseInt(m[1]) };
+
+  m = trimmed.match(/(\d{4})/);
+  if (m) {
+    const year = parseInt(m[1]);
+    if (trimmed.includes("1")) return { idx: 1, year };
+    if (trimmed.includes("2")) return { idx: 3, year };
+    return { idx: 3, year };
+  }
+
+  return null;
+}
+
+function periodoDateRange(periodo: string): { inicio: string; fin: string } | null {
+  const parsed = parsePeriod(periodo);
+  if (!parsed) return null;
+  const { idx, year } = parsed;
+  switch (idx) {
+    case 0: return { inicio: `${year}-01-01`, fin: `${year}-01-31` };
+    case 1: return { inicio: `${year}-02-01`, fin: `${year}-06-30` };
+    case 2: return { inicio: `${year}-07-01`, fin: `${year}-07-31` };
+    case 3: return { inicio: `${year}-08-01`, fin: `${year}-12-31` };
+    default: return null;
+  }
+}
+
+function obtenerPeriodoActivo(periodos: string[]): string {
+  if (!periodos || periodos.length === 0) return "";
+  const hoy = boDate();
+  const hoyISO = fmtDateISO(hoy);
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth() + 1;
+
+  for (const p of periodos) {
+    const dr = periodoDateRange(p);
+    if (dr && hoyISO >= dr.inicio && hoyISO <= dr.fin) {
+      return p;
+    }
+  }
+
+  let nombreEsperado = "";
+  if (m === 1) nombreEsperado = `Verano ${y}`;
+  else if (m >= 2 && m <= 6) nombreEsperado = `1-${y}`;
+  else if (m === 7) nombreEsperado = `Invierno ${y}`;
+  else nombreEsperado = `2-${y}`;
+
+  const encontrado = periodos.find((p) => p.trim() === nombreEsperado || p.includes(nombreEsperado));
+  if (encontrado) return encontrado;
+
+  return periodos[0];
+}
+
 async function getInstitutionName(): Promise<string> {
   try {
     const res = await fetch(`${API}/configuracion`);
@@ -137,7 +213,8 @@ export const MobileHorarios: React.FC = () => {
         if (g && g.nombre) fechas[g.nombre] = { nombre: g.nombre, fechaInicio: g.fechaInicio, fechaFin: g.fechaFin };
       }
       setPeriodoFechas(fechas);
-      const periodo = selectedPeriodoRef.current || academicos[0] || "";
+      const periodo = selectedPeriodoRef.current || obtenerPeriodoActivo(academicos) || "";
+      selectedPeriodoRef.current = periodo;
       setSelectedPeriodo(periodo);
       await fetchAsignaciones(periodo);
     } catch (error) {

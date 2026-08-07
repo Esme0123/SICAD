@@ -93,15 +93,29 @@ function formatearFechaLocal(fechaStr: string, options?: Intl.DateTimeFormatOpti
 }
 
 function parsePeriod(value: string): { idx: number; year: number } | null {
-  let m = value.match(/^(Verano|Invierno)\s(\d{4})$/);
-  if (m) {
-    const idx = m[1] === 'Verano' ? 0 : 2;
-    return { idx, year: parseInt(m[2]) };
-  }
-  m = value.match(/^1-(\d{4})$/);
+  if (!value) return null;
+  const trimmed = value.trim();
+
+  let m = trimmed.match(/verano[\s\-_/]*(\d{4})/i);
+  if (m) return { idx: 0, year: parseInt(m[1]) };
+
+  m = trimmed.match(/invierno[\s\-_/]*(\d{4})/i);
+  if (m) return { idx: 2, year: parseInt(m[1]) };
+
+  m = trimmed.match(/(?:2|II)[\s\-_/]+(\d{4})/) || trimmed.match(/^2-(\d{4})$/);
+  if (m) return { idx: 3, year: parseInt(m[2] || m[1]) };
+
+  m = trimmed.match(/(?:1|I)[\s\-_/]+(\d{4})/) || trimmed.match(/^1-(\d{4})$/);
   if (m) return { idx: 1, year: parseInt(m[1]) };
-  m = value.match(/^2-(\d{4})$/);
-  if (m) return { idx: 3, year: parseInt(m[2]) };
+
+  m = trimmed.match(/(\d{4})/);
+  if (m) {
+    const year = parseInt(m[1]);
+    if (trimmed.includes("1")) return { idx: 1, year };
+    if (trimmed.includes("2")) return { idx: 3, year };
+    return { idx: 3, year };
+  }
+
   return null;
 }
 
@@ -116,6 +130,32 @@ function periodoDateRange(periodo: string): { inicio: string; fin: string } | nu
     case 3: return { inicio: `${year}-08-01`, fin: `${year}-12-31` };
     default: return null;
   }
+}
+
+function obtenerPeriodoActivo(periodos: string[]): string {
+  if (!periodos || periodos.length === 0) return "";
+  const hoy = boDate();
+  const hoyISO = fmtDateISO(hoy);
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth() + 1;
+
+  for (const p of periodos) {
+    const dr = periodoDateRange(p);
+    if (dr && hoyISO >= dr.inicio && hoyISO <= dr.fin) {
+      return p;
+    }
+  }
+
+  let nombreEsperado = "";
+  if (m === 1) nombreEsperado = `Verano ${y}`;
+  else if (m >= 2 && m <= 6) nombreEsperado = `1-${y}`;
+  else if (m === 7) nombreEsperado = `Invierno ${y}`;
+  else nombreEsperado = `2-${y}`;
+
+  const encontrado = periodos.find((p) => p.trim() === nombreEsperado || p.includes(nombreEsperado));
+  if (encontrado) return encontrado;
+
+  return periodos[0];
 }
 
 function boDateTime(): string {
@@ -190,7 +230,7 @@ export const MobileHistorial: React.FC = () => {
       .then((res) => {
         const pa = res.data || [];
         setPeriodosAcademicos(pa);
-        if (pa.length > 0 && !selectedPeriodo) setSelectedPeriodo(pa[0]);
+        if (pa.length > 0 && !selectedPeriodo) setSelectedPeriodo((prev) => prev || obtenerPeriodoActivo(pa));
       })
       .catch(console.error);
   }, [user]);
@@ -217,7 +257,7 @@ export const MobileHistorial: React.FC = () => {
       case "periodo": {
         if (!selectedPeriodo) return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
         const dr = periodoDateRange(selectedPeriodo);
-        if (!dr) return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;
+        if (!dr) return `/asistencia/mi-historial?periodoAcademico=${encodeURIComponent(selectedPeriodo)}`;
         return `/asistencia/mi-historial?fechaInicio=${dr.inicio}&fechaFin=${dr.fin}&periodoAcademico=${encodeURIComponent(selectedPeriodo)}`;
       }
       default:
@@ -464,7 +504,7 @@ export const MobileHistorial: React.FC = () => {
             <motion.button
               key={key}
               whileTap={{ scale: 0.95 }}
-              onClick={() => { setFiltro(key); if (key === "periodo" && !selectedPeriodo && periodosAcademicos.length > 0) setSelectedPeriodo(periodosAcademicos[0]); }}
+              onClick={() => { setFiltro(key); if (key === "periodo" && !selectedPeriodo && periodosAcademicos.length > 0) setSelectedPeriodo(obtenerPeriodoActivo(periodosAcademicos)); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all flex-1 justify-center"
               style={{
                 background: isActive ? "var(--primary)" : "var(--card)",
