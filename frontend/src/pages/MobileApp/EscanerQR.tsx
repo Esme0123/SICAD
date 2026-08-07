@@ -51,7 +51,7 @@ export const MobileEscanerQR: React.FC = () => {
           periodo: res.periodo || undefined,
           empleadoNombre: res.empleado?.nombre,
         });
-        anunciarAsistencia(nombre);
+        anunciarAsistencia(nombre, res.accion);
         setTimeout(() => {
           setResultado(null);
           isProcessingRef.current = false;
