@@ -8,6 +8,7 @@ import { RegisterEmployee } from "@/pages/Auth/RegisterEmployee";
 import { Dashboard } from "@/pages/Dashboard";
 import { Employees } from "@/pages/Employees";
 import { LeavesView } from "@/pages/Leaves";
+import { HorasExtrasView } from "@/pages/HorasExtras";
 import { Attendance } from "@/pages/Attendance";
 import { QRView } from "@/pages/Attendance/QRView";
 import { SuccessView } from "@/pages/Attendance/SuccessView";
@@ -22,6 +23,7 @@ import { MobileInicio } from "@/pages/MobileApp/Inicio";
 import { MobileHorarios } from "@/pages/MobileApp/Horarios";
 import { MobileHistorial } from "@/pages/MobileApp/Historial";
 import { MobilePermisos } from "@/pages/MobileApp/Permisos";
+import { MobileHorasExtras } from "@/pages/MobileApp/HorasExtras";
 import { MobilePerfil } from "@/pages/MobileApp/Perfil";
 import { MobileEscanerQR } from "@/pages/MobileApp/EscanerQR";
 import { MobileMarcar } from "@/pages/Mobile/MarcarMobile";
@@ -44,6 +46,7 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         <Route path="/dashboard" element={<Dashboard dark={dark} />} />
         <Route path="/employees" element={<Employees dark={dark} />} />
         <Route path="/leaves" element={<LeavesView dark={dark} />} />
+        <Route path="/horas-extras" element={<HorasExtrasView dark={dark} />} />
         <Route path="/attendance" element={<Attendance />}>
           <Route path="" element={<Navigate to="/attendance/qr" replace />} />
           <Route path="qr" element={<QRView dark={dark} />} />
@@ -64,6 +67,7 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({ dark, onToggleDark }) => {
         <Route path="horarios" element={<MobileHorarios />} />
         <Route path="historial" element={<MobileHistorial />} />
         <Route path="permisos" element={<MobilePermisos />} />
+        <Route path="horas-extras" element={<MobileHorasExtras />} />
         <Route path="perfil" element={<MobilePerfil />} />
       </Route>
 

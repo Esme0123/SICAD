@@ -27,6 +27,7 @@ const auditoriaRoutes = require('./routes/auditoria.routes');
 const respaldosRoutes = require('./routes/respaldos.routes');
 const notificacionRoutes = require('./routes/notificacion.routes');
 const feriadoRoutes = require('./routes/feriado.routes');
+const horasExtrasRoutes = require('./routes/horasExtras.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -69,6 +70,7 @@ app.get('/', (req, res) => {
       asistencias: '/api/asistencias',
       dashboard: '/api/dashboard',
       reportes: '/api/reportes',
+      horasExtras: '/api/horas-extras',
     },
   });
 });
@@ -110,6 +112,8 @@ app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/respaldos', respaldosRoutes);
 // Feriados
 app.use('/api/feriados', feriadoRoutes);
+// Horas Extras / Recuperación de Horas
+app.use('/api/horas-extras', horasExtrasRoutes);
 
 // ── Manejador global de errores 404 ─────────────────────────
 app.use((req, res) => {

@@ -28,6 +28,12 @@ enum EstadoPermiso {
   RECHAZADO
 }
 
+enum EstadoSolicitudHorasExtras {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
 // ============================================================
 // USUARIO (Empleados y Administradores)
 // ============================================================
@@ -63,6 +69,7 @@ model Usuario {
   horariosAsignados HorarioAsignado[]
   asistencias       Asistencia[]
   permisos          Permiso[]
+  solicitudesHorasExtras SolicitudHorasExtras[]
   notificaciones    Notificacion[]
   pushSubscriptions PushSubscription[]
 
@@ -143,9 +150,13 @@ model HorarioAsignado {
   /// Ej: "1-2026", "Invierno 2026", "Verano 2026"
   periodoAcademico String
 
+  /// Fecha puntual si es un horario EXCEPCIONAL (horas extras aprobadas).
+  /// null = horario recurrente semanal por diaSemana.
+  fechaEspecifica DateTime?  @db.Date
+
   createdAt   DateTime          @default(now())
 
-  @@unique([usuarioId, periodoId, diaSemana, periodoAcademico])
+  @@unique([usuarioId, periodoId, diaSemana, periodoAcademico, fechaEspecifica])
   @@map("horarios_asignados")
 }
 
@@ -285,6 +296,51 @@ model Feriado {
   esAcreditado     Boolean  @default(true)
 
   @@map("feriados")
+}
+
+// ============================================================
+// SOLICITUD DE HORAS EXTRAS / RECUPERACIÓN DE HORAS
+// El empleado solicita recuperar horas en una fecha concreta
+// seleccionando bloques que estén "LIBRES" (sin horario asignado).
+// Al aprobarse, el sistema crea un HorarioAsignado excepcional
+// (fechaEspecifica) que permite el marcaje en la App Móvil y
+// suma esas horas al control semanal/mensual.
+// ============================================================
+
+model SolicitudHorasExtras {
+  id            Int                         @id @default(autoincrement())
+
+  empleadoId    Int
+  empleado      Usuario                     @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+
+  /// Fecha en la que el empleado propone recuperar horas
+  fecha         DateTime                    @db.Date
+
+  /// Bloques solicitados (JSON): [{ id, nombre, horaInicio, horaFin, duracion }]
+  bloques       Json
+
+  /// Total a recuperar en minutos (suma de duraciones de los bloques)
+  horasTotales  Int
+
+  /// Observación ingresada por el empleado
+  observacion   String?
+
+  estado        EstadoSolicitudHorasExtras  @default(PENDIENTE)
+
+  /// ID del administrador (UsuarioSistema) que resolvió la solicitud
+  aprobadoPor   Int?
+
+  /// Motivo del rechazo (opcional, lo ingresa el administrador)
+  motivoRechazo String?
+
+  fechaRespuesta DateTime?
+
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([empleadoId, estado])
+  @@index([fecha])
+  @@map("solicitudes_horas_extras")
 }
 
 // ============================================================

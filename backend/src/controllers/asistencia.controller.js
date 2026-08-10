@@ -352,9 +352,16 @@ async function registrar(req, res) {
     const { start, end } = getDayRange(ahora);
     const diaSemana = getDiaSemanaHoy();
 
-    // 4. Verificar horarios asignados para hoy en el periodo académico actual
+    // 4. Verificar horarios asignados para hoy en el periodo académico actual,
+    //    incluyendo horarios EXCEPCIONALES por fecha específica (horas extras aprobadas)
     const horariosHoy = await prisma.horarioAsignado.findMany({
-      where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
+      where: {
+        usuarioId: uid,
+        OR: [
+          { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
+      },
       include: { periodo: true },
       orderBy: { periodo: { horaInicio: 'asc' } },
     });
