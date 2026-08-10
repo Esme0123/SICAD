@@ -556,9 +556,9 @@ export const MobileHistorial: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+          Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl p-3 text-center border animate-pulse" style={{ borderColor: "var(--border)" }}>
               <div className="h-6 bg-muted rounded w-8 mx-auto mb-1" />
               <div className="h-3 bg-muted rounded w-12 mx-auto" />
@@ -566,11 +566,12 @@ export const MobileHistorial: React.FC = () => {
           ))
         ) : resumenEfectivo ? (
           [
-            { key: null, label: "Total", value: resumenEfectivo.total, bg: "#1E293B", border: "#334155", clr: "#F8FAFC" },
-            { key: "Puntual", label: "Puntual", value: resumenEfectivo.puntual, bg: "#064E3B", border: "#10B981", clr: "#10B981" },
-            { key: "Tardanza", label: "Atrasos", value: resumenEfectivo.tardanza, bg: "#78350F", border: "#F59E0B", clr: "#F59E0B" },
-            { key: "Justificado", label: "Justif.", value: resumenEfectivo.justificado, bg: "#1E3A8A", border: "#3B82F6", clr: "#3B82F6" },
-            { key: "Ausente", label: "Ausente", value: resumenEfectivo.ausente, bg: "#7F1D1D", border: "#EF4444", clr: "#EF4444" },
+            { key: null, label: "Total", value: resumenEfectivo.total, cls: "bg-slate-100 border-slate-300 text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100", ring: "ring-slate-400" },
+            { key: "Puntual", label: "Puntual", value: resumenEfectivo.puntual, cls: "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-400", ring: "ring-emerald-400" },
+            { key: "Tardanza", label: "Atrasos", value: resumenEfectivo.tardanza, cls: "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-400", ring: "ring-amber-400" },
+            { key: "Justificado", label: "Justif.", value: resumenEfectivo.justificado, cls: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/60 dark:border-blue-800 dark:text-blue-400", ring: "ring-blue-400" },
+            { key: "Ausente", label: "Ausente", value: resumenEfectivo.ausente, cls: "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/60 dark:border-rose-800 dark:text-rose-400", ring: "ring-rose-400" },
+            { key: "FERIADO", label: "Feriado", value: resumenEfectivo.feriado, cls: "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/60 dark:border-purple-800 dark:text-purple-400", ring: "ring-purple-400" },
           ].map((s) => {
             const isActive = s.key !== null && filtroEstado === s.key;
             return (
@@ -579,17 +580,10 @@ export const MobileHistorial: React.FC = () => {
                   if (s.key === null) { setFiltroEstado(null); return; }
                   setFiltroEstado((prev) => (prev === s.key ? null : s.key));
                 }}
-                className="rounded-xl p-3 text-center border shadow-lg transition-all cursor-pointer"
-                style={{
-                  background: s.bg,
-                  borderColor: isActive ? s.clr : s.border,
-                  boxShadow: isActive ? `0 0 0 2px ${s.clr}, 0 4px 16px ${s.border}44` : `0 4px 16px ${s.border}22`,
-                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                  filter: isActive ? 'brightness(1.2)' : 'none',
-                }}
+                className={`rounded-xl p-3 text-center border shadow-lg transition-all cursor-pointer ${s.cls} ${isActive ? `ring-2 ${s.ring} scale-105` : ""}`}
               >
-                <p className="text-2xl font-extrabold tracking-tight" style={{ color: s.clr }}>{s.value}</p>
-                <p className="text-[10px] font-semibold mt-1" style={{ color: s.clr, opacity: 0.8 }}>{s.label}</p>
+                <p className="text-2xl font-extrabold tracking-tight">{s.value}</p>
+                <p className="text-[10px] font-semibold mt-1 opacity-80">{s.label}</p>
               </button>
             );
           })
