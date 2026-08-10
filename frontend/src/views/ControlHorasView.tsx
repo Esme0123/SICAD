@@ -159,6 +159,22 @@ function progressClass(pct: number): string {
   return "[&_[data-slot=progress-indicator]]:bg-[#DC2626]"; // Rojo — En Riesgo
 }
 
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+const SEMANA_TODO_EL_MES = "todo-el-mes";
+
+/** Meses (0-based) habilitados para un periodo académico. */
+function mesesDelPeriodo(periodo: string): number[] {
+  const p = (periodo || "").trim().toLowerCase();
+  if (p.startsWith("verano")) return [0]; // Enero
+  if (p.startsWith("invierno")) return [6]; // Julio
+  if (p.startsWith("2-")) return [7, 8, 9, 10, 11]; // Ago-Dic
+  return [1, 2, 3, 4, 5]; // Feb-Jun (1-YYYY)
+}
+
 async function getInstitutionName(): Promise<string> {
   try {
     const res = await api.get<{ ok: boolean; data: { nombreInstitucion: string } }>("/configuracion");
@@ -199,12 +215,25 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
   const year = useMemo(() => yearFromPeriod(periodo), [periodo]);
 
+  const mesesValidos = useMemo(() => mesesDelPeriodo(periodo), [periodo]);
+
   const semanas = useMemo(() => getSemanasDelMes(year, mesSel), [year, mesSel]);
 
-  const semanaSeleccionada = useMemo(
-    () => semanas.find((s) => s.id === semanaId) || semanas[semanas.length - 1],
-    [semanas, semanaId]
-  );
+  const modoMes = semanaId === SEMANA_TODO_EL_MES;
+
+  const semanaSeleccionada = useMemo(() => {
+    if (modoMes) {
+      const ini = new Date(year, mesSel, 1);
+      const fin = new Date(year, mesSel + 1, 0);
+      return {
+        id: SEMANA_TODO_EL_MES,
+        label: `Todo el Mes de ${MESES[mesSel]} ${year}`,
+        fechaInicio: getLocalDateString(ini),
+        fechaFin: getLocalDateString(fin),
+      };
+    }
+    return semanas.find((s) => s.id === semanaId) || semanas[semanas.length - 1] || null;
+  }, [modoMes, year, mesSel, semanas, semanaId]);
 
   // ── Detalle diario (drawer) ──
   const [empleadoDetalle, setEmpleadoDetalle] = useState<CumplimientoSemanalEmpleado | null>(null);
@@ -220,8 +249,16 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
   }, []);
 
   useEffect(() => {
-    setSemanaId((cur) => cur && semanas.some((s) => s.id === cur) ? cur : semanaActualId(semanas));
+    setSemanaId((cur) =>
+      cur === SEMANA_TODO_EL_MES || (cur && semanas.some((s) => s.id === cur))
+        ? cur
+        : semanaActualId(semanas)
+    );
   }, [semanas]);
+
+  useEffect(() => {
+    setMesSel((cur) => (mesesValidos.includes(cur) ? cur : mesesValidos[0]));
+  }, [mesesValidos]);
 
   useEffect(() => {
     if (!semanaSeleccionada) return;
@@ -231,6 +268,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       fechaFin: semanaSeleccionada.fechaFin,
       horasContratadas: horasFiltro,
       periodoAcademico: periodo,
+      mensual: modoMes,
     })
       .then((res) => {
         setRows(res.data);
@@ -238,7 +276,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [semanaSeleccionada?.id, horasFiltro, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [semanaSeleccionada?.id, modoMes, horasFiltro, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -317,21 +355,27 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       doc.text(institutionName, 14, 18);
       doc.setFontSize(13);
       doc.setTextColor(40);
-      doc.text("Control de Horas — Cumplimiento Semanal", 14, 27);
+      doc.text(
+        modoMes
+          ? `Control de Horas — Resumen Mensual - ${MESES[mesSel]} ${year}`
+          : "Control de Horas — Cumplimiento Semanal",
+        14,
+        27
+      );
       doc.setFontSize(9);
       doc.setTextColor(120);
-      doc.text(`Semana: ${semanaSeleccionada.label}  |  Generado: ${boDateTime()}${searchQuery ? `  |  Filtro: ${searchQuery}` : ""}`, 14, 34);
+      doc.text(`${modoMes ? "Mes" : "Semana"}: ${semanaSeleccionada.label}  |  Generado: ${boDateTime()}${searchQuery ? `  |  Filtro: ${searchQuery}` : ""}`, 14, 34);
 
       doc.setFontSize(10);
       doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
-      doc.text("Resumen General de la Semana", 14, 44);
+      doc.text(modoMes ? "Resumen General del Mes" : "Resumen General de la Semana", 14, 44);
 
       const kpiRows = [
         ["Total Empleados", String(resumen?.totalEmpleados ?? 0)],
         ["Cumplidos (>=100%)", String(resumen?.cumplidos ?? 0)],
         ["En Progreso", String(resumen?.enProgreso ?? 0)],
         ["En Riesgo", String(resumen?.enRiesgo ?? 0)],
-        ["Promedio de Horas Semanales", String(resumen?.promedioHoras ?? 0)],
+        [modoMes ? "Promedio de Horas Mensuales" : "Promedio de Horas Semanales", String(resumen?.promedioHoras ?? 0)],
       ];
       autoTable(doc, {
         startY: 48,
@@ -348,13 +392,15 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
       doc.text("Cumplimiento por Empleado", 14, lastY);
 
-      const columns = ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
+      const columns = modoMes
+        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Estado"]
+        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
       const body = filteredRows.map((e) => [
         e.nombre,
         e.codigo,
         e.ci,
         `${e.horasContratadas} hrs`,
-        `${e.horasTrabajadas} hrs`,
+        modoMes ? `${e.horasTrabajadas.toFixed(1)} / ${e.horasContratadas} hrs` : `${e.horasTrabajadas} hrs`,
         `${e.porcentajeCumplimiento}%`,
         e.estadoCumplimiento,
       ]);
@@ -381,7 +427,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       const pageCount = doc.getNumberOfPages();
       addFooter(doc, pageCount);
-      const filename = `Control_Horas_${periodo}_sem${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
+      const filename = modoMes
+        ? `Control_Horas_Mensual_${periodo}_${MESES[mesSel]}_${year}`
+        : `Control_Horas_${periodo}_sem${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
       doc.save(`${filename}.pdf`);
     } catch (error) {
       console.error("[ControlHoras.exportPDF]", error);
@@ -396,9 +444,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
     try {
       const institutionName = await getInstitutionName();
       const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Cumplimiento Semanal");
+      const ws = wb.addWorksheet(modoMes ? "Resumen Mensual" : "Cumplimiento Semanal");
 
-      const columns = ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
+      const columns = modoMes
+        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Estado"]
+        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
       const totalCols = columns.length;
 
       ws.mergeCells(1, 1, 1, totalCols);
@@ -410,7 +460,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       ws.mergeCells(2, 1, 2, totalCols);
       const subtitleCell = ws.getCell(2, 1);
-      subtitleCell.value = `Control de Horas — Cumplimiento Semanal (${semanaSeleccionada.label})`;
+      subtitleCell.value = modoMes
+        ? `Control de Horas — Resumen Mensual - ${MESES[mesSel]} ${year} (${semanaSeleccionada.label})`
+        : `Control de Horas — Cumplimiento Semanal (${semanaSeleccionada.label})`;
       subtitleCell.font = { name: "Calibri", size: 12, color: { argb: "FF333333" } };
 
       ws.mergeCells(3, 1, 3, totalCols);
@@ -424,7 +476,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         ["Cumplidos (>=100%)", String(resumen?.cumplidos ?? 0)],
         ["En Progreso", String(resumen?.enProgreso ?? 0)],
         ["En Riesgo", String(resumen?.enRiesgo ?? 0)],
-        ["Promedio de Horas Semanales", String(resumen?.promedioHoras ?? 0)],
+        [modoMes ? "Promedio de Horas Mensuales" : "Promedio de Horas Semanales", String(resumen?.promedioHoras ?? 0)],
       ];
       const resumenHeader = ws.getRow(resumenStart);
       ["Indicador", "Valor"].forEach((v, i) => {
@@ -463,8 +515,10 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         row.getCell(1).value = e.nombre;
         row.getCell(2).value = e.codigo;
         row.getCell(3).value = e.ci;
-        row.getCell(4).value = e.horasContratadas;
-        row.getCell(5).value = e.horasTrabajadas;
+        row.getCell(4).value = `${e.horasContratadas} hrs`;
+        row.getCell(5).value = modoMes
+          ? `${e.horasTrabajadas.toFixed(1)} / ${e.horasContratadas} hrs`
+          : e.horasTrabajadas;
         row.getCell(6).value = e.porcentajeCumplimiento;
         row.getCell(7).value = e.estadoCumplimiento;
 
@@ -522,7 +576,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const filename = `Control_Horas_${periodo}_semana_${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
+      const filename = modoMes
+        ? `Control_Horas_Mensual_${periodo}_${MESES[mesSel]}_${year}`
+        : `Control_Horas_${periodo}_semana_${semanaSeleccionada.id.replace("semana-", "")}_${semanaSeleccionada.fechaInicio}`;
       saveAs(blob, `${filename}.xlsx`);
     } catch (error) {
       console.error("[ControlHoras.exportExcel]", error);
@@ -542,7 +598,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         <div>
           <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-800"}`}>Control de Horas</h1>
           <p className={`text-sm mt-0.5 ${dark ? "text-white/40" : "text-slate-400"}`}>
-            Avance semanal acumulado por empleado (20h / 40h contratadas)
+            {modoMes
+              ? "Avance mensual acumulado por empleado (80h / 160h meta mensual)"
+              : "Avance semanal acumulado por empleado (20h / 40h contratadas)"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -575,7 +633,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           </span>
           <select
             value={periodo}
-            onChange={(e) => setPeriodo(e.target.value)}
+            onChange={(e) => {
+              const p = e.target.value;
+              setPeriodo(p);
+              setMesSel(mesesDelPeriodo(p)[0]);
+            }}
             className={SELECT_CLASSES}
           >
             {(gestiones.length ? gestiones : [{ nombre: obtenerPeriodoActual() }]).map((g) => (
@@ -593,12 +655,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
             onChange={(e) => setMesSel(parseInt(e.target.value, 10))}
             className={SELECT_CLASSES}
           >
-            {[
-              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-            ].map((mes, i) => (
-              <option key={mes} value={i} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
-                {mes} {year}
+            {mesesValidos.map((i) => (
+              <option key={MESES[i]} value={i} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
+                {MESES[i]} {year}
               </option>
             ))}
           </select>
@@ -611,6 +670,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
             onChange={(e) => setSemanaId(e.target.value)}
             className={`${SELECT_CLASSES} min-w-[210px]`}
           >
+            <option value={SEMANA_TODO_EL_MES} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
+              Todo el Mes
+            </option>
             {semanas.map((s) => (
               <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100">
                 {s.label}
@@ -684,7 +746,12 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "Avance", "Estado"].map((c) => (
+                {[
+                  "Empleado", "Código", "CI",
+                  modoMes ? "Meta Mensual" : "Horas Contratadas",
+                  modoMes ? "Acumulado Mensual" : "Horas Trabajadas",
+                  "Avance", "Estado",
+                ].map((c) => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
                   </th>
@@ -695,7 +762,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
               {loading ? (
                 <tr>
                   <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
-                    Cargando cumplimiento semanal...
+                    {modoMes ? "Cargando cumplimiento mensual..." : "Cargando cumplimiento semanal..."}
                   </td>
                 </tr>
               ) : filteredRows.length > 0 ? (
@@ -748,7 +815,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
         <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3 border-t ${dark ? "border-white/8" : "border-slate-100"}`}>
           <p className={`text-xs ${dark ? "text-white/40" : "text-slate-500"}`}>
-            Mostrando {filteredRows.length} de {resumen?.totalEmpleados ?? 0} empleados · Promedio semanal: {resumen?.promedioHoras ?? 0} h
+            Mostrando {filteredRows.length} de {resumen?.totalEmpleados ?? 0} empleados · {modoMes ? "Promedio mensual" : "Promedio semanal"}: {resumen?.promedioHoras ?? 0} h
             <span className="ml-2">· Haz clic en una fila para ver el desglose diario</span>
           </p>
           <div className="flex items-center gap-3">
@@ -844,7 +911,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
 
             <div className={`mt-4 flex items-center justify-between rounded-xl p-4 ${dark ? "bg-white/5" : "bg-slate-50"}`}>
               <div>
-                <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>Total semanal</p>
+                <p className={`text-xs ${dark ? "text-white/40" : "text-slate-400"}`}>{modoMes ? "Total mensual" : "Total semanal"}</p>
                 <p className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-800"}`}>
                   {empleadoDetalle ? empleadoDetalle.horasTrabajadas.toFixed(1) : "0.0"} / {empleadoDetalle?.horasContratadas.toFixed(1)} hrs
                 </p>

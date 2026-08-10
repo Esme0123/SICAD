@@ -146,6 +146,7 @@ export interface CumplimientoSemanalQuery {
   fechaFin: string;
   horasContratadas?: string;
   periodoAcademico?: string;
+  mensual?: boolean;
 }
 
 export async function getCumplimientoSemanal(query: CumplimientoSemanalQuery): Promise<CumplimientoSemanalResponse> {
@@ -155,6 +156,7 @@ export async function getCumplimientoSemanal(query: CumplimientoSemanalQuery): P
     horasContratadas: query.horasContratadas ?? "todas",
   };
   if (query.periodoAcademico) params.periodoAcademico = query.periodoAcademico;
+  if (query.mensual) params.mensual = "true";
 
   const { data } = await api.get<{ ok: boolean; data: CumplimientoSemanalEmpleado[]; resumen: CumplimientoSemanalResumen }>(
     "/asistencia/cumplimiento-semanal",

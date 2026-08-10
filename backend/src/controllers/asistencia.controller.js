@@ -1593,6 +1593,9 @@ async function miHistorial(req, res) {
 * ?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD          → rango explícito (Lunes–Sábado, se omite domingo)
  *   &horasContratadas=todas|20|40|20 hrs|40 hrs        → filtro de meta (opcional)
  *   &periodoAcademico=1-2026                           → filtro por periodo académico (opcional)
+ *   &mensual=true|false                                → modo "Todo el Mes": la meta pasa a
+ *                                                        (horasBase × 4) y las horas trabajadas
+ *                                                        son el acumulado de todo el rango.
  *
  * Calcula el avance acumulado de horas trabajadas (diferencia salaSalida -
  * horaEntrada en cada bloque) contra las horas contratadas (horasBase) de
@@ -1604,6 +1607,7 @@ async function cumplimientoSemanal(req, res) {
     const reDate = /^\d{4}-\d{2}-\d{2}$/;
     const { fechaInicio, fechaFin, periodoAcademico } = req.query;
     const horasParam = String(req.query.horasContratadas || 'todas').trim();
+    const mensual = String(req.query.mensual || 'false').toLowerCase() === 'true';
 
     // ── 1. Rango de fechas (Lunes–Domingo por defecto) ──
     let start, end, semanaLabel;
@@ -1804,7 +1808,8 @@ async function cumplimientoSemanal(req, res) {
       }
 
       const horasTrabajadas = Number((totalSegundos / 3600).toFixed(2));
-      const metaHoras = emp.horasBase || 20;
+      const metaSemanal = emp.horasBase || 20;
+      const metaHoras = mensual ? metaSemanal * 4 : metaSemanal;
       const porcentajeCumplimiento = Number(((horasTrabajadas / metaHoras) * 100).toFixed(1));
 
       let estadoCumplimiento = 'En Riesgo';
