@@ -22,7 +22,7 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente" | "Salida" | "Fuera de horario";
+  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente" | "FERIADO" | "Salida" | "Fuera de horario";
   periodo: string | null;
   periodoHorario: string | null;
   observacion: string | null;
@@ -53,6 +53,8 @@ const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg:
   Tardanza: { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/20", border: "border-amber-500/30" },
   Justificado: { icon: FileText, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
   Ausente: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" },
+  FERIADO: { icon: CalendarDays, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30" },
+  Feriado: { icon: CalendarDays, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30" },
 };
 
 function boDate(date?: Date): Date {
@@ -211,8 +213,9 @@ export const MobileHistorial: React.FC = () => {
   }, [data, filtroEstado]);
 
   const resumenEfectivo = useMemo(() => {
-    const counts = { total: data.length, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 };
+    const counts = { total: data.length, puntual: 0, tardanza: 0, justificado: 0, ausente: 0, feriado: 0 };
     data.forEach((m) => {
+      if (m.estado === "FERIADO") { counts.feriado++; return; }
       const esTardanzaReal = m.estado === "Tardanza" && (m.minutosRetraso ?? 0) > TOLERANCIA_MINUTOS;
       const estadoEfectivo = esTardanzaReal ? "Tardanza" : (m.estado === "Tardanza" ? "Puntual" : m.estado);
       if (estadoEfectivo === "Puntual") counts.puntual++;
@@ -636,18 +639,21 @@ export const MobileHistorial: React.FC = () => {
             const estadoEfectivo = esTardanzaReal ? "Tardanza" : (m.estado === "Tardanza" ? "Puntual" : m.estado);
             const cfg = estadoConfig[estadoEfectivo] || estadoConfig.Puntual;
             const Icon = cfg.icon;
+            const estadoLabel = estadoEfectivo === "FERIADO" ? "Feriado" : estadoEfectivo;
             const f = parseLocalDate(m.fecha);
             const hoyBool = m.fecha === hoy;
 
             const borderClr = estadoEfectivo === "Puntual" ? "#10B981" :
               estadoEfectivo === "Tardanza" ? "#F59E0B" :
                 estadoEfectivo === "Ausente" ? "#EF4444" :
-                  "#3B82F6";
+                  estadoEfectivo === "FERIADO" ? "#A855F7" :
+                    "#3B82F6";
 
             const bgGlow = estadoEfectivo === "Puntual" ? "#10B98108" :
               estadoEfectivo === "Tardanza" ? "#F59E0B08" :
                 estadoEfectivo === "Ausente" ? "#EF444408" :
-                  "#3B82F608";
+                  estadoEfectivo === "FERIADO" ? "#A855F708" :
+                    "#3B82F608";
 
             const tardanzaMin = esTardanzaReal ? m.minutosRetraso : null;
 
@@ -680,12 +686,12 @@ export const MobileHistorial: React.FC = () => {
                   </div>
                   <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
                     <Icon size={10} />
-                    <span>{estadoEfectivo}</span>
+                    <span>{estadoLabel}</span>
                   </div>
                 </div>
 
                 <div className="pl-2">
-                  {m.estado !== "Ausente" && m.estado !== "Justificado" ? (
+                  {m.estado !== "Ausente" && m.estado !== "Justificado" && m.estado !== "FERIADO" ? (
                     <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
                       <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#10B981" }} />
@@ -708,7 +714,11 @@ export const MobileHistorial: React.FC = () => {
                     </div>
                   ) : (
                     <div className="text-xs font-medium" style={{ color: borderClr }}>
-                      {m.estado === "Justificado" ? `✓ ${m.observacion}` : `✗ ${m.observacion}`}
+                      {m.estado === "Justificado"
+                        ? `✓ ${m.observacion}`
+                        : m.estado === "FERIADO"
+                          ? <><CalendarDays size={12} className="inline mr-1.5 -mt-0.5" />{m.observacion}</>
+                          : `✗ ${m.observacion}`}
                     </div>
                   )}
 

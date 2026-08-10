@@ -1334,6 +1334,26 @@ async function miHistorial(req, res) {
       permisosIdx.get(fechaStr).push(p);
     }
 
+    // ── Indexar feriados por fecha ──
+    // `fecha` es @db.Date (medianoche UTC) → usar getters UTC para obtener la fecha
+    // calendario, igual que en cumplimientoSemanal.
+    const feriados = await prisma.feriado.findMany({
+      where: {
+        // Rango ampliado 1 día en cada extremo: el match se hace por fecha exacta
+        // en memoria, así que filas extra son inofensivas.
+        fecha: {
+          gte: new Date(startDate.getTime() - 24 * 60 * 60 * 1000),
+          lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
+    });
+    const feriadoPorFecha = new Map();
+    for (const f of feriados) {
+      const fFecha = f.fecha instanceof Date ? f.fecha : new Date(f.fecha);
+      const key = `${fFecha.getUTCFullYear()}-${String(fFecha.getUTCMonth() + 1).padStart(2, '0')}-${String(fFecha.getUTCDate()).padStart(2, '0')}`;
+      if (!feriadoPorFecha.has(key)) feriadoPorFecha.set(key, f);
+    }
+
     // ── Loop único por (fecha × turno asignado) ──
     const fechasEnRango = [];
     for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -1471,7 +1491,27 @@ async function miHistorial(req, res) {
           continue;
         }
 
-        // ── Sin marcación ni permiso → Ausente (solo si el bloque ya pasó hoy) ──
+        // ── Sin marcación ni permiso → ¿feriado? ──
+        const feriado = feriadoPorFecha.get(fechaStr);
+        if (feriado) {
+          data.push({
+            id: `feriado-${fechaStr}-${periodoLabel.replace(/:/g, '').replace(/–/g, '-')}`,
+            fecha: fechaStr,
+            fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
+              timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }),
+            horaEntrada: null,
+            horaSalida: null,
+            estado: 'FERIADO',
+            periodo: periodoLabel,
+            observacion: feriado.descripcion,
+            minutosRetraso: null,
+            salidaOmitida: false,
+          });
+          continue;
+        }
+
+        // ── Sin marcación, permiso ni feriado → Ausente (solo si el bloque ya pasó hoy) ──
         if (esHoy) {
           if (ahoraMin < finBloqueMin) continue;
         }
