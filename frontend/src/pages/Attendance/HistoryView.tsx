@@ -1,14 +1,16 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText, Pencil, X } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
-import { getAttendanceHistory, AttendanceRecord } from "@/services/attendance.service";
+import { getAttendanceHistory, editarAsistenciaAdmin, AttendanceRecord } from "@/services/attendance.service";
 import { getPeriods, Periodo } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuthStore } from "@/hooks/useAuthStore";
 
 interface HistoryViewProps {
   dark: boolean;
@@ -60,6 +62,125 @@ function obtenerPeriodoActual(): string {
   return `2-${year}`;
 }
 
+/** Normaliza "7:05" / "07:05 AM" / "—" a "HH:mm" para inputs de tipo time. */
+function normalizeToHHmm(v: string | null | undefined): string {
+  if (!v || v === "—") return "";
+  const match = String(v).match(/(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+interface ModalEditarAsistenciaProps {
+  dark: boolean;
+  record: AttendanceRecord;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (horaEntrada: string, horaSalida: string, motivo: string) => void;
+}
+
+function ModalEditarAsistencia({ dark, record, saving, onClose, onSave }: ModalEditarAsistenciaProps) {
+  const [horaEntrada, setHoraEntrada] = useState(normalizeToHHmm(record.horaEntrada));
+  const [horaSalida, setHoraSalida] = useState(normalizeToHHmm(record.horaSalida));
+  const [motivo, setMotivo] = useState("");
+
+  const fieldCls = `w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all ${dark
+    ? "bg-white/5 border-white/10 text-white focus:border-primary/60"
+    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-primary/50 focus:bg-white"}`;
+
+  const labelCls = `block text-xs font-semibold mb-1.5 ${dark ? "text-white/60" : "text-slate-500"}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
+      <div className={`w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+        <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+          <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>Editar Marcación</h3>
+          <button onClick={onClose} disabled={saving} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1 space-y-5">
+          <div className={`flex items-center gap-3 p-3 rounded-xl ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-100"}`}>
+            <Avatar name={record.name} size={38} bg={COLORS.primary} />
+            <div className="min-w-0">
+              <p className={`text-sm font-semibold truncate ${dark ? "text-white" : "text-slate-800"}`}>{record.name}</p>
+              <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
+                CI: {record.ci || "—"} · {record.code}
+              </p>
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-2 gap-3 ${dark ? "text-white/60" : "text-slate-600"}`}>
+            <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+              <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Fecha</p>
+              <p className="text-sm font-semibold mt-1">{record.date}</p>
+            </div>
+            <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+              <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Periodo</p>
+              <p className="text-sm font-semibold mt-1">{record.period || "—"}</p>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Hora de Entrada</label>
+            <input
+              type="time"
+              value={horaEntrada}
+              onChange={(e) => setHoraEntrada(e.target.value)}
+              className={fieldCls}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Hora de Salida</label>
+            <input
+              type="time"
+              value={horaSalida}
+              onChange={(e) => setHoraSalida(e.target.value)}
+              className={fieldCls}
+            />
+            <p className={`text-[11px] mt-1 ${dark ? "text-white/35" : "text-slate-400"}`}>
+              Si la dejás vacía se eliminará la marcación de salida.
+            </p>
+          </div>
+
+          <div>
+            <label className={labelCls}>Motivo de la Corrección</label>
+            <textarea
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              rows={3}
+              placeholder="Describí la contingencia o justificación de la corrección..."
+              className={`${fieldCls} resize-none`}
+            />
+          </div>
+        </div>
+
+        <div className={`flex items-center justify-end gap-2 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${dark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(horaEntrada, horaSalida, motivo)}
+            disabled={saving}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: COLORS.primary }}
+          >
+            {saving ? "Guardando..." : "Guardar Cambios"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +198,31 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const searchRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = (currentUser?.role || "").toUpperCase() === "ADMIN";
+  const [editRecord, setEditRecord] = useState<AttendanceRecord | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [attendanceData, periodsData] = await Promise.all([
+        getAttendanceHistory(),
+        getPeriods(),
+      ]);
+      setRows(attendanceData);
+      setPeriodOptions(periodsData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -88,20 +234,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      getAttendanceHistory(),
-      getPeriods(),
-    ])
-      .then(([attendanceData, periodsData]) => {
-        setRows(attendanceData);
-        setPeriodOptions(periodsData);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
   }, []);
 
   const uniqueStatuses = useMemo(() => Array.from(new Set(rows.map(r => r.status))), [rows]);
@@ -293,6 +425,35 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     exportToPDF(body, columns, `asistencia_${hoyLocal}`, "Historial de Asistencia", 0);
   };
 
+  const handleOpenEdit = (r: AttendanceRecord) => {
+    setEditRecord(r);
+  };
+
+  const handleSaveEdit = async (horaEntrada: string, horaSalida: string, motivo: string) => {
+    if (!editRecord) return;
+    const motivoTrim = motivo.trim();
+    if (!motivoTrim) {
+      toast.error("Debés indicar el motivo de la corrección");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await editarAsistenciaAdmin(editRecord.id, {
+        horaEntrada: horaEntrada || null,
+        horaSalida: horaSalida || null,
+        motivoEdicion: motivoTrim,
+      });
+      toast.success("Marcación actualizada correctamente");
+      setEditRecord(null);
+      await loadData();
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || "Error al editar la marcación";
+      toast.error(message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6" style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}>
       <div className={card(dark, "overflow-hidden")}>
@@ -452,7 +613,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           <table className="w-full">
             <thead>
               <tr className={dark ? "bg-white/3" : "bg-slate-50/80"}>
-                {["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora Entrada", "Hora Salida", "Estado"].map(c => (
+                {["Empleado", "Código", "CI", "Fecha", "Periodo", "Hora Entrada", "Hora Salida", "Estado", ...(isAdmin ? ["Acciones"] : [])].map(c => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
                   </th>
@@ -462,7 +623,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={8 + (isAdmin ? 1 : 0)} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     Cargando historial...
                   </td>
                 </tr>
@@ -484,11 +645,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${dark ? "text-green-400" : "text-green-700"}`}>{r.horaEntrada || "—"}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>{r.horaSalida || "—"}</td>
                     <td className="px-5 py-3.5">{renderStatusBadge(r.status)}</td>
+                    {isAdmin && (
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => handleOpenEdit(r)}
+                          title="Editar horas de la marcación"
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:text-primary hover:bg-primary/15" : "text-slate-400 hover:text-primary hover:bg-primary/10"}`}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={8 + (isAdmin ? 1 : 0)} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     No se encontraron registros con los filtros seleccionados.
                   </td>
                 </tr>
@@ -525,6 +697,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           </div>
         </div>
       </div>
+
+      {isAdmin && editRecord && (
+        <ModalEditarAsistencia
+          key={editRecord.id}
+          dark={dark}
+          record={editRecord}
+          saving={savingEdit}
+          onClose={() => setEditRecord(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
     </div>
   );
 };

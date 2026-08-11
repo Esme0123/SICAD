@@ -94,6 +94,36 @@ export async function registerAttendance(_payload: RegisterAttendancePayload): P
   return Promise.reject(new Error("Attendance service not connected to backend yet"));
 }
 
+export interface EditarAsistenciaPayload {
+  horaEntrada?: string | null;
+  horaSalida?: string | null;
+  motivoEdicion: string;
+}
+
+export interface EditarAsistenciaResult {
+  id: number;
+  estado: string;
+  minutosRetraso: number | null;
+  horaEntradaStr: string | null;
+  horaSalidaStr: string | null;
+}
+
+/**
+ * PUT /api/asistencia/:id/editar — Edición manual de una marcación
+ * Exclusivo para el rol ADMIN (backend valida rol + autenticación).
+ */
+export async function editarAsistenciaAdmin(
+  id: number | string,
+  payload: EditarAsistenciaPayload
+): Promise<EditarAsistenciaResult> {
+  const { data } = await api.put<{ ok: boolean; message: string; data: EditarAsistenciaResult }>(
+    `/asistencia/${id}/editar`,
+    payload
+  );
+  if (!data.ok) throw new Error(data.message || "Error al editar la marcación");
+  return data.data;
+}
+
 export async function getTodaySummary(): Promise<AttendanceSummary> {
   return Promise.reject(new Error("Attendance service not connected to backend yet"));
 }
