@@ -193,6 +193,15 @@ model Asistencia {
   /// Bloque de periodo oficial asignado (ej. "07:15–08:15")
   periodo String?
 
+  /// Auditoría: ID del administrador que editó manualmente la marcación
+  editadoPorAdminId Int?
+
+  /// Auditoría: fecha y hora de la edición manual (NOW())
+  fechaEdicion DateTime?
+
+  /// Auditoría: motivo/contingencia de la corrección de emergencia
+  motivoEdicion String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

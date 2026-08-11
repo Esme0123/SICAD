@@ -616,6 +616,124 @@ async function cerrarTurno(req, res) {
 }
 
 /**
+ * Construye un Date cuyo reloj de pared en Bolivia (UTC-4) es el `timeStr`
+ * ("HH:mm") sobre la fecha calendario del registro (@db.Date → medianoche UTC).
+ */
+function construirFechaHoraBolivia(fechaDate, timeStr) {
+  const fd = new Date(fechaDate);
+  const [h, m] = timeStr.split(':').map(Number);
+  return new Date(Date.UTC(fd.getUTCFullYear(), fd.getUTCMonth(), fd.getUTCDate(), h + 4, m, 0, 0));
+}
+
+/**
+ * PUT /api/asistencia/:id/editar
+ * Edición manual exclusiva de Administradores (contingencias / correcciones).
+ * Body: { horaEntrada?: "HH:mm", horaSalida?: "HH:mm"|null, motivoEdicion: string }
+ *
+ * Recálculos automáticos:
+ *  - Estado "Puntual"|"Tardanza" vs inicio del periodo + tolerancia.
+ *  - minutosRetraso (Llegó X min tarde) para el módulo Control de Horas.
+ *  - Tiempo total trabajado: derivado de horaSalida - horaEntrada, por lo que
+ *    actualizar ambas horas actualiza el "Control de Horas" automáticamente.
+ * Trazabilidad: guarda editadoPorAdminId, fechaEdicion (NOW()) y motivoEdicion.
+ */
+async function editarAdmin(req, res) {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const { horaEntrada, horaSalida, motivoEdicion } = req.body ?? {};
+    const motivo = typeof motivoEdicion === 'string' ? motivoEdicion.trim() : '';
+    if (!motivo) {
+      return res.status(400).json({ ok: false, message: 'motivoEdicion es requerido para realizar la corrección' });
+    }
+
+    const reTime = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const entradaLimpiada = typeof horaEntrada === 'string' ? horaEntrada.trim() : '';
+    const salidaDefinida = horaSalida !== undefined;
+    const salidaLimpiada = horaSalida === null || horaSalida === '' ? null : String(horaSalida).trim();
+
+    const tieneEntrada = entradaLimpiada !== '';
+    const tieneSalida = salidaDefinida && salidaLimpiada !== null;
+
+    if (!tieneEntrada && !tieneSalida) {
+      return res.status(400).json({ ok: false, message: 'Debe proporcionar al menos horaEntrada o horaSalida' });
+    }
+    if (tieneEntrada && !reTime.test(entradaLimpiada)) {
+      return res.status(400).json({ ok: false, message: 'horaEntrada debe tener formato HH:mm' });
+    }
+    if (tieneSalida && !reTime.test(salidaLimpiada)) {
+      return res.status(400).json({ ok: false, message: 'horaSalida debe tener formato HH:mm' });
+    }
+
+    const asistencia = await prisma.asistencia.findUnique({
+      where: { id },
+      include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } },
+    });
+    if (!asistencia) return res.status(404).json({ ok: false, message: 'Asistencia no encontrada' });
+
+    const updateData = {};
+
+    // 1. Horas editadas (mantiene la fecha calendario del registro)
+    let nuevaEntradaStr = null;
+    if (tieneEntrada) {
+      nuevaEntradaStr = entradaLimpiada;
+      updateData.horaEntrada = construirFechaHoraBolivia(asistencia.fecha, nuevaEntradaStr);
+    }
+    if (salidaDefinida) {
+      updateData.horaSalida = salidaLimpiada === null
+        ? null
+        : construirFechaHoraBolivia(asistencia.fecha, salidaLimpiada);
+    }
+
+    // 2. Recalcular estado y minutos de retraso contra el inicio del periodo
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const tolerancia = asistencia.minutosTolerancia ?? config?.tiempoTolerancia ?? 20;
+    const horaInicioStr = extraerHoraInicio(asistencia.periodo);
+
+    let estado = !nuevaEntradaStr ? 'PUNTUAL' : calcularEstadoAsistencia(nuevaEntradaStr, horaInicioStr, tolerancia);
+    let minutosRetraso = null;
+    if (nuevaEntradaStr && horaInicioStr && estado === 'TARDANZA') {
+      minutosRetraso = timeToMinutes(nuevaEntradaStr) - timeToMinutes(horaInicioStr);
+    }
+    if (nuevaEntradaStr) {
+      updateData.observacion = minutosRetraso
+        ? `Llegó ${minutosRetraso} min tarde (tolerancia: ${tolerancia} min)`
+        : null;
+    }
+
+    // 3. Trazabilidad de auditoría
+    updateData.editadoPorAdminId = req.usuario?.id ?? null;
+    updateData.fechaEdicion = new Date();
+    updateData.motivoEdicion = motivo;
+
+    const resultado = await prisma.asistencia.update({
+      where: { id },
+      data: updateData,
+      include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } },
+    });
+
+    res.json({
+      ok: true,
+      message: 'Marcación de asistencia actualizada correctamente',
+      data: {
+        ...resultado,
+        estado,
+        minutosRetraso,
+        horaEntradaStr: resultado.horaEntrada ? toBoliviaTimeStr(resultado.horaEntrada) : null,
+        horaSalidaStr: resultado.horaSalida ? toBoliviaTimeStr(resultado.horaSalida) : null,
+      },
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ ok: false, message: 'Asistencia no encontrada' });
+    }
+    console.error('[asistencia.editarAdmin]', error);
+    res.status(500).json({ ok: false, message: `Error al editar la marcación: ${error.message}` });
+  }
+}
+
+/**
  * POST /api/asistencias/marcar
  * Body: { token: string }
  * Auth: req.usuario.id (viene del authMiddleware)
@@ -1860,5 +1978,5 @@ async function cumplimientoSemanal(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, getEstadoHoy, miHistorial, cumplimientoSemanal };
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, editarAdmin, getEstadoHoy, miHistorial, cumplimientoSemanal };
 

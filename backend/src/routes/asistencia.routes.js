@@ -1,7 +1,7 @@
 // src/routes/asistencia.routes.js
 
 const { Router } = require('express');
-const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, getEstadoHoy, getQrDashboard, miHistorial, cumplimientoSemanal } = require('../controllers/asistencia.controller');
+const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, editarAdmin, getEstadoHoy, getQrDashboard, miHistorial, cumplimientoSemanal } = require('../controllers/asistencia.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
@@ -27,6 +27,9 @@ router.get('/:id',                getById);
 
 // PATCH /api/asistencia/:id/cerrar — cronjob cierre automático de turnos (solo ADMIN)
 router.patch('/:id/cerrar',       requireRol('ADMIN'), cerrarTurno);
+
+// PUT /api/asistencia/:id/editar — edición manual de marcaciones (solo ADMIN)
+router.put('/:id/editar',         requireRol('ADMIN'), editarAdmin);
 
 module.exports = router;
 
