@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
-import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Clock, CalendarDays, CheckCircle2, AlertCircle, FileText, Calendar, Scan, Loader2, CheckCircle, XCircle, AlertTriangle, Repeat } from "lucide-react";
 import { UCBLogo } from "@/components/common/UCBLogo";
+
+const API = import.meta.env.VITE_API_URL;
 
 export const MobileInicio: React.FC = () => {
   const { user, isAuthenticated } = useEmployeeAuth();
@@ -13,6 +15,7 @@ export const MobileInicio: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [reemplazosPendientes, setReemplazosPendientes] = useState(0);
   const attendanceData = location.state?.attendanceData || null;
 
   useEffect(() => {
@@ -48,6 +51,28 @@ export const MobileInicio: React.FC = () => {
       setShowNotifPrompt(true);
     }
   }, []);
+
+  const fetchReemplazosPendientes = useCallback(async () => {
+    if (!user || !isAuthenticated) return;
+    try {
+      const token = localStorage.getItem("sicad_emp_token");
+      const res = await fetch(`${API}/reemplazos/mis-solicitudes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      const recibidas = json.data?.recibidas || [];
+      setReemplazosPendientes(recibidas.filter((s) => s.estado === "PENDIENTE").length);
+    } catch {
+      setReemplazosPendientes(0);
+    }
+  }, [user, isAuthenticated]);
+
+  useEffect(() => {
+    fetchReemplazosPendientes();
+    const onFocus = () => fetchReemplazosPendientes();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchReemplazosPendientes]);
 
   if (loading) {
     return (
@@ -140,6 +165,42 @@ export const MobileInicio: React.FC = () => {
           <button onClick={handleDismissNotif} className="text-xs px-2 py-1.5 rounded-lg text-muted-foreground cursor-pointer">Ahora no</button>
         </motion.div>
       )}
+
+      {/* Aviso flotante: solicitudes de reemplazo pendientes */}
+      <AnimatePresence>
+        {reemplazosPendientes > 0 && (
+          <motion.button
+            key="reemp-banner"
+            initial={{ opacity: 0, y: -16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.97 }}
+            onClick={() => navigate("/app/reemplazos")}
+            whileTap={{ scale: 0.97 }}
+            className="mx-4 mt-2 w-[calc(100%-2rem)] rounded-2xl p-3.5 flex items-center gap-3 cursor-pointer text-left shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, #F59E0B 0%, #FBBF24 55%, #FCD34D 100%)",
+              color: "#451A03",
+              border: "1px solid rgba(217,119,6,0.4)",
+              boxShadow: "0 6px 22px rgba(245,158,11,0.35)",
+            }}
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "rgba(255,255,255,0.28)" }}
+            >
+              <AlertTriangle size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black leading-tight">
+                ⚠️ Tienes {reemplazosPendientes === 1 ? "1 solicitud" : `${reemplazosPendientes} solicitudes`} de reemplazo pendiente{reemplazosPendientes === 1 ? "" : "s"}
+              </p>
+              <p className="text-[11px] font-semibold mt-0.5 opacity-75 flex items-center gap-1">
+                <Repeat size={11} /> Toca para revisar y responder
+              </p>
+            </div>
+            <AlertCircle size={18} className="shrink-0 opacity-70" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
     <motion.div
       initial={{ opacity: 0, y: 12 }}

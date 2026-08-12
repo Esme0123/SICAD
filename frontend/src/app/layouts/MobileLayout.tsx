@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2, HelpCircle, Scan, Clock, ClipboardList, ShieldCheck, UserCircle, Zap } from "lucide-react";
+import { Home, Calendar, FileText, ScrollText, User, LogOut, Sun, Moon, Bell, X, CheckCheck, Trash2, HelpCircle, Scan, Clock, ClipboardList, ShieldCheck, UserCircle, Zap, Repeat } from "lucide-react";
 import { useEmployeeAuth } from "@/context/EmployeeAuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
@@ -24,6 +24,7 @@ const navItems = [
   { to: "/app/historial", icon: ScrollText,  label: "Historial" },
   { to: "/app/permisos",  icon: FileText,   label: "Permisos" },
   { to: "/app/horas-extras", icon: Zap, label: "H. Extras" },
+  { to: "/app/reemplazos", icon: Repeat, label: "Reemplazos" },
   { to: "/app/perfil",    icon: User,        label: "Perfil" },
 ];
 
@@ -107,6 +108,12 @@ export const MobileLayout: React.FC = () => {
       title: "Horas Extras",
       description: "Solicita la recuperación de horas seleccionando la fecha y los bloques libres. Cuando el administrador apruebe tu solicitud, podrás marcar tu asistencia en esa fecha.",
       color: "#F4B400",
+    },
+    {
+      icon: <Repeat size={32} />,
+      title: "Reemplazos",
+      description: "Solicita que un compañero cubra tus bloques en una fecha concreta. Puedes pedir reemplazo abierto o dirigido a un empleado específico, y aceptar o rechazar peticiones en la sección Reemplazos.",
+      color: "#0EA5E9",
     },
   ];
 

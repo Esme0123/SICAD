@@ -1459,6 +1459,21 @@ async function miHistorial(req, res) {
       permisosIdx.get(fechaStr).push(p);
     }
 
+    // ── Indexar reemplazos ACEPTADOS por fecha ──
+    // El solicitante figura como "Justificado" para esa fecha/bloques con la
+    // observación "Reemplazado por [Nombre del Reemplazante]".
+    const reemplazos = await prisma.solicitudReemplazo.findMany({
+      where: { solicitanteId: usuarioId, estado: 'ACEPTADO', fecha: { gte: startDate, lte: endDate } },
+      include: { reemplazante: { select: { nombre: true } } },
+    });
+    const reemplazosIdx = new Map();
+    for (const r of reemplazos) {
+      const rfecha = r.fecha instanceof Date ? r.fecha : new Date(r.fecha);
+      const fechaStr = rfecha.toISOString().split('T')[0];
+      if (!reemplazosIdx.has(fechaStr)) reemplazosIdx.set(fechaStr, []);
+      reemplazosIdx.get(fechaStr).push(r);
+    }
+
     // ── Indexar feriados por fecha ──
     // `fecha` es @db.Date (medianoche UTC) → usar getters UTC para obtener la fecha
     // calendario, igual que en cumplimientoSemanal.
@@ -1610,6 +1625,37 @@ async function miHistorial(req, res) {
             estado: 'Justificado',
             periodo: nombrePeriodos,
             observacion: obsTexto,
+            minutosRetraso: null,
+            salidaOmitida: false,
+          });
+          continue;
+        }
+
+        // ── Sin marcación ni permiso → ¿cubre reemplazo ACEPTADO? ──
+        const reemplazosFecha = reemplazosIdx.get(fechaStr) || [];
+        const reemplazoCubre = reemplazosFecha.find(r => {
+          const bloquesR = Array.isArray(r.bloques) ? r.bloques : [];
+          return bloque.horarios.some(h =>
+            bloquesR.some(b =>
+              (b.horaInicio === h.horaInicio && b.horaFin === h.horaFin) ||
+              (b.id != null && Number(b.id) === h.periodoId)
+            )
+          );
+        });
+
+        if (reemplazoCubre) {
+          const nombreReemplazante = reemplazoCubre.reemplazante?.nombre || 'un compañero';
+          data.push({
+            id: `reemplazo-${reemplazoCubre.id}`,
+            fecha: fechaStr,
+            fechaLegible: new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-BO', {
+              timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }),
+            horaEntrada: null,
+            horaSalida: null,
+            estado: 'Justificado',
+            periodo: periodoLabel,
+            observacion: `Reemplazado por ${nombreReemplazante}`,
             minutosRetraso: null,
             salidaOmitida: false,
           });

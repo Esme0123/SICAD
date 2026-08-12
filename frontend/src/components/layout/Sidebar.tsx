@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   Zap,
+  Repeat,
 } from "lucide-react";
 import { UCBLogo } from "../common/UCBLogo";
 import { useAuth } from "@/context/AuthContext";
@@ -30,6 +31,7 @@ const allMenuItems = [
   { label: "Control de Horas", path: "/control-horas", icon: <BarChart3 size={18} /> },
   { label: "Permisos", path: "/leaves", icon: <Users size={18} /> },
   { label: "Horas Extras", path: "/horas-extras", icon: <Zap size={18} /> },
+  { label: "Reemplazos", path: "/reemplazos", icon: <Repeat size={18} /> },
   { label: "Periodos", path: "/attendance/periods", icon: <Calendar size={18} /> },
   { label: "Pantalla QR", path: "/attendance/qr", icon: <QrCode size={18} /> },
   { label: "Historial", path: "/attendance/history", icon: <ClipboardList size={18} /> },

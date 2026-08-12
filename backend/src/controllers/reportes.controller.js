@@ -162,6 +162,23 @@ async function getAnalisis(req, res) {
       })
     );
 
+    // Reemplazos ACEPTADOS por día: el solicitante cuenta como justificado
+    const reemplazosAceptadosPorDia = await prisma.solicitudReemplazo.groupBy({
+      by: ['fecha'],
+      where: {
+        fecha: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
+        estado: 'ACEPTADO',
+        solicitanteId: { in: userIds },
+      },
+      _count: { id: true },
+    });
+    for (const r of reemplazosAceptadosPorDia) {
+      const d = new Date(r.fecha);
+      const diaSemana = DIAS[d.getDay()].substring(0, 3);
+      const label = `${diaSemana} ${d.getDate()}`;
+      justificadosMap[label] = (justificadosMap[label] || 0) + r._count.id;
+    }
+
     // Generate entries for ALL days in the range
     const dateEntries = [];
     const rangeStart = new Date(start.getTime());
@@ -208,6 +225,18 @@ async function getAnalisis(req, res) {
       distinct: ['usuarioId'],
     });
     const justificadoSet = new Set(usuariosConPermiso.map((p) => p.usuarioId));
+
+    // Solicitantes con reemplazo ACEPTADO en el rango también cuentan como justificados
+    const usuariosConReemplazo = await prisma.solicitudReemplazo.findMany({
+      where: {
+        fecha: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
+        estado: 'ACEPTADO',
+        solicitanteId: { in: userIds },
+      },
+      select: { solicitanteId: true },
+      distinct: ['solicitanteId'],
+    });
+    for (const r of usuariosConReemplazo) justificadoSet.add(r.solicitanteId);
 
     const ausenteCount = userIds.filter((id) => !presentesSet.has(id) && !justificadoSet.has(id)).length;
     const justificadoCount = userIds.filter((id) => !presentesSet.has(id) && justificadoSet.has(id)).length;

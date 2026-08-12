@@ -70,6 +70,8 @@ model Usuario {
   asistencias       Asistencia[]
   permisos          Permiso[]
   solicitudesHorasExtras SolicitudHorasExtras[]
+  reemplazosSolicitados SolicitudReemplazo[] @relation("ReemplazoSolicitante")
+  reemplazosAsignados SolicitudReemplazo[] @relation("ReemplazoReemplazante")
   notificaciones    Notificacion[]
   pushSubscriptions PushSubscription[]
 
@@ -350,6 +352,66 @@ model SolicitudHorasExtras {
   @@index([empleadoId, estado])
   @@index([fecha])
   @@map("solicitudes_horas_extras")
+}
+
+// ============================================================
+// SOLICITUD DE REEMPLAZO ENTRE EMPLEADOS
+// El solicitante pide que un compañero cubra sus bloques/horarios
+// en una fecha concreta. Puede ser:
+//   - Petición ABIERTA (es_abierta = true): cualquier compañero acepta.
+//   - Petición a un EMPLEADO ESPECÍFICO (es_abierta = false): se asigna
+//     reemplazante_id al crearla.
+// Al aceptar, el sistema:
+//   1. Cambia el estado a ACEPTADO y asigna al reemplazante.
+//   2. Crea un HorarioAsignado excepcional (fechaEspecifica) al reemplazante
+//      para esa fecha/bloques (habilita su marcación y suma a Control de Horas).
+//   3. El solicitante figura como "Justificado" en su historial de asistencia
+//      con la observación "Reemplazado por [Nombre]".
+// ============================================================
+
+enum EstadoSolicitudReemplazo {
+  PENDIENTE
+  ACEPTADO
+  RECHAZADO
+}
+
+model SolicitudReemplazo {
+  id Int @id @default(autoincrement())
+
+  /// Empleado que pide el reemplazo
+  solicitanteId Int
+  solicitante Usuario @relation("ReemplazoSolicitante", fields: [solicitanteId], references: [id], onDelete: Cascade)
+
+  /// Empleado que cubre el reemplazo (null = petición abierta sin aceptar aún)
+  reemplazanteId Int?
+  reemplazante Usuario? @relation("ReemplazoReemplazante", fields: [reemplazanteId], references: [id], onDelete: SetNull)
+
+  /// true = petición a cualquier compañero, false = a un empleado específico
+  esAbierta Boolean @default(true)
+
+  /// Fecha en que se requiere el reemplazo
+  fecha DateTime @db.Date
+
+  /// Bloques a cubrir (JSON): [{ id, nombre, horaInicio, horaFin, duracion }]
+  bloques Json
+
+  /// Total de minutos cubiertos (suma de duraciones de los bloques)
+  horasTotales Int
+
+  /// Comentario / explicación del solicitante
+  comentario String?
+
+  estado EstadoSolicitudReemplazo @default(PENDIENTE)
+
+  fechaRespuesta DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([solicitanteId, estado])
+  @@index([reemplazanteId])
+  @@index([fecha])
+  @@map("solicitudes_reemplazo")
 }
 
 // ============================================================
