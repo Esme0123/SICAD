@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText, Pencil, X } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
-import { getAttendanceHistory, editarAsistenciaAdmin, AttendanceRecord } from "@/services/attendance.service";
+import { getAttendanceHistory, editarAsistenciaAdmin, eliminarAsistenciaAdmin, AttendanceRecord } from "@/services/attendance.service";
 import { getPeriods, Periodo } from "@/services/schedules.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 import { Calendar } from "@/components/ui/calendar";
@@ -76,9 +76,10 @@ interface ModalEditarAsistenciaProps {
   saving: boolean;
   onClose: () => void;
   onSave: (horaEntrada: string, horaSalida: string, motivo: string) => void;
+  onDelete: () => void;
 }
 
-function ModalEditarAsistencia({ dark, record, saving, onClose, onSave }: ModalEditarAsistenciaProps) {
+function ModalEditarAsistencia({ dark, record, saving, onClose, onSave, onDelete }: ModalEditarAsistenciaProps) {
   const [horaEntrada, setHoraEntrada] = useState(normalizeToHHmm(record.horaEntrada));
   const [horaSalida, setHoraSalida] = useState(normalizeToHHmm(record.horaSalida));
   const [motivo, setMotivo] = useState("");
@@ -161,6 +162,13 @@ function ModalEditarAsistencia({ dark, record, saving, onClose, onSave }: ModalE
 
         <div className={`flex items-center justify-end gap-2 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
           <button
+            onClick={onDelete}
+            disabled={saving}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-red-600 border border-red-500/40 transition-colors cursor-pointer disabled:opacity-50 hover:bg-red-500/10"
+          >
+            <span className="inline-flex items-center gap-1.5"><Trash2 size={15} /> Eliminar Marcación</span>
+          </button>
+          <button
             onClick={onClose}
             disabled={saving}
             className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${dark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
@@ -174,6 +182,68 @@ function ModalEditarAsistencia({ dark, record, saving, onClose, onSave }: ModalE
             style={{ background: COLORS.primary }}
           >
             {saving ? "Guardando..." : "Guardar Cambios"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ModalConfirmarEliminacionProps {
+  dark: boolean;
+  record: AttendanceRecord;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function ModalConfirmarEliminacion({ dark, record, deleting, onCancel, onConfirm }: ModalConfirmarEliminacionProps) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget && !deleting) onCancel(); }}
+    >
+      <div className={`w-full max-w-sm rounded-2xl shadow-2xl ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
+        <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+          <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>Eliminar Marcación</h3>
+          <button onClick={onCancel} disabled={deleting} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className={`flex items-start gap-3 p-3 rounded-xl ${dark ? "bg-red-500/10 border border-red-500/20" : "bg-red-50 border border-red-100"}`}>
+            <Trash2 size={20} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <p className={`text-sm leading-relaxed ${dark ? "text-white" : "text-slate-700"}`}>
+              ¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.
+            </p>
+          </div>
+          <div className={`flex items-center gap-3 p-3 rounded-xl ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-100"}`}>
+            <Avatar name={record.name} size={32} bg={COLORS.primary} />
+            <div className="min-w-0">
+              <p className={`text-sm font-semibold truncate ${dark ? "text-white" : "text-slate-800"}`}>{record.name}</p>
+              <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
+                {record.code} · {record.date} · {record.period || "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className={`flex items-center justify-end gap-2 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${dark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "#DC2626" }}
+          >
+            {deleting ? "Eliminando..." : "Sí, eliminar"}
           </button>
         </div>
       </div>
@@ -202,6 +272,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const isAdmin = (currentUser?.role || "").toUpperCase() === "ADMIN";
   const [editRecord, setEditRecord] = useState<AttendanceRecord | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteRecord, setDeleteRecord] = useState<AttendanceRecord | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -454,6 +526,29 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteRecord) return;
+    setDeletingRecord(true);
+    try {
+      await eliminarAsistenciaAdmin(deleteRecord.id);
+      toast.success("Marcación eliminada correctamente");
+      setDeleteRecord(null);
+      setEditRecord(null);
+      await loadData();
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || "Error al eliminar la marcación";
+      toast.error(message);
+    } finally {
+      setDeletingRecord(false);
+    }
+  };
+
+  const handleDeleteFromEdit = () => {
+    if (editRecord) {
+      setDeleteRecord(editRecord);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6" style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}>
       <div className={card(dark, "overflow-hidden")}>
@@ -647,13 +742,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <td className="px-5 py-3.5">{renderStatusBadge(r.status)}</td>
                     {isAdmin && (
                       <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => handleOpenEdit(r)}
-                          title="Editar horas de la marcación"
-                          className={`p-2 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:text-primary hover:bg-primary/15" : "text-slate-400 hover:text-primary hover:bg-primary/10"}`}
-                        >
-                          <Pencil size={15} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenEdit(r)}
+                            title="Editar horas de la marcación"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:text-primary hover:bg-primary/15" : "text-slate-400 hover:text-primary hover:bg-primary/10"}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteRecord(r)}
+                            title="Eliminar marcación"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:text-red-400 hover:bg-red-500/15" : "text-slate-400 hover:text-red-600 hover:bg-red-500/10"}`}
+                          >
+                            <Trash2 size={15} className="text-red-500" />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -706,6 +810,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
           saving={savingEdit}
           onClose={() => setEditRecord(null)}
           onSave={handleSaveEdit}
+          onDelete={handleDeleteFromEdit}
+        />
+      )}
+
+      {isAdmin && deleteRecord && (
+        <ModalConfirmarEliminacion
+          dark={dark}
+          record={deleteRecord}
+          deleting={deletingRecord}
+          onCancel={() => setDeleteRecord(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
     </div>

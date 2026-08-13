@@ -124,6 +124,15 @@ export async function editarAsistenciaAdmin(
   return data.data;
 }
 
+/**
+ * DELETE /api/asistencia/:id — Eliminación manual de una marcación
+ * Exclusivo para el rol ADMIN (backend valida rol + autenticación).
+ */
+export async function eliminarAsistenciaAdmin(id: number | string): Promise<void> {
+  const { data } = await api.delete<{ ok: boolean; message: string }>(`/asistencia/${id}`);
+  if (!data.ok) throw new Error(data.message || "Error al eliminar la marcación");
+}
+
 export async function getTodaySummary(): Promise<AttendanceSummary> {
   return Promise.reject(new Error("Attendance service not connected to backend yet"));
 }
