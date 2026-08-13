@@ -757,11 +757,32 @@ async function editarAdmin(req, res) {
     updateData.fechaEdicion = new Date();
     updateData.motivoEdicion = motivo;
 
-    const resultado = await prisma.asistencia.update({
-      where: { id },
-      data: updateData,
-      include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } },
-    });
+    // 4. UPDATE directo por clave primaria (id) — nunca por empleadoId/fecha.
+    //    Esto garantiza que con 2+ turnos el mismo día se edite EXACTAMENTE el
+    //    registro seleccionado. Mapeo a las columnas reales de "asistencias".
+    const columnas = {};
+    if (updateData.horaEntrada !== undefined) columnas.horaEntrada = updateData.horaEntrada;
+    if (updateData.horaSalida !== undefined) columnas.horaSalida = updateData.horaSalida;
+    if (updateData.observacion !== undefined) columnas.observacion = updateData.observacion;
+    columnas.editadoPorAdminId = updateData.editadoPorAdminId;
+    columnas.fechaEdicion = updateData.fechaEdicion;
+    columnas.motivoEdicion = updateData.motivoEdicion;
+    columnas.updatedAt = new Date();
+
+    const sets = [];
+    const params = [];
+    let i = 1;
+    for (const [col, val] of Object.entries(columnas)) {
+      sets.push(`"${col}" = $${i++}`);
+      params.push(val);
+    }
+    params.push(id);
+    const sql = `UPDATE "asistencias" SET ${sets.join(', ')} WHERE "id" = $${i} RETURNING *;`;
+    const filas = await prisma.$queryRawUnsafe(sql, ...params);
+    if (!filas || filas.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Asistencia no encontrada' });
+    }
+    const resultado = { ...filas[0], usuario: asistencia.usuario };
 
     res.json({
       ok: true,
@@ -1303,6 +1324,32 @@ async function getEstadoHoy(req, res) {
   } catch (error) {
     console.error('[asistencia.getEstadoHoy]', error);
     res.status(500).json({ ok: false, message: error.message });
+  }
+}
+
+/**
+ * DELETE /api/asistencia/:id
+ * Elimina un registro de asistencia por su clave primaria (solo ADMIN).
+ * Ejecuta: DELETE FROM "asistencias" WHERE "id" = $1 RETURNING *;
+ */
+async function eliminar(req, res) {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
+
+    const filas = await prisma.$queryRawUnsafe(
+      `DELETE FROM "asistencias" WHERE "id" = $1 RETURNING *;`,
+      id
+    );
+
+    if (!filas || filas.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Asistencia no encontrada' });
+    }
+
+    res.status(200).json({ ok: true, message: `Asistencia #${id} eliminada correctamente`, data: filas[0] });
+  } catch (error) {
+    console.error('[asistencia.eliminar]', error);
+    res.status(500).json({ ok: false, message: `Error al eliminar la asistencia: ${error.message}` });
   }
 }
 
@@ -2014,5 +2061,5 @@ async function cumplimientoSemanal(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, editarAdmin, getEstadoHoy, miHistorial, cumplimientoSemanal };
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, editarAdmin, getEstadoHoy, miHistorial, cumplimientoSemanal, eliminar };
 
