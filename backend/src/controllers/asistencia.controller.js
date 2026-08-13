@@ -305,6 +305,87 @@ async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMi
   return { estado: 'PUNTUAL', periodoLabel: `${ultimo.periodo.horaInicio}–${ultimo.periodo.horaFin}`, periodoConsolidado, observacion: 'Cubierto por permiso', bloque: encontrado.bloque, periodoActivo: ultimo };
 }
 
+// ── PASO 1 y 2: Resolución de acción de marcación ─────────────
+// El fallo crítico corregido: antes se buscaba el registro abierto SOLO del
+// bloque activo (periodoConsolidado). Al marcar salida de un turno finalizado o
+// cercano, el bloque ya no coincidía → se creaba una NUEVA ENTRADA en vez de
+// cerrar la SALIDA. Ahora el registro abierto se busca SIN filtro de bloque,
+// en el día actual o en las últimas 16 horas, y si existe la acción OBLIGATORIA
+// es registrar la SALIDA sobre el mismo registro (nunca crear una fila nueva).
+
+/** Minutos desde la entrada bajo los cuales un nuevo escaneo se considera doble-tap. */
+const UMBRAL_DOBLE_TAP_MIN = 2;
+/** Ventana máxima para localizar un registro abierto (día actual o últimas 16 h). */
+const VENTANA_REGISTRO_ABIERTO_HORAS = 16;
+
+/**
+ * PASO 1 — Busca el registro abierto del día (horaSalida NULL) sin importar el
+ * bloque/periodo. Ventana: fecha de hoy (rango Bolivia) O horaEntrada dentro de
+ * las últimas 16 horas (cubre salidas pasada la medianoche).
+ */
+async function buscarRegistroAbierto(db, usuarioId, ahora) {
+  const { start, end } = getDayRange(ahora);
+  const haceVentana = new Date(ahora.getTime() - VENTANA_REGISTRO_ABIERTO_HORAS * 60 * 60 * 1000);
+  return db.asistencia.findFirst({
+    where: {
+      usuarioId,
+      horaSalida: null,
+      salidaOmitida: false,
+      OR: [
+        { fecha: { gte: start, lte: end } },
+        { horaEntrada: { gte: haceVentana } },
+      ],
+    },
+    // La PRIMERA entrada abierta (la más antigua) es la que se debe cerrar.
+    orderBy: { horaEntrada: 'asc' },
+  });
+}
+
+/**
+ * PASO 2 — Evalúa la acción a ejecutar:
+ *   - Sin registro abierto  → ENTRADA (horaEntrada = NOW(), horaSalida = NULL).
+ *   - Con registro abierto  → SALIDA obligatoria sobre ESE mismo registro.
+ *       · Anti doble-tap: si la entrada se registró hace < 2 minutos, devuelve
+ *         accion 'DOBLE_TAP' (no crea ni modifica nada).
+ * @returns {{ resultado, accion: 'ENTRADA'|'SALIDA'|'DOBLE_TAP', estado, periodoLabel }}
+ */
+async function resolverAccionMarcacion(db, usuarioId, ahora, bloqueInfo, toleranciaMin, include) {
+  const abierta = await buscarRegistroAbierto(db, usuarioId, ahora);
+
+  if (!abierta) {
+    // ── Registrar ENTRADA ──
+    const estado = bloqueInfo?.estado || 'Fuera de horario';
+    const observacion = bloqueInfo?.observacion || null;
+    const periodoLabel = bloqueInfo?.periodoConsolidado || bloqueInfo?.periodoLabel || null;
+
+    const resultado = await db.asistencia.create({
+      data: {
+        usuarioId,
+        fecha: dateOnly(ahora),
+        horaEntrada: ahora,
+        minutosTolerancia: toleranciaMin,
+        observacion,
+        periodo: periodoLabel,
+      },
+      include,
+    });
+    return { resultado, accion: 'ENTRADA', estado, periodoLabel };
+  }
+
+  // ── Existe registro abierto: la acción es SALIDA, nunca crear otra fila ──
+  const minutosDesdeEntrada = (ahora.getTime() - new Date(abierta.horaEntrada).getTime()) / 60000;
+  if (minutosDesdeEntrada < UMBRAL_DOBLE_TAP_MIN) {
+    return { resultado: abierta, accion: 'DOBLE_TAP', estado: null, periodoLabel: abierta.periodo };
+  }
+
+  const resultado = await db.asistencia.update({
+    where: { id: abierta.id },
+    data: { horaSalida: ahora },
+    include,
+  });
+  return { resultado, accion: 'SALIDA', estado: 'Salida', periodoLabel: abierta.periodo };
+}
+
 // ── Endpoints ────────────────────────────────────────────────
 
 /**
@@ -375,55 +456,24 @@ async function registrar(req, res) {
     if (horariosHoy.length > 0) {
       bloqueInfo = await calcularBloqueYEstado(uid, horariosHoy, ahoraMin, toleranciaMin);
     }
-    const periodoBloque = bloqueInfo?.periodoConsolidado || null;
+    // 5. Resolver la acción (PASO 1 y 2): busca el registro abierto del día SIN
+    //    filtro de bloque; si existe registra SALIDA sobre el mismo, si no ENTRADA.
+    const includeUsuario = { usuario: { select: { id: true, nombre: true, codigo: true } } };
+    const { resultado, accion, estado, periodoLabel } = await resolverAccionMarcacion(
+      prisma,
+      uid,
+      ahora,
+      bloqueInfo,
+      toleranciaMin,
+      includeUsuario,
+    );
 
-    // 5. Buscar asistencia abierta SOLO del bloque activo, para no cruzar
-    //    entrada/salida entre turnos separados por un puente en el mismo día
-    const asistenciaAbierta = await prisma.asistencia.findFirst({
-      where: {
-        usuarioId: uid,
-        fecha: { gte: start, lte: end },
-        horaSalida: null,
-        salidaOmitida: false,
-        ...(periodoBloque ? { periodo: periodoBloque } : {}),
-      },
-      orderBy: { horaEntrada: 'desc' },
-    });
-
-    let resultado;
-    let accion;
-    let estado = 'PUNTUAL';
-    let observacion = null;
-    let periodoLabel = null;
-
-    if (!asistenciaAbierta) {
-      if (bloqueInfo) {
-        estado = bloqueInfo.estado;
-        observacion = bloqueInfo.observacion;
-        // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
-        periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
-      }
-
-      resultado = await prisma.asistencia.create({
-        data: {
-          usuarioId: uid,
-          fecha: dateOnly(ahora),
-          horaEntrada: ahora,
-          minutosTolerancia: toleranciaMin,
-          observacion: observacion,
-          periodo: periodoLabel,
-        },
-        include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
+    if (accion === 'DOBLE_TAP') {
+      return res.status(400).json({
+        ok: false,
+        accion: 'DOBLE_TAP',
+        message: 'Ya marcaste entrada hace un momento. Espera unos minutos antes de registrar tu salida.',
       });
-      accion = 'ENTRADA';
-    } else {
-      resultado = await prisma.asistencia.update({
-        where: { id: asistenciaAbierta.id },
-        data: { horaSalida: ahora },
-        include: { usuario: { select: { id: true, nombre: true, codigo: true } } },
-      });
-      accion = 'SALIDA';
-      estado = 'Salida';
     }
 
     if (req.io && accion === 'ENTRADA') {
@@ -811,58 +861,29 @@ async function marcar(req, res) {
       orderBy: { periodo: { horaInicio: 'asc' } },
     });
 
-    // 4. Calcular estado de marcación
-    let estado = 'Fuera de horario';
-    let observacion = null;
-    let periodoLabel = null;
+    // 4. Calcular bloque activo (solo etiqueta la ENTRADA; la acción real la
+    //    resuelve el PASO 1/2 sin depender del bloque actual)
     let bloqueInfo = null;
-
     if (horarios.length > 0) {
       bloqueInfo = await calcularBloqueYEstado(uid, horarios, ahoraMin, toleranciaMin);
-      estado = bloqueInfo.estado;
-      observacion = bloqueInfo.observacion;
-      // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
-      periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
     }
 
-    // 5. Registrar entrada o salida (por bloque para soportar jornadas discontinuas / puentes)
-    const { start, end } = getDayRange(ahora);
+    // 5. Resolver la acción (PASO 1 y 2): registro abierto → SALIDA, si no → ENTRADA
+    const { resultado, accion, estado, periodoLabel } = await resolverAccionMarcacion(
+      prisma,
+      uid,
+      ahora,
+      bloqueInfo,
+      toleranciaMin,
+      { usuario: { select: { id: true, nombre: true } } },
+    );
 
-    const asistenciaAbierta = await prisma.asistencia.findFirst({
-      where: {
-        usuarioId: uid,
-        fecha: { gte: start, lte: end },
-        horaSalida: null,
-        salidaOmitida: false,
-        ...(bloqueInfo?.periodoConsolidado ? { periodo: bloqueInfo.periodoConsolidado } : {}),
-      },
-      orderBy: { horaEntrada: 'desc' },
-    });
-
-    let resultado;
-    let accion;
-
-    if (!asistenciaAbierta) {
-      resultado = await prisma.asistencia.create({
-        data: {
-          usuarioId:         uid,
-          fecha:             dateOnly(ahora),
-          horaEntrada:       ahora,
-          minutosTolerancia: toleranciaMin,
-          observacion:       observacion,
-          periodo:           periodoLabel,
-        },
-        include: { usuario: { select: { id: true, nombre: true } } },
+    if (accion === 'DOBLE_TAP') {
+      return res.status(400).json({
+        ok: false,
+        accion: 'DOBLE_TAP',
+        message: 'Ya marcaste entrada hace un momento. Espera unos minutos antes de registrar tu salida.',
       });
-      accion = 'ENTRADA';
-    } else {
-      resultado = await prisma.asistencia.update({
-        where: { id: asistenciaAbierta.id },
-        data:  { horaSalida: ahora },
-        include: { usuario: { select: { id: true, nombre: true } } },
-      });
-      accion = 'SALIDA';
-      estado = 'Salida';
     }
 
     const horaEntradaStr = resultado?.horaEntrada
@@ -983,55 +1004,24 @@ async function marcarMovil(req, res) {
           orderBy: { periodo: { horaInicio: 'asc' } },
         });
 
-        let estado = 'Fuera de horario';
-        let observacion = null;
-        let periodoLabel = null;
         let bloqueInfo = null;
 
         if (horarios.length > 0) {
           bloqueInfo = await calcularBloqueYEstado(usuario.id, horarios, ahoraMin, toleranciaMin, tx);
-          estado = bloqueInfo.estado;
-          observacion = bloqueInfo.observacion;
-          // Guardar el rango consolidado del bloque activo (ej. "07:00–09:15")
-          periodoLabel = bloqueInfo.periodoConsolidado || bloqueInfo.periodoLabel;
         }
 
-        // Registrar entrada o salida (por bloque para soportar jornadas discontinuas / puentes)
-        const { start, end } = getDayRange(ahora);
+        // Registrar entrada o salida (PASO 1 y 2): registro abierto → SALIDA,
+        // si no → ENTRADA. NUNCA se crea una nueva fila con entrada sin cerrar.
+        const { resultado, accion, estado, periodoLabel } = await resolverAccionMarcacion(
+          tx,
+          usuario.id,
+          ahora,
+          bloqueInfo,
+          toleranciaMin,
+        );
 
-        const asistenciaAbierta = await tx.asistencia.findFirst({
-          where: {
-            usuarioId: usuario.id,
-            fecha: { gte: start, lte: end },
-            horaSalida: null,
-            salidaOmitida: false,
-            ...(bloqueInfo?.periodoConsolidado ? { periodo: bloqueInfo.periodoConsolidado } : {}),
-          },
-          orderBy: { horaEntrada: 'desc' },
-        });
-
-        let resultado;
-        let accion;
-
-        if (!asistenciaAbierta) {
-          resultado = await tx.asistencia.create({
-            data: {
-              usuarioId:         usuario.id,
-              fecha:             dateOnly(ahora),
-              horaEntrada:       ahora,
-              minutosTolerancia: toleranciaMin,
-              observacion:       observacion,
-              periodo:           periodoLabel,
-            },
-          });
-          accion = 'ENTRADA';
-        } else {
-          resultado = await tx.asistencia.update({
-            where: { id: asistenciaAbierta.id },
-            data:  { horaSalida: ahora },
-          });
-          accion = 'SALIDA';
-          estado = 'Salida';
+        if (accion === 'DOBLE_TAP') {
+          throw new Error('Ya marcaste entrada hace un momento. Espera unos minutos antes de registrar tu salida.');
         }
 
         return { resultado, accion, estado, periodoLabel, usuario };
