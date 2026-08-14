@@ -239,21 +239,19 @@ export const MobileHistorial: React.FC = () => {
   }, [user]);
 
   const buildUrl = useCallback(() => {
-    const hoyStr = new Date().toLocaleDateString('sv-SE');
+    const hoyB = boDate();
+    const fmtISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     switch (filtro) {
-      case "hoy":
+      case "hoy": {
+        const hoyStr = fmtISO(hoyB);
         return `/asistencia/mi-historial?fechaInicio=${hoyStr}&fechaFin=${hoyStr}`;
+      }
       case "semana": {
-        const hoy = new Date();
-        const dia = hoy.getDay();
+        const dia = hoyB.getDay();
         const diffLun = dia === 0 ? -6 : 1 - dia;
-        const lun = new Date(hoy);
-        lun.setDate(hoy.getDate() + diffLun);
-        const dom = new Date(lun);
-        dom.setDate(lun.getDate() + 6);
-        const lunStr = lun.toLocaleDateString('sv-SE');
-        const domStr = dom.toLocaleDateString('sv-SE');
-        return `/asistencia/mi-historial?fechaInicio=${lunStr}&fechaFin=${domStr}`;
+        const lun = new Date(hoyB.getFullYear(), hoyB.getMonth(), hoyB.getDate() + diffLun);
+        const dom = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() + 6);
+        return `/asistencia/mi-historial?fechaInicio=${fmtISO(lun)}&fechaFin=${fmtISO(dom)}`;
       }
       case "mes":
         return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;

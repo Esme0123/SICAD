@@ -371,7 +371,20 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const hoyDate = new Date();
+    // Fechas de referencia en hora de Bolivia (America/La_Paz)
+    const hoyB = new Date(new Date().toLocaleString("en-US", { timeZone: "America/La_Paz" }));
+    const inicioHoy = new Date(hoyB.getFullYear(), hoyB.getMonth(), hoyB.getDate());
+    const finHoy = new Date(hoyB.getFullYear(), hoyB.getMonth(), hoyB.getDate(), 23, 59, 59, 999);
+
+    // Semana actual: Lunes 00:00 – Domingo 23:59 (hora Bolivia)
+    const diaSem = hoyB.getDay();
+    const diffLun = diaSem === 0 ? -6 : 1 - diaSem;
+    const lunes = new Date(hoyB.getFullYear(), hoyB.getMonth(), hoyB.getDate() + diffLun);
+    const domingo = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + 6, 23, 59, 59, 999);
+
+    // Mes actual: 1ro 00:00 – último día 23:59 (hora Bolivia)
+    const inicioMes = new Date(hoyB.getFullYear(), hoyB.getMonth(), 1);
+    const finMes = new Date(hoyB.getFullYear(), hoyB.getMonth() + 1, 0, 23, 59, 59, 999);
 
     return consolidatedRows.filter(row => {
       // Filtro por fecha específica (Calendar)
@@ -394,20 +407,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         row.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         row.ci.includes(searchQuery);
 
-      // Filtros rápidos
+      // Filtros rápidos (Hoy / Esta Semana / Este Mes)
       let matchQuickDate = true;
-      if (quickDateFilter === "hoy") {
+      if (quickDateFilter !== "todos") {
         const [d, m, y] = row.date.split("/").map(Number);
         const rowD = new Date(y, m - 1, d);
-        matchQuickDate = rowD.toDateString() === hoyDate.toDateString();
-      } else if (quickDateFilter === "semana") {
-        const [d, m, y] = row.date.split("/").map(Number);
-        const rowD = new Date(y, m - 1, d);
-        const diffDays = Math.abs((hoyDate.getTime() - rowD.getTime()) / (1000 * 3600 * 24));
-        matchQuickDate = diffDays <= 7;
-      } else if (quickDateFilter === "mes") {
-        const [d, m, y] = row.date.split("/").map(Number);
-        matchQuickDate = (m - 1) === hoyDate.getMonth() && y === hoyDate.getFullYear();
+        if (quickDateFilter === "hoy") {
+          matchQuickDate = rowD >= inicioHoy && rowD <= finHoy;
+        } else if (quickDateFilter === "semana") {
+          matchQuickDate = rowD >= lunes && rowD <= domingo;
+        } else if (quickDateFilter === "mes") {
+          matchQuickDate = rowD >= inicioMes && rowD <= finMes;
+        }
       }
 
       return matchDate && matchAcademicPeriod && matchPeriod && matchStatus && matchEmployee && matchQuickDate;

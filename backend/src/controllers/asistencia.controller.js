@@ -317,6 +317,8 @@ async function calcularBloqueYEstado(usuarioId, horarios, ahoraMin, toleranciaMi
 const UMBRAL_DOBLE_TAP_MIN = 2;
 /** Ventana máxima para localizar un registro abierto (día actual o últimas 16 h). */
 const VENTANA_REGISTRO_ABIERTO_HORAS = 16;
+/** Segundos mínimos entre marcaciones repetidas (anti-duplicado de 10 minutos). */
+const UMBRAL_REPETICION_SEG = 600;
 
 /**
  * PASO 1 — Busca el registro abierto del día (horaSalida NULL) sin importar el
@@ -692,7 +694,9 @@ async function editarAdmin(req, res) {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
 
-    const { horaEntrada, horaSalida, motivoEdicion } = req.body ?? {};
+    const body = req.body ?? {};
+    const { horaEntrada, horaSalida } = body;
+    const motivoEdicion = body.motivoEdicion ?? body.motivo;
     const motivo = typeof motivoEdicion === 'string' ? motivoEdicion.trim() : '';
     if (!motivo) {
       return res.status(400).json({ ok: false, message: 'motivoEdicion es requerido para realizar la corrección' });
@@ -759,30 +763,14 @@ async function editarAdmin(req, res) {
 
     // 4. UPDATE directo por clave primaria (id) — nunca por empleadoId/fecha.
     //    Esto garantiza que con 2+ turnos el mismo día se edite EXACTAMENTE el
-    //    registro seleccionado. Mapeo a las columnas reales de "asistencias".
-    const columnas = {};
-    if (updateData.horaEntrada !== undefined) columnas.horaEntrada = updateData.horaEntrada;
-    if (updateData.horaSalida !== undefined) columnas.horaSalida = updateData.horaSalida;
-    if (updateData.observacion !== undefined) columnas.observacion = updateData.observacion;
-    columnas.editadoPorAdminId = updateData.editadoPorAdminId;
-    columnas.fechaEdicion = updateData.fechaEdicion;
-    columnas.motivoEdicion = updateData.motivoEdicion;
-    columnas.updatedAt = new Date();
+    //    registro seleccionado. UPDATE vía Prisma ORM (camelCase → columnas reales).
+    updateData.updatedAt = new Date();
 
-    const sets = [];
-    const params = [];
-    let i = 1;
-    for (const [col, val] of Object.entries(columnas)) {
-      sets.push(`"${col}" = $${i++}`);
-      params.push(val);
-    }
-    params.push(id);
-    const sql = `UPDATE "asistencias" SET ${sets.join(', ')} WHERE "id" = $${i} RETURNING *;`;
-    const filas = await prisma.$queryRawUnsafe(sql, ...params);
-    if (!filas || filas.length === 0) {
-      return res.status(404).json({ ok: false, message: 'Asistencia no encontrada' });
-    }
-    const resultado = { ...filas[0], usuario: asistencia.usuario };
+    const resultado = await prisma.asistencia.update({
+      where: { id },
+      data: updateData,
+      include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } },
+    });
 
     res.json({
       ok: true,
@@ -849,24 +837,33 @@ async function marcar(req, res) {
     const diaSemana  = getDiaSemanaHoy();
     const uid        = parseInt(usuarioId);
 
-    // ── Anti-duplicado: rechazar marcaciones repetidas en <120 segundos ──
+    // ── Anti-duplicado: rechazar marcaciones repetidas en <10 minutos ──
     const ultimaMarcacion = await prisma.asistencia.findFirst({
       where: { usuarioId: uid },
       orderBy: { createdAt: 'desc' },
     });
     if (ultimaMarcacion) {
       const eventosMs = [
-        new Date(ultimaMarcacion.createdAt).getTime(),
-        new Date(ultimaMarcacion.horaSalida).getTime(),
-        new Date(ultimaMarcacion.updatedAt).getTime(),
-      ].filter((ms) => !Number.isNaN(ms));
+        ultimaMarcacion.createdAt,
+        ultimaMarcacion.updatedAt,
+        ultimaMarcacion.horaEntrada,
+        ultimaMarcacion.horaSalida,
+      ]
+        .filter((d) => d !== null && d !== undefined)
+        .map((d) => new Date(d).getTime())
+        .filter((ms) => !Number.isNaN(ms));
       const ultimaMs = eventosMs.length ? Math.max(...eventosMs) : Date.now();
       const diffSeg = Math.floor((Date.now() - ultimaMs) / 1000);
-      if (diffSeg < 120) {
-        const espera = Math.max(1, 120 - diffSeg);
+      if (diffSeg >= 0 && diffSeg < UMBRAL_REPETICION_SEG) {
+        const restanteSeg = UMBRAL_REPETICION_SEG - diffSeg;
+        const minutos = Math.floor(restanteSeg / 60);
+        const segundos = restanteSeg % 60;
+        const esperaTexto = minutos > 0
+          ? `${minutos} minuto(s) y ${segundos} segundo(s)`
+          : `${segundos} segundo(s)`;
         return res.status(400).json({
           ok: false,
-          message: `Marcación duplicada. Por favor espera ${espera} segundos antes de volver a marcar.`,
+          message: `Marcación duplicada. Por favor espera ${esperaTexto} antes de volver a marcar.`,
         });
       }
     }
@@ -1372,7 +1369,6 @@ async function miHistorial(req, res) {
     }
 
     const ahoraBolivia = getBoliviaDate();
-    let startDate, endDate;
 
     // Tolerancia de marcación de la institución (configuracion_sistema) con default 10 min
     const configTol = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
@@ -1380,67 +1376,89 @@ async function miHistorial(req, res) {
 
     const { filtro, fechaInicio, fechaFin, periodoAcademico } = req.query;
 
-    function fechaLocalMedioDia(isoStr) {
-      const [y, m, d] = isoStr.split('-').map(Number);
-      return new Date(y, m - 1, d, 12, 0, 0);
-    }
+    // ── Resolución del rango de fechas (día completo en hora Bolivia) ──
+    // Se calculan los componentes calendario (año, mes, día) del inicio y fin del
+    // rango y de ellos se derivan DOS representaciones:
+    //   - filterStart/filterEnd: día completo en UTC para la consulta en BD. La
+    //     columna `fecha` es @db.Date (Prisma la lee como medianoche UTC), por lo
+    //     que los límites son la medianoche UTC del día inicial y el fin del día
+    //     terminal, evitando el desfase de -4h de Bolivia.
+    //   - startDate/endDate: mediodía local para iterar las fechas del rango sin
+    //     duplicados ni desplazamientos por zona horaria.
+    const EMPTY_RESPONSE = { ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } };
+    const reDate = /^\d{4}-\d{2}-\d{2}$/;
 
-    function hoyMedioDia() {
-      return new Date(ahoraBolivia.getFullYear(), ahoraBolivia.getMonth(), ahoraBolivia.getDate(), 12, 0, 0);
-    }
+    let yIni, mIni, dIni, yFin, mFin, dFin;
 
     // ── Prioridad 1: filtro rápido ──
     if (filtro === 'hoy') {
-      startDate = hoyMedioDia();
-      endDate = startDate;
+      yIni = ahoraBolivia.getFullYear(); mIni = ahoraBolivia.getMonth(); dIni = ahoraBolivia.getDate();
+      yFin = yIni; mFin = mIni; dFin = dIni;
     } else if (filtro === 'semana') {
       const diaSem = ahoraBolivia.getDay();
       const diff = diaSem === 0 ? 6 : diaSem - 1;
       const lunes = new Date(ahoraBolivia);
       lunes.setDate(ahoraBolivia.getDate() - diff);
-      startDate = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate(), 12, 0, 0);
-      endDate = hoyMedioDia();
+      const domingo = new Date(lunes);
+      domingo.setDate(lunes.getDate() + 6);
+      yIni = lunes.getFullYear(); mIni = lunes.getMonth(); dIni = lunes.getDate();
+      yFin = domingo.getFullYear(); mFin = domingo.getMonth(); dFin = domingo.getDate();
     } else if (filtro === 'mes') {
-      startDate = new Date(ahoraBolivia.getFullYear(), ahoraBolivia.getMonth(), 1, 12, 0, 0);
-      endDate = hoyMedioDia();
+      const ultimoDia = new Date(ahoraBolivia.getFullYear(), ahoraBolivia.getMonth() + 1, 0).getDate();
+      yIni = ahoraBolivia.getFullYear(); mIni = ahoraBolivia.getMonth(); dIni = 1;
+      yFin = yIni; mFin = mIni; dFin = ultimoDia;
     } else if (filtro === 'periodo') {
       const gestion = await prisma.gestionAcademica.findFirst({
         where: { nombre: obtenerPeriodoActual() },
       });
       if (gestion && gestion.fechaInicio) {
         const gi = gestion.fechaInicio instanceof Date ? gestion.fechaInicio : new Date(gestion.fechaInicio);
-        startDate = new Date(gi.getFullYear(), gi.getMonth(), gi.getDate(), 12, 0, 0);
+        yIni = gi.getUTCFullYear(); mIni = gi.getUTCMonth(); dIni = gi.getUTCDate();
       } else {
-        startDate = new Date(ahoraBolivia.getFullYear(), 0, 1, 12, 0, 0);
+        yIni = ahoraBolivia.getFullYear(); mIni = 0; dIni = 1;
       }
-      endDate = hoyMedioDia();
+      if (gestion && gestion.fechaFin) {
+        const gf = gestion.fechaFin instanceof Date ? gestion.fechaFin : new Date(gestion.fechaFin);
+        yFin = gf.getUTCFullYear(); mFin = gf.getUTCMonth(); dFin = gf.getUTCDate();
+      } else {
+        yFin = ahoraBolivia.getFullYear(); mFin = ahoraBolivia.getMonth(); dFin = ahoraBolivia.getDate();
+      }
     } else if (fechaInicio && fechaFin) {
       // ── Prioridad 2: rango explícito ──
-      const reDate = /^\d{4}-\d{2}-\d{2}$/;
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
+        return res.json(EMPTY_RESPONSE);
       }
-      startDate = fechaLocalMedioDia(fechaInicio);
-      endDate   = fechaLocalMedioDia(fechaFin);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
+      const [yi, mi, di] = fechaInicio.split('-').map(Number);
+      const [yf, mf, df] = fechaFin.split('-').map(Number);
+      yIni = yi; mIni = mi - 1; dIni = di;
+      yFin = yf; mFin = mf - 1; dFin = df;
+      if (isNaN(yIni) || isNaN(yFin)) {
+        return res.json(EMPTY_RESPONSE);
       }
     } else {
       // ── Prioridad 3: mes/año ──
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
       const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
       if (mes < 1 || mes > 12) {
-        return res.json({ ok: true, data: [], resumen: { total: 0, puntual: 0, tardanza: 0, justificado: 0, ausente: 0 } });
+        return res.json(EMPTY_RESPONSE);
       }
-      const ultimoDia = new Date(anio, mes, 0, 12, 0, 0).getDate();
-      startDate = new Date(anio, mes - 1, 1, 12, 0, 0);
-      endDate   = new Date(anio, mes - 1, ultimoDia, 12, 0, 0);
+      const ultimoDia = new Date(anio, mes, 0).getDate();
+      yIni = anio; mIni = mes - 1; dIni = 1;
+      yFin = anio; mFin = mes - 1; dFin = ultimoDia;
     }
+
+    // Día completo en UTC para la consulta en BD (fecha @db.Date → medianoche UTC)
+    const filterStart = new Date(Date.UTC(yIni, mIni, dIni, 0, 0, 0, 0));
+    const filterEnd   = new Date(Date.UTC(yFin, mFin, dFin, 23, 59, 59, 999));
+
+    // Mediodía local para iterar las fechas del rango sin duplicados ni desfases
+    const startDate = new Date(yIni, mIni, dIni, 12, 0, 0);
+    const endDate   = new Date(yFin, mFin, dFin, 12, 0, 0);
 
     const asistencias = await prisma.asistencia.findMany({
       where: {
         usuarioId,
-        fecha: { gte: startDate, lte: endDate },
+        fecha: { gte: filterStart, lte: filterEnd },
       },
       orderBy: { fecha: 'desc' },
     });
@@ -1482,7 +1500,7 @@ async function miHistorial(req, res) {
 
     // ── Indexar permisos APROBADOS por fecha ──
     const permisos = await prisma.permiso.findMany({
-      where: { usuarioId, estado: 'APROBADO', fecha: { gte: startDate, lte: endDate } },
+      where: { usuarioId, estado: 'APROBADO', fecha: { gte: filterStart, lte: filterEnd } },
       include: {
         tipoPermiso: { select: { nombre: true } },
         periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } },
@@ -1500,7 +1518,7 @@ async function miHistorial(req, res) {
     // El solicitante figura como "Justificado" para esa fecha/bloques con la
     // observación "Reemplazado por [Nombre del Reemplazante]".
     const reemplazos = await prisma.solicitudReemplazo.findMany({
-      where: { solicitanteId: usuarioId, estado: 'ACEPTADO', fecha: { gte: startDate, lte: endDate } },
+      where: { solicitanteId: usuarioId, estado: 'ACEPTADO', fecha: { gte: filterStart, lte: filterEnd } },
       include: { reemplazante: { select: { nombre: true } } },
     });
     const reemplazosIdx = new Map();
@@ -1519,8 +1537,8 @@ async function miHistorial(req, res) {
         // Rango ampliado 1 día en cada extremo: el match se hace por fecha exacta
         // en memoria, así que filas extra son inofensivas.
         fecha: {
-          gte: new Date(startDate.getTime() - 24 * 60 * 60 * 1000),
-          lte: new Date(endDate.getTime() + 24 * 60 * 60 * 1000),
+          gte: new Date(filterStart.getTime() - 24 * 60 * 60 * 1000),
+          lte: new Date(filterEnd.getTime() + 24 * 60 * 60 * 1000),
         },
       },
     });
