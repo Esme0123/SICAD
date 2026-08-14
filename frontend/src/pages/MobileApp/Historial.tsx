@@ -247,11 +247,13 @@ export const MobileHistorial: React.FC = () => {
         return `/asistencia/mi-historial?fechaInicio=${hoyStr}&fechaFin=${hoyStr}`;
       }
       case "semana": {
-        const dia = hoyB.getDay();
-        const diffLun = dia === 0 ? -6 : 1 - dia;
-        const lun = new Date(hoyB.getFullYear(), hoyB.getMonth(), hoyB.getDate() + diffLun);
-        const dom = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() + 6);
-        return `/asistencia/mi-historial?fechaInicio=${fmtISO(lun)}&fechaFin=${fmtISO(dom)}`;
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMon = day === 0 ? -6 : 1 - day;
+        const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon);
+        const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return `/asistencia/mi-historial?fechaInicio=${fmt(mon)}&fechaFin=${fmt(sun)}`;
       }
       case "mes":
         return `/asistencia/mi-historial?mes=${mes}&anio=${anio}`;

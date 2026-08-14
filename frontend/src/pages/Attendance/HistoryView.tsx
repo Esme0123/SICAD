@@ -525,6 +525,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         horaEntrada: horaEntrada || null,
         horaSalida: horaSalida || null,
         motivoEdicion: motivoTrim,
+        motivo: motivoTrim,
       });
       toast.success("Marcación actualizada correctamente");
       setEditRecord(null);

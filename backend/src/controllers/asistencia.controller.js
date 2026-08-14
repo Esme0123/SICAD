@@ -699,11 +699,9 @@ async function editarAdmin(req, res) {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ ok: false, message: 'ID inválido' });
 
-    const body = req.body ?? {};
-    const { horaEntrada, horaSalida } = body;
-    const motivoEdicion = body.motivoEdicion ?? body.motivo;
-    const motivo = typeof motivoEdicion === 'string' ? motivoEdicion.trim() : '';
-    if (!motivo) {
+    const { horaEntrada, horaSalida, motivoEdicion, motivo } = req.body ?? {};
+    const motivoTexto = (motivoEdicion || motivo || '').trim();
+    if (!motivoTexto) {
       return res.status(400).json({ ok: false, message: 'motivoEdicion es requerido para realizar la corrección' });
     }
 
@@ -764,7 +762,7 @@ async function editarAdmin(req, res) {
     // 3. Trazabilidad de auditoría
     updateData.editadoPorAdminId = req.usuario?.id ?? null;
     updateData.fechaEdicion = new Date();
-    updateData.motivoEdicion = motivo;
+    updateData.motivoEdicion = motivoTexto;
 
     // 4. UPDATE directo por clave primaria (id) — nunca por empleadoId/fecha.
     //    Esto garantiza que con 2+ turnos el mismo día se edite EXACTAMENTE el
@@ -1380,6 +1378,7 @@ async function miHistorial(req, res) {
     const toleranciaMin = configTol?.tiempoTolerancia ?? 10;
 
     const { filtro, fechaInicio, fechaFin, periodoAcademico } = req.query;
+    const rangoFechaExplicito = !!(fechaInicio && fechaFin);
 
     // ── Resolución del rango de fechas (día completo en hora Bolivia) ──
     // Se calculan los componentes calendario (año, mes, día) del inicio y fin del
@@ -1566,6 +1565,39 @@ async function miHistorial(req, res) {
 
     const data = [];
 
+    const pushMarcacionFueraHorario = (a) => {
+      const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+      const fStr2 = fd2.toISOString().split('T')[0];
+      let estado = 'Puntual';
+      let minutosRetraso = null;
+      if (a.horaEntrada) {
+        const obs = (a.observacion || '').toLowerCase();
+        if (obs.startsWith('llegó') || obs.includes('tarde')) {
+          const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
+          minutosRetraso = match ? parseInt(match[1]) : null;
+          if (minutosRetraso !== null && minutosRetraso > toleranciaMin) {
+            estado = 'Tardanza';
+          } else {
+            minutosRetraso = null;
+          }
+        }
+      }
+      data.push({
+        id: a.id,
+        fecha: fStr2,
+        fechaLegible: new Date(fStr2 + 'T12:00:00').toLocaleDateString('es-BO', {
+          timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        }),
+        horaEntrada: fmtTime(a.horaEntrada),
+        horaSalida: fmtTime(a.horaSalida),
+        estado,
+        periodo: a.periodo || null,
+        observacion: a.observacion,
+        minutosRetraso,
+        salidaOmitida: a.salidaOmitida,
+      });
+    };
+
     for (const fecha of fechasEnRango) {
       const fechaStr = fecha.toISOString().split('T')[0];
       if (fechaStr > hoyStr) continue;
@@ -1580,9 +1612,8 @@ async function miHistorial(req, res) {
       // evitando que bloques de periodos concluidos (ej. "Invierno 2026") se
       // crucen con fechas de periodos diferentes.
       const periodoFecha = obtenerPeriodoDeFechaStr(fechaStr);
-      if (periodoAcademico && periodoAcademico !== periodoFecha) continue;
+      if (periodoAcademico && periodoAcademico !== periodoFecha && !rangoFechaExplicito) continue;
       const horariosDia = horarioPorDia.get(`${diaSemana}|${periodoFecha}`) || [];
-      if (horariosDia.length === 0) continue;
 
       // Solo periodos ya asignados para esa fecha
       const horariosValidos = horariosDia.filter(h => {
@@ -1593,9 +1624,17 @@ async function miHistorial(req, res) {
             : '';
         return fechaStr >= createdAtStr;
       });
-      if (horariosValidos.length === 0) continue;
 
       const asistenciasFecha = asistenciaPorFecha.get(fechaStr) || [];
+
+      // Días sin horario asignado ya no se descartan: si hay marcaciones reales
+      // en el rango consultado (Semana/Mes/Periodo) se muestran igualmente,
+      // para que los KPIs y el listado reflejen todo el rango.
+      if (horariosValidos.length === 0) {
+        for (const a of asistenciasFecha) pushMarcacionFueraHorario(a);
+        continue;
+      }
+
       const permisosFecha = permisosIdx.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
       const asignadasIds = new Set();
@@ -1766,36 +1805,7 @@ async function miHistorial(req, res) {
       // ── Marcaciones que no caen en ningún bloque (fuera de horario) ──
       for (const a of asistenciasFecha) {
         if (asignadasIds.has(a.id)) continue;
-        const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-        const fStr2 = fd2.toISOString().split('T')[0];
-        let estado = 'Puntual';
-        let minutosRetraso = null;
-        if (a.horaEntrada) {
-          const obs = (a.observacion || '').toLowerCase();
-          if (obs.startsWith('llegó') || obs.includes('tarde')) {
-            const match = a.observacion.match(/Llegó\s+(\d+)\s+min/);
-            minutosRetraso = match ? parseInt(match[1]) : null;
-            if (minutosRetraso !== null && minutosRetraso > toleranciaMin) {
-              estado = 'Tardanza';
-            } else {
-              minutosRetraso = null;
-            }
-          }
-        }
-        data.push({
-          id: a.id,
-          fecha: fStr2,
-          fechaLegible: new Date(fStr2 + 'T12:00:00').toLocaleDateString('es-BO', {
-            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          }),
-          horaEntrada: fmtTime(a.horaEntrada),
-          horaSalida: fmtTime(a.horaSalida),
-          estado,
-          periodo: a.periodo || null,
-          observacion: a.observacion,
-          minutosRetraso,
-          salidaOmitida: a.salidaOmitida,
-        });
+        pushMarcacionFueraHorario(a);
       }
     }
 

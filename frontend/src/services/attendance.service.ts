@@ -98,6 +98,7 @@ export interface EditarAsistenciaPayload {
   horaEntrada?: string | null;
   horaSalida?: string | null;
   motivoEdicion: string;
+  motivo?: string;
 }
 
 export interface EditarAsistenciaResult {
