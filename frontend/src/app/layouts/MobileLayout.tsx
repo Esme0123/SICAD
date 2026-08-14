@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { GuideModal, GuideStep } from "@/components/ui/GuideModal";
 import { UCBLogo } from "@/components/common/UCBLogo";
 import { LogoutConfirmModal } from "@/components/common/LogoutConfirmModal";
+import { FeatureModal } from "@/components/common/FeatureModal";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -408,6 +409,8 @@ export const MobileLayout: React.FC = () => {
           handleLogout();
         }}
       />
+
+      <FeatureModal />
     </div>
   );
 };
