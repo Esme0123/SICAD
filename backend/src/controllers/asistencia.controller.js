@@ -668,13 +668,18 @@ async function cerrarTurno(req, res) {
 }
 
 /**
- * Construye un Date cuyo reloj de pared en Bolivia (UTC-4) es el `timeStr`
+ * Construye un Date cuyo reloj de pared en Bolivia (UTC-4) es el `horaStr`
  * ("HH:mm") sobre la fecha calendario del registro (@db.Date → medianoche UTC).
+ * Usa SIEMPRE getters UTC para extraer la fecha: los getters locales (getDate)
+ * con offset de -4h desplazan 2026-08-13 a 2026-08-12.
  */
-function construirFechaHoraBolivia(fechaDate, timeStr) {
-  const fd = new Date(fechaDate);
-  const [h, m] = timeStr.split(':').map(Number);
-  return new Date(Date.UTC(fd.getUTCFullYear(), fd.getUTCMonth(), fd.getUTCDate(), h + 4, m, 0, 0));
+function construirFechaHoraBolivia(fechaDb, horaStr) {
+  if (!fechaDb || !horaStr) return null;
+  const d = new Date(fechaDb);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return new Date(`${year}-${month}-${day}T${horaStr}:00-04:00`);
 }
 
 /**
