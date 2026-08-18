@@ -153,6 +153,61 @@ function calcularEstadoAsistencia(horaEntradaStr, horaInicioPeriodoStr, toleranc
   return minutosEntrada > minutosInicioLimite ? 'TARDANZA' : 'PUNTUAL';
 }
 
+/**
+ * Calcula la hora de entrada esperada (T_esperada) de un turno cuando un
+ * permiso APROBADO o reemplazo ACEPTADO cubre el inicio del turno.
+ *
+ * Regla: si el permiso/reemplazo inicia a la misma hora que el inicio del turno
+ * (T_inicio) y termina en T_fin_permiso, la entrada esperada del empleado se
+ * desplaza a T_fin_permiso. Si hay varias coberturas consecutivas que inician
+ * en T_inicio se toma el mayor fin.
+ *
+ * Devuelve null cuando NO hay permisos/reemplazos que inicien en T_inicio; en
+ * ese caso el cálculo de tardanza debe permanecer exactamente como antes.
+ *
+ * @param {Array|null} permisos - Permisos APROBADOS de la fecha
+ *        (cada uno con `periodos`: [{ periodo: { horaInicio, horaFin } }])
+ * @param {Array|null} reemplazos - Reemplazos ACEPTADOS de la fecha
+ *        (cada uno con `bloques`: [{ horaInicio, horaFin }])
+ * @param {string} horaInicioTurno - "HH:mm" del inicio del turno/bloque
+ * @returns {number|null} minutos desde medianoche de T_esperada, o null
+ */
+function obtenerEntradaEsperadaAjustada(permisos, reemplazos, horaInicioTurno) {
+  const inicioTurnoMin = timeToMinutes(horaInicioTurno);
+  let esperadaMin = null;
+
+  const considerarFin = (finStr) => {
+    if (!finStr || typeof finStr !== 'string') return;
+    const finMin = timeToMinutes(finStr);
+    if (esperadaMin === null || finMin > esperadaMin) esperadaMin = finMin;
+  };
+
+  if (Array.isArray(permisos)) {
+    for (const p of permisos) {
+      const periodos = Array.isArray(p && p.periodos) ? p.periodos : [];
+      for (const pp of periodos) {
+        const periodo = (pp && pp.periodo) || pp;
+        if (periodo && timeToMinutes(periodo.horaInicio) === inicioTurnoMin) {
+          considerarFin(periodo.horaFin);
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(reemplazos)) {
+    for (const r of reemplazos) {
+      const bloques = Array.isArray(r && r.bloques) ? r.bloques : [];
+      for (const b of bloques) {
+        if (b && b.horaInicio && timeToMinutes(b.horaInicio) === inicioTurnoMin) {
+          considerarFin(b.horaFin);
+        }
+      }
+    }
+  }
+
+  return esperadaMin;
+}
+
 // ── Bloques Continuos ────────────────────────────────────────
 
 /**
@@ -547,6 +602,47 @@ async function getAll(req, res) {
       horariosPorUsuarioDia.get(key).push({ inicio: h.periodo.horaInicio, fin: h.periodo.horaFin });
     }
 
+    // ── Permisos APROBADOS y reemplazos ACEPTADOS (ajustan la entrada esperada) ──
+    // Solo se cargan para las fechas que tienen marcaciones en la consulta, de
+    // modo que las consultas de empleados sin permisos/reemplazos no cambian.
+    const wherePermiso = { estado: 'APROBADO' };
+    const whereReemplazo = { estado: 'ACEPTADO' };
+    if (usuarioId) {
+      wherePermiso.usuarioId = parseInt(usuarioId);
+      whereReemplazo.solicitanteId = parseInt(usuarioId);
+    }
+    if (asistencias.length > 0) {
+      const minMax = asistencias.reduce((acc, a) => {
+        const t = (a.fecha instanceof Date ? a.fecha : new Date(a.fecha)).getTime();
+        if (t < acc.min) acc.min = t;
+        if (t > acc.max) acc.max = t;
+        return acc;
+      }, { min: Infinity, max: -Infinity });
+      wherePermiso.fecha = { gte: new Date(minMax.min), lte: new Date(minMax.max) };
+      whereReemplazo.fecha = { gte: new Date(minMax.min), lte: new Date(minMax.max) };
+    }
+
+    const permisos = await prisma.permiso.findMany({
+      where: wherePermiso,
+      include: { periodos: { include: { periodo: { select: { id: true, horaInicio: true, horaFin: true } } } } },
+    });
+    const reemplazos = await prisma.solicitudReemplazo.findMany({ where: whereReemplazo });
+
+    const permisosPorUsuarioFecha = new Map(); // key: `${usuarioId}|YYYY-MM-DD`
+    for (const p of permisos) {
+      const pf = p.fecha instanceof Date ? p.fecha : new Date(p.fecha);
+      const key = `${p.usuarioId}|${pf.toISOString().split('T')[0]}`;
+      if (!permisosPorUsuarioFecha.has(key)) permisosPorUsuarioFecha.set(key, []);
+      permisosPorUsuarioFecha.get(key).push(p);
+    }
+    const reemplazosPorUsuarioFecha = new Map(); // key: `${solicitanteId}|YYYY-MM-DD`
+    for (const r of reemplazos) {
+      const rf = r.fecha instanceof Date ? r.fecha : new Date(r.fecha);
+      const key = `${r.solicitanteId}|${rf.toISOString().split('T')[0]}`;
+      if (!reemplazosPorUsuarioFecha.has(key)) reemplazosPorUsuarioFecha.set(key, []);
+      reemplazosPorUsuarioFecha.get(key).push(r);
+    }
+
     /**
      * Resuelve el rango consolidado de la jornada (ej. "07:00–16:15") según los
      * bloques contiguos asignados al empleado en la fecha del registro.
@@ -607,14 +703,44 @@ async function getAll(req, res) {
       const horaInicioStr = extraerHoraInicio(a.periodo);
       const tolerancia = a.minutosTolerancia ?? toleranciaGlobal;
 
-      const estado = horaEntradaStr && horaInicioStr
-        ? calcularEstadoAsistencia(horaEntradaStr, horaInicioStr, tolerancia)
-        : (horaEntradaStr ? 'PUNTUAL' : 'AUSENTE');
+      let estado;
+      let minutosRetraso = null;
+
+      if (horaEntradaStr) {
+        const fechaStr = (a.fecha instanceof Date ? a.fecha : new Date(a.fecha)).toISOString().split('T')[0];
+        const permisosFecha = permisosPorUsuarioFecha.get(`${a.usuarioId}|${fechaStr}`) || [];
+        const reemplazosFecha = reemplazosPorUsuarioFecha.get(`${a.usuarioId}|${fechaStr}`) || [];
+
+        // T_esperada ajustada por permiso/reemplazo que cubre el inicio del turno
+        const esperadaMin = horaInicioStr
+          ? obtenerEntradaEsperadaAjustada(permisosFecha, reemplazosFecha, horaInicioStr)
+          : null;
+
+        if (esperadaMin !== null) {
+          const retrasoMin = Math.max(0, timeToMinutes(horaEntradaStr) - esperadaMin);
+          if (retrasoMin > tolerancia) {
+            estado = 'TARDANZA';
+            minutosRetraso = retrasoMin;
+          } else {
+            estado = 'PUNTUAL';
+          }
+        } else {
+          // Sin permiso/reemplazo activo: cálculo exacto previo
+          estado = horaInicioStr
+            ? calcularEstadoAsistencia(horaEntradaStr, horaInicioStr, tolerancia)
+            : 'PUNTUAL';
+          if (estado === 'TARDANZA' && horaInicioStr) {
+            minutosRetraso = timeToMinutes(horaEntradaStr) - timeToMinutes(horaInicioStr);
+          }
+        }
+      } else {
+        estado = 'AUSENTE';
+      }
 
       // Reemplazar el periodo guardado por el rango consolidado cuando se puede resolver
       const periodoResuelto = resolverPeriodoConsolidado(a);
 
-      return { ...a, periodo: periodoResuelto || a.periodo, estado };
+      return { ...a, periodo: periodoResuelto || a.periodo, estado, minutosRetraso };
     });
 
     res.json({ ok: true, data });
@@ -1636,6 +1762,7 @@ async function miHistorial(req, res) {
       }
 
       const permisosFecha = permisosIdx.get(fechaStr) || [];
+      const reemplazosFecha = reemplazosIdx.get(fechaStr) || [];
       const esHoy = fechaStr === hoyStr;
       const asignadasIds = new Set();
 
@@ -1670,8 +1797,16 @@ async function miHistorial(req, res) {
             (!acc || (a.horaSalida && a.horaSalida > acc.horaSalida)) ? a : acc, null);
 
           const entradaMin = getBoliviaDate(primera.horaEntrada).getHours() * 60 + getBoliviaDate(primera.horaEntrada).getMinutes();
+
+          // Ajuste de la hora de entrada esperada (T_esperada): si un permiso
+          // APROBADO o reemplazo ACEPTADO inicia a la hora de inicio del turno
+          // (T_inicio), la entrada esperada se desplaza a T_fin_permiso. Los
+          // empleados sin permisos/reemplazos activos conservan el cálculo previo.
+          const esperadaMin = obtenerEntradaEsperadaAjustada(permisosFecha, reemplazosFecha, bloque.horaInicio);
+          const referenciaMin = esperadaMin !== null ? esperadaMin : inicioBloqueMin;
+
           let estado = 'Puntual';
-          let minutosRetraso = entradaMin > inicioBloqueMin ? entradaMin - inicioBloqueMin : null;
+          let minutosRetraso = entradaMin > referenciaMin ? entradaMin - referenciaMin : null;
           if (minutosRetraso !== null && minutosRetraso > toleranciaMin) {
             estado = 'Tardanza';
           } else {
@@ -1731,7 +1866,6 @@ async function miHistorial(req, res) {
         }
 
         // ── Sin marcación ni permiso → ¿cubre reemplazo ACEPTADO? ──
-        const reemplazosFecha = reemplazosIdx.get(fechaStr) || [];
         const reemplazoCubre = reemplazosFecha.find(r => {
           const bloquesR = Array.isArray(r.bloques) ? r.bloques : [];
           return bloque.horarios.some(h =>
