@@ -2017,13 +2017,25 @@ async function cumplimientoSemanal(req, res) {
 
           const turnos = marcacionesPorDia[fKey] || [];
           let minutosDia = turnos.reduce((acc, t) => acc + t.minutos, 0);
-          let estadoDia = turnos.length > 0 ? 'PRESENTE' : 'AUSENTE';
+          const programado = (programadoPorEmpleado.get(emp.id) || {})[diasKey[diaSemana]] || 0;
+
+          // Estado del día:
+          //  - Con marcaciones                          → PRESENTE
+          //  - Sin marcaciones pero con turno/horario obligatorio → AUSENTE
+          //  - Sin marcaciones y sin horario programado → SIN TURNO (descanso / no laborable)
+          let estadoDia;
+          if (turnos.length > 0) {
+            estadoDia = 'PRESENTE';
+          } else if (programado > 0) {
+            estadoDia = 'AUSENTE';
+          } else {
+            estadoDia = 'SIN TURNO';
+          }
 
           // Feriado: marcar el día como FERIADO y acreditar las horas programadas
           // del horario asignado para ese día (evita contarlo como AUSENTE con 0 h).
           if (feriadoSet.has(fKey)) {
             estadoDia = 'FERIADO';
-            const programado = (programadoPorEmpleado.get(emp.id) || {})[diasKey[diaSemana]] || 0;
             minutosDia = Math.max(minutosDia, programado);
           }
 

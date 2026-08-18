@@ -425,6 +425,46 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         },
       });
 
+      // ── Desglose diario de horas (solo al exportar el detalle de un empleado) ──
+      if (filteredRows.length === 1) {
+        const emp = filteredRows[0];
+        const desgloseY = (doc as any).lastAutoTable.finalY + 12;
+
+        doc.setFontSize(10);
+        doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
+        doc.text(`Desglose Diario de Horas — ${emp.nombre}`, 14, desgloseY);
+
+        const desgloseColumns = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"];
+        const desgloseBody = (emp.desgloseDiario || []).map((dd: DesgloseDiario) => [
+          dd.diaNombre,
+          dd.estado || "—",
+          dd.horaEntrada || "—",
+          dd.horaSalida || "—",
+          `${dd.subtotalHoras.toFixed(2)} hrs`,
+          `${dd.acumuladoHoras.toFixed(2)} hrs`,
+        ]);
+
+        autoTable(doc, {
+          startY: desgloseY + 5,
+          head: [desgloseColumns],
+          body: desgloseBody,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: CORP_BLUE, textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
+          alternateRowStyles: { fillColor: [248, 249, 250] },
+          margin: { top: 38, bottom: 20 },
+          didParseCell: (data) => {
+            if (data.section === "body" && data.column.index === 1) {
+              const estado = data.cell.raw as string;
+              data.cell.styles.fontStyle = "bold";
+              data.cell.styles.halign = "center";
+              if (estado === "FERIADO") data.cell.styles.textColor = [22, 163, 74];
+              else if (estado === "AUSENTE") data.cell.styles.textColor = [220, 38, 38];
+              else if (estado === "SIN TURNO") data.cell.styles.textColor = [100, 116, 139];
+            }
+          },
+        });
+      }
+
       const pageCount = doc.getNumberOfPages();
       addFooter(doc, pageCount);
       const filename = modoMes
@@ -564,6 +604,70 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       barHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CORP_ARGB } };
       barHeader.alignment = { horizontal: "center", vertical: "middle" };
       barHeader.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+
+      // ── Desglose diario de horas (solo al exportar el detalle de un empleado) ──
+      if (filteredRows.length === 1) {
+        const emp = filteredRows[0];
+        const diasCols = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"];
+
+        // Espacio de 2 filas entre la tabla resumen y el encabezado del desglose
+        const dgStart = tableStart + filteredRows.length + 3;
+
+        ws.mergeCells(dgStart, 1, dgStart, diasCols.length);
+        const dgTitle = ws.getCell(dgStart, 1);
+        dgTitle.value = `Desglose Diario de Horas — ${emp.nombre}`;
+        dgTitle.font = { name: "Calibri", size: 12, bold: true, color: { argb: CORP_ARGB } };
+        dgTitle.alignment = { horizontal: "left", vertical: "middle" };
+        ws.getRow(dgStart).height = 22;
+
+        const dgHeaderRow = ws.getRow(dgStart + 1);
+        diasCols.forEach((col, c) => {
+          const cell = dgHeaderRow.getCell(c + 1);
+          cell.value = col;
+          cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CORP_ARGB } };
+          cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+        dgHeaderRow.height = 22;
+
+        (emp.desgloseDiario || []).forEach((dd: DesgloseDiario, i) => {
+          const row = ws.getRow(dgStart + 2 + i);
+          row.getCell(1).value = dd.diaNombre;
+          row.getCell(2).value = dd.estado || "—";
+          row.getCell(3).value = dd.horaEntrada || "—";
+          row.getCell(4).value = dd.horaSalida || "—";
+          row.getCell(5).value = dd.subtotalHoras.toFixed(2);
+          row.getCell(6).value = dd.acumuladoHoras.toFixed(2);
+
+          [1, 2, 3, 4, 5, 6].forEach((c) => {
+            const cell = row.getCell(c);
+            cell.font = { name: "Calibri", size: 10, color: { argb: "FF222222" } };
+            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            cell.alignment = { horizontal: c >= 3 && c <= 6 ? "center" : "left", vertical: "middle" };
+          });
+
+          // Horas en fuente monospaciada (07:02, 21:16)
+          [3, 4].forEach((c) => {
+            const cell = row.getCell(c);
+            cell.font = { name: "Consolas", size: 10, color: { argb: "FF222222" } };
+          });
+
+          const estadoCell = row.getCell(2);
+          estadoCell.font = { name: "Calibri", size: 10, bold: true };
+          estadoCell.alignment = { horizontal: "center", vertical: "middle" };
+          if (dd.estado === "FERIADO") {
+            estadoCell.font.color = { argb: "FF16A34A" };
+            estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
+          } else if (dd.estado === "AUSENTE") {
+            estadoCell.font.color = { argb: "FFDC2626" };
+            estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+          } else if (dd.estado === "SIN TURNO") {
+            estadoCell.font.color = { argb: "FF64748B" };
+            estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+          }
+        });
+      }
 
       ws.getColumn(1).width = 30;
       ws.getColumn(2).width = 14;
@@ -888,6 +992,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                         {dd.estado === "AUSENTE" && (
                           <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-500">
                             AUSENTE
+                          </span>
+                        )}
+                        {dd.estado === "SIN TURNO" && (
+                          <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400">
+                            SIN TURNO
                           </span>
                         )}
                       </td>
