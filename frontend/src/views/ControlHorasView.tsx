@@ -159,6 +159,16 @@ function progressClass(pct: number): string {
   return "[&_[data-slot=progress-indicator]]:bg-[#DC2626]"; // Rojo — En Riesgo
 }
 
+/** Formatea minutos acumulados de retraso a "Hh Mm" o "M min" si es < 1 hora. */
+function formatRetraso(min: number): string {
+  const m = Math.max(0, Math.round(min || 0));
+  if (m <= 0) return "0 min";
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  if (h <= 0) return `${m} min`;
+  return rest > 0 ? `${h}h ${rest}m` : `${h}h`;
+}
+
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -393,8 +403,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       doc.text("Cumplimiento por Empleado", 14, lastY);
 
       const columns = modoMes
-        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Estado"]
-        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
+        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Bloques Cumplidos", "Atraso (min)", "Estado"]
+        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Bloques Cumplidos", "Atraso (min)", "Estado"];
       const body = filteredRows.map((e) => [
         e.nombre,
         e.codigo,
@@ -402,6 +412,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         `${e.horasContratadas} hrs`,
         modoMes ? `${e.horasTrabajadas.toFixed(1)} / ${e.horasContratadas} hrs` : `${e.horasTrabajadas} hrs`,
         `${e.porcentajeCumplimiento}%`,
+        `${e.bloquesCumplidos ?? 0} / ${e.bloquesProgramados ?? 0}`,
+        `${e.minutosRetraso || 0}`,
         e.estadoCumplimiento,
       ]);
 
@@ -414,13 +426,21 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         alternateRowStyles: { fillColor: [248, 249, 250] },
         margin: { top: 38, bottom: 20 },
         didParseCell: (data) => {
-          if (data.section === "body" && data.column.index === 6) {
+          if (data.section === "body" && data.column.index === 8) {
             const estado = data.cell.raw as string;
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.halign = "center";
             if (estado === "Cumplido" || estado === "Superado") data.cell.styles.textColor = [22, 163, 74];
             else if (estado === "En Progreso") data.cell.styles.textColor = [245, 158, 11];
             else data.cell.styles.textColor = [220, 38, 38];
+          }
+          if (data.section === "body" && data.column.index === 7) {
+            const min = parseInt(data.cell.raw as string, 10) || 0;
+            data.cell.styles.halign = "center";
+            if (min > 0) {
+              data.cell.styles.textColor = [220, 38, 38];
+              data.cell.styles.fontStyle = "bold";
+            }
           }
         },
       });
@@ -434,7 +454,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         doc.setTextColor(CORP_BLUE[0], CORP_BLUE[1], CORP_BLUE[2]);
         doc.text(`Desglose Diario de Horas — ${emp.nombre}`, 14, desgloseY);
 
-        const desgloseColumns = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"];
+        const desgloseColumns = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado", "Bloques", "Atraso (min)"];
         const desgloseBody = (emp.desgloseDiario || []).map((dd: DesgloseDiario) => [
           dd.diaNombre,
           dd.estado || "—",
@@ -442,6 +462,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           dd.horaSalida || "—",
           `${dd.subtotalHoras.toFixed(2)} hrs`,
           `${dd.acumuladoHoras.toFixed(2)} hrs`,
+          dd.bloquesDia || "—",
+          String(dd.minutosRetraso || 0),
         ]);
 
         autoTable(doc, {
@@ -460,6 +482,14 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
               if (estado === "FERIADO") data.cell.styles.textColor = [22, 163, 74];
               else if (estado === "AUSENTE") data.cell.styles.textColor = [220, 38, 38];
               else if (estado === "SIN TURNO") data.cell.styles.textColor = [100, 116, 139];
+            }
+            if (data.section === "body" && data.column.index === 7) {
+              const min = parseInt(data.cell.raw as string, 10) || 0;
+              data.cell.styles.halign = "center";
+              if (min > 0) {
+                data.cell.styles.textColor = [220, 38, 38];
+                data.cell.styles.fontStyle = "bold";
+              }
             }
           },
         });
@@ -487,8 +517,8 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       const ws = wb.addWorksheet(modoMes ? "Resumen Mensual" : "Cumplimiento Semanal");
 
       const columns = modoMes
-        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Estado"]
-        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Estado"];
+        ? ["Empleado", "Código", "CI", "Meta Mensual", "Acumulado Mensual", "% Avance", "Bloques Cumplidos", "Atraso (Min)", "Estado"]
+        : ["Empleado", "Código", "CI", "Horas Contratadas", "Horas Trabajadas", "% Cumplimiento", "Bloques Cumplidos", "Atraso (Min)", "Estado"];
       const totalCols = columns.length;
 
       ws.mergeCells(1, 1, 1, totalCols);
@@ -560,16 +590,18 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           ? `${e.horasTrabajadas.toFixed(1)} / ${e.horasContratadas} hrs`
           : e.horasTrabajadas;
         row.getCell(6).value = e.porcentajeCumplimiento;
-        row.getCell(7).value = e.estadoCumplimiento;
+        row.getCell(7).value = `${e.bloquesCumplidos ?? 0} / ${e.bloquesProgramados ?? 0}`;
+        row.getCell(8).value = e.minutosRetraso || 0;
+        row.getCell(9).value = e.estadoCumplimiento;
 
-        [1, 2, 3, 4, 5, 6, 7].forEach((c) => {
+        [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((c) => {
           const cell = row.getCell(c);
           cell.font = { name: "Calibri", size: 10 };
           cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-          cell.alignment = { horizontal: c >= 4 && c <= 6 ? "center" : "left", vertical: "middle" };
+          cell.alignment = { horizontal: c >= 4 && c <= 8 ? "center" : "left", vertical: "middle" };
         });
 
-        const estadoCell = row.getCell(7);
+        const estadoCell = row.getCell(9);
         const pct = e.porcentajeCumplimiento;
         let fill = "FFDC2626";
         if (pct >= 100) fill = "FF16A34A";
@@ -578,7 +610,14 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
         estadoCell.alignment = { horizontal: "center", vertical: "middle" };
 
-        const barCol = 8;
+        // Celda de atraso: rojo suave cuando minutosRetraso > 0
+        const atrasoCell = row.getCell(8);
+        if ((e.minutosRetraso || 0) > 0) {
+          atrasoCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFB91C1C" } };
+          atrasoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+        }
+
+        const barCol = 10;
         row.getCell(barCol).value = `${e.porcentajeCumplimiento}%`;
         row.getCell(barCol).font = { name: "Calibri", size: 9, color: { argb: "FF666666" } };
         row.getCell(barCol).alignment = { horizontal: "center", vertical: "middle" };
@@ -588,7 +627,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       const barStart = tableStart + 1;
       const barEnd = tableStart + filteredRows.length;
       ws.addConditionalFormatting({
-        ref: `H${barStart}:H${barEnd}`,
+        ref: `J${barStart}:J${barEnd}`,
         rules: [
           {
             type: "dataBar",
@@ -598,7 +637,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
         ],
       });
 
-      const barHeader = ws.getRow(tableStart).getCell(8);
+      const barHeader = ws.getRow(tableStart).getCell(10);
       barHeader.value = "Avance";
       barHeader.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
       barHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CORP_ARGB } };
@@ -608,7 +647,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       // ── Desglose diario de horas (solo al exportar el detalle de un empleado) ──
       if (filteredRows.length === 1) {
         const emp = filteredRows[0];
-        const diasCols = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"];
+        const diasCols = ["Día / Fecha", "Estado / Ficha", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado", "Bloques", "Atraso (Min)"];
 
         // Espacio de 2 filas entre la tabla resumen y el encabezado del desglose
         const dgStart = tableStart + filteredRows.length + 3;
@@ -639,12 +678,14 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
           row.getCell(4).value = dd.horaSalida || "—";
           row.getCell(5).value = dd.subtotalHoras.toFixed(2);
           row.getCell(6).value = dd.acumuladoHoras.toFixed(2);
+          row.getCell(7).value = dd.bloquesDia || "—";
+          row.getCell(8).value = dd.minutosRetraso || 0;
 
-          [1, 2, 3, 4, 5, 6].forEach((c) => {
+          [1, 2, 3, 4, 5, 6, 7, 8].forEach((c) => {
             const cell = row.getCell(c);
             cell.font = { name: "Calibri", size: 10, color: { argb: "FF222222" } };
             cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-            cell.alignment = { horizontal: c >= 3 && c <= 6 ? "center" : "left", vertical: "middle" };
+            cell.alignment = { horizontal: c >= 3 && c <= 8 ? "center" : "left", vertical: "middle" };
           });
 
           // Horas en fuente monospaciada (07:02, 21:16)
@@ -666,6 +707,13 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
             estadoCell.font.color = { argb: "FF64748B" };
             estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
           }
+
+          // Atraso del día en rojo suave cuando minutosRetraso > 0
+          const atrasoDiaCell = row.getCell(8);
+          if ((dd.minutosRetraso || 0) > 0) {
+            atrasoDiaCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFB91C1C" } };
+            atrasoDiaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+          }
         });
       }
 
@@ -676,7 +724,9 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       ws.getColumn(5).width = 18;
       ws.getColumn(6).width = 16;
       ws.getColumn(7).width = 16;
-      ws.getColumn(8).width = 20;
+      ws.getColumn(8).width = 16;
+      ws.getColumn(9).width = 16;
+      ws.getColumn(10).width = 20;
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -694,6 +744,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
   const SELECT_CLASSES = `pl-3 pr-8 py-2 rounded-xl border text-xs outline-none appearance-none cursor-pointer transition-all ${dark
     ? "bg-slate-800 border-slate-700 text-gray-100"
     : "bg-white border-gray-300 text-gray-900"}`;
+
+  const retrasoTotal = useMemo(
+    () => filteredRows.reduce((s, e) => s + (e.minutosRetraso || 0), 0),
+    [filteredRows]
+  );
 
   return (
     <div className="flex-1 overflow-y-auto p-6" style={{ background: dark ? "#0B0F19" : "#F8FAFC" }}>
@@ -836,12 +891,13 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
       </div>
 
       {/* KPIs superiores */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
         {renderKpi("Periodo", periodo, semanas.length ? `${semanas.length} semanas` : "", COLORS.primary, <CalendarRange size={20} />)}
         {renderKpi("Total Empleados", resumen?.totalEmpleados ?? 0, semanaSeleccionada?.label ?? "", COLORS.primary, <Users size={20} />)}
         {renderKpi("Cumplidos", resumen?.cumplidos ?? 0, ">= 100%", COLORS.success, <CheckCircle2 size={20} />)}
         {renderKpi("En Progreso", resumen?.enProgreso ?? 0, "60% – 99%", COLORS.warning, <TrendingUp size={20} />)}
         {renderKpi("En Riesgo", resumen?.enRiesgo ?? 0, "< 60%", COLORS.danger, <AlertTriangle size={20} />)}
+        {renderKpi("Atraso Total", formatRetraso(retrasoTotal), "min acumulados en pantalla", COLORS.danger, <Clock size={20} />)}
       </div>
 
       {/* Tabla de cumplimiento */}
@@ -854,7 +910,10 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                   "Empleado", "Código", "CI",
                   modoMes ? "Meta Mensual" : "Horas Contratadas",
                   modoMes ? "Acumulado Mensual" : "Horas Trabajadas",
-                  "Avance", "Estado",
+                  "Bloques",
+                  "Avance",
+                  "Retraso",
+                  "Estado",
                 ].map((c) => (
                   <th key={c} className={`px-5 py-3 text-left text-xs font-semibold tracking-wide ${dark ? "text-white/30" : "text-slate-400"}`}>
                     {c}
@@ -865,7 +924,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={9} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     {modoMes ? "Cargando cumplimiento mensual..." : "Cargando cumplimiento semanal..."}
                   </td>
                 </tr>
@@ -891,6 +950,11 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                       <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{e.ci}</td>
                       <td className={`px-5 py-3.5 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>{e.horasContratadas} hrs</td>
                       <td className={`px-5 py-3.5 text-sm font-semibold ${dark ? "text-white" : "text-slate-700"}`}>{e.horasTrabajadas.toFixed(1)} hrs</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`text-xs font-semibold ${dark ? "text-white/70" : "text-slate-600"}`}>
+                          {e.bloquesCumplidos ?? 0} / {e.bloquesProgramados ?? 0}
+                        </span>
+                      </td>
                       <td className="px-5 py-3.5 w-56">
                         <div className="flex items-center gap-3">
                           <Progress value={barValue} className={`h-2.5 ${progressClass(e.porcentajeCumplimiento)}`} />
@@ -902,13 +966,18 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                           {e.horasTrabajadas.toFixed(1)} / {e.horasContratadas.toFixed(1)} hrs
                         </p>
                       </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`text-xs font-semibold ${(e.minutosRetraso || 0) > 0 ? "text-red-500" : dark ? "text-white/50" : "text-slate-400"}`}>
+                          {formatRetraso(e.minutosRetraso || 0)}
+                        </span>
+                      </td>
                       <td className="px-5 py-3.5">{renderStatusBadge(e.estadoCumplimiento)}</td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
+                  <td colSpan={9} className={`px-5 py-8 text-center text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>
                     No se encontraron empleados con los filtros seleccionados.
                   </td>
                 </tr>
@@ -966,7 +1035,7 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
               <table className="w-full">
                 <thead>
                   <tr className={dark ? "bg-white/5" : "bg-slate-50"}>
-                    {["Día", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado"].map((c) => (
+                    {[ "Día", "Hora Entrada", "Hora Salida", "Subtotal del día", "Acumulado", "Bloques", "Retraso" ].map((c) => (
                       <th key={c} className={`px-4 py-2.5 text-left text-xs font-semibold ${dark ? "text-white/30" : "text-slate-400"}`}>
                         {c}
                       </th>
@@ -1012,7 +1081,15 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                       <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>
                         {dd.acumuladoHoras.toFixed(2)} hrs
                       </td>
-                    </tr>
+                      <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-600"}`}>
+                        {dd.bloquesDia || "—"}
+                      </td>
+                      <td className={`px-4 py-3 text-sm ${dark ? "text-white/60" : "text-slate-500"}`}>
+                        <span className={(dd.minutosRetraso || 0) > 0 ? "text-red-500" : dark ? "text-white/60" : "text-slate-400"}>
+                          {(dd.minutosRetraso || 0) > 0 ? `${dd.minutosRetraso} min` : "0 min"}
+                        </span>
+                      </td>
+                      </tr>
                   ))}
                 </tbody>
               </table>
@@ -1032,6 +1109,10 @@ export const ControlHorasView: React.FC<ControlHorasViewProps> = ({ dark }) => {
                     {empleadoDetalle.porcentajeCumplimiento.toFixed(1)}%
                   </p>
                   {renderStatusBadge(empleadoDetalle.estadoCumplimiento)}
+                  <p className={`text-[11px] mt-1 ${dark ? "text-white/40" : "text-slate-400"}`}>
+                    Bloques: {empleadoDetalle.bloquesCumplidos ?? 0} / {empleadoDetalle.bloquesProgramados ?? 0} ·{" "}
+                    <span className="text-red-500">Atraso: {formatRetraso(empleadoDetalle.minutosRetraso || 0)}</span>
+                  </p>
                 </div>
               )}
             </div>

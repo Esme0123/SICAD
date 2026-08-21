@@ -153,6 +153,8 @@ export interface DesgloseDiario {
   subtotalHoras: number;
   acumuladoHoras: number;
   turnosCount: number;
+  bloquesDia?: string;
+  minutosRetraso?: number;
 }
 
 export interface CumplimientoSemanalEmpleado {
@@ -164,6 +166,9 @@ export interface CumplimientoSemanalEmpleado {
   horasTrabajadas: number;
   porcentajeCumplimiento: number;
   estadoCumplimiento: EstadoCumplimiento;
+  bloquesCumplidos: number;
+  bloquesProgramados: number;
+  minutosRetraso: number;
   desgloseDiario: DesgloseDiario[];
 }
 

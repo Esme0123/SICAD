@@ -2110,10 +2110,22 @@ async function cumplimientoSemanal(req, res) {
 
     // programadoPorEmpleado: empId → { diaSemana: minutosTotales }
     const programadoPorEmpleado = new Map();
+    // bloquesPorEmpleadoDia: empId → { diaSemana: [{ startMin, endMin }] }
+    const bloquesPorEmpleadoDia = new Map();
     for (const h of horariosAsignados) {
       if (!programadoPorEmpleado.has(h.usuarioId)) programadoPorEmpleado.set(h.usuarioId, {});
       const mapa = programadoPorEmpleado.get(h.usuarioId);
       mapa[h.diaSemana] = (mapa[h.diaSemana] || 0) + minutosProgramadosHorario(h);
+
+      const startMin = timeToMinutes(h.periodo?.horaInicio || '');
+      if (isNaN(startMin)) continue;
+      if (!bloquesPorEmpleadoDia.has(h.usuarioId)) bloquesPorEmpleadoDia.set(h.usuarioId, {});
+      const mapaBloques = bloquesPorEmpleadoDia.get(h.usuarioId);
+      if (!mapaBloques[h.diaSemana]) mapaBloques[h.diaSemana] = [];
+      mapaBloques[h.diaSemana].push({
+        startMin,
+        endMin: timeToMinutes(h.periodo?.horaFin || ''),
+      });
     }
 
     // ── 4. Cálculo seguro de horas + desglose diario (Lunes a Sábado) ──
@@ -2146,12 +2158,16 @@ async function cumplimientoSemanal(req, res) {
           entrada: isNaN(entradaMs) ? null : toBoliviaTimeStr(m.horaEntrada),
           salida: isNaN(salidaMs) ? null : toBoliviaTimeStr(m.horaSalida),
           minutos: minutosTurno,
+          entryMin: isNaN(entradaMs) ? NaN : getBoliviaTimeMinutes(m.horaEntrada),
         });
       });
 
       // Semana laboral de Lunes a Sábado (omite domingo)
       let totalSegundos = 0;
       let acumuladoHoras = 0;
+      let bloquesCumplidosTotal = 0;
+      let bloquesProgramadosTotal = 0;
+      let minutosRetrasoTotal = 0;
       const desgloseDiario = [];
 
       const [y0, m0, d0] = fechaInicio.split('-').map(Number);
@@ -2183,16 +2199,45 @@ async function cumplimientoSemanal(req, res) {
             estadoDia = 'SIN TURNO';
           }
 
-          // Feriado: marcar el día como FERIADO y acreditar las horas programadas
+// Feriado: marcar el día como FERIADO y acreditar las horas programadas
           // del horario asignado para ese día (evita contarlo como AUSENTE con 0 h).
           if (feriadoSet.has(fKey)) {
             estadoDia = 'FERIADO';
             minutosDia = Math.max(minutosDia, programado);
           }
 
+          // ── Cumplimiento de Bloques / Turnos y Minutos de Retraso ──
+          const bloquesDia = (bloquesPorEmpleadoDia.get(emp.id) || {})[diasKey[diaSemana]] || [];
+          const bloquesProgramadosDia = bloquesDia.length;
+          let bloquesCumplidosDia = 0;
+          let retrasoDia = 0;
+
+          if (bloquesProgramadosDia > 0) {
+            // PRENDiente: los bloques cuentan como cumplidos si el día está marcado
+            // (PRENDENTE) o es FERIADO. AUSENTE / SIN TURNO → 0 bloques cumplidos.
+            if (estadoDia === 'PRESENTE' || estadoDia === 'FERIADO') {
+              bloquesCumplidosDia = bloquesProgramadosDia;
+            }
+            // Retraso = primera entrada del día vs. el bloque más temprano programado.
+            // La entrada ANTICIPADA (antes del inicio del primer bloque) NO se penaliza.
+            if (estadoDia === 'PRESENTE') {
+              const entradaActualMin = turnos.map((t) => t.entryMin).filter((v) => !isNaN(v));
+              if (entradaActualMin.length > 0) {
+                const primerInicio = bloquesDia.reduce((min, b) => Math.min(min, b.startMin), Infinity);
+                const primeraEntrada = Math.min(...entradaActualMin);
+                if (isFinite(primerInicio) && primeraEntrada > primerInicio) {
+                  retrasoDia = primeraEntrada - primerInicio;
+                }
+              }
+            }
+          }
+
           const horasDia = Number((minutosDia / 60).toFixed(2));
           totalSegundos += minutosDia * 60;
           acumuladoHoras = Number((acumuladoHoras + horasDia).toFixed(2));
+          bloquesProgramadosTotal += bloquesProgramadosDia;
+          bloquesCumplidosTotal += bloquesCumplidosDia;
+          minutosRetrasoTotal += retrasoDia;
 
           const entradas = turnos.map((t) => t.entrada).filter(Boolean);
           const salidas = turnos.map((t) => t.salida).filter(Boolean);
@@ -2206,6 +2251,8 @@ async function cumplimientoSemanal(req, res) {
             subtotalHoras: horasDia,
             acumuladoHoras,
             turnosCount: turnos.length,
+            bloquesDia: `${bloquesCumplidosDia} / ${bloquesProgramadosDia} bloques`,
+            minutosRetraso: retrasoDia,
           });
         }
         curDate.setDate(curDate.getDate() + 1);
@@ -2229,6 +2276,9 @@ async function cumplimientoSemanal(req, res) {
         horasTrabajadas,
         porcentajeCumplimiento,
         estadoCumplimiento,
+        bloquesCumplidos: bloquesCumplidosTotal,
+        bloquesProgramados: bloquesProgramadosTotal,
+        minutosRetraso: minutosRetrasoTotal,
         desgloseDiario,
       };
     });
