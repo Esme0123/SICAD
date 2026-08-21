@@ -1001,9 +1001,18 @@ async function marcar(req, res) {
     const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
     const toleranciaMin = config?.tiempoTolerancia ?? 10;
 
-    // 3. Buscar horarios del empleado para hoy en el periodo académico actual
+    // 3. Buscar horarios del empleado para hoy: plantilla fija recurrente (diaSemana
+    //    del periodo actual) MÁS horarios excepcionales por fecha específica
+    //    (horas extras aprobadas / reemplazos aceptados) para el día de hoy.
+    const { start: inicioHoy, end: finHoy } = getDayRange(ahora);
     const horarios = await prisma.horarioAsignado.findMany({
-      where: { usuarioId: uid, diaSemana, periodoAcademico: obtenerPeriodoActual() },
+      where: {
+        usuarioId: uid,
+        OR: [
+          { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+          { fechaEspecifica: { gte: inicioHoy, lte: finHoy } },
+        ],
+      },
       include: { periodo: true },
       orderBy: { periodo: { horaInicio: 'asc' } },
     });
@@ -1144,9 +1153,17 @@ async function marcarMovil(req, res) {
         const config = await tx.configuracionSistema.findUnique({ where: { id: 1 } });
         const toleranciaMin = config?.tiempoTolerancia ?? 10;
 
-        // Horarios de hoy en el periodo académico actual
+        // Horarios de hoy: plantilla fija recurrente (diaSemana del periodo actual)
+        // MÁS horarios excepcionales por fecha específica para el día de hoy
+        const { start: inicioHoy, end: finHoy } = getDayRange(ahora);
         const horarios = await tx.horarioAsignado.findMany({
-          where: { usuarioId: usuario.id, diaSemana, periodoAcademico: obtenerPeriodoActual() },
+          where: {
+            usuarioId: usuario.id,
+            OR: [
+              { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+              { fechaEspecifica: { gte: inicioHoy, lte: finHoy } },
+            ],
+          },
           include: { periodo: true },
           orderBy: { periodo: { horaInicio: 'asc' } },
         });

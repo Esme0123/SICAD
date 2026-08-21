@@ -29,7 +29,10 @@ async function getHorarioUsuario(req, res) {
     if (isNaN(usuarioId)) return res.status(400).json({ ok: false, message: 'ID de usuario inválido' });
 
     const { periodoAcademico } = req.query;
-    const where = { usuarioId };
+    // Solo horarios fijos recurrentes (sin fechaEspecifica) para la plantilla semanal.
+    // Los horarios EXCEPCIONALES por fecha (horas extras / reemplazos) no pertenecen
+    // a la plantilla general y se manejan aparte en el cálculo del horario diario.
+    const where = { usuarioId, fechaEspecifica: null };
     if (periodoAcademico) where.periodoAcademico = periodoAcademico;
 
     const horarios = await prisma.horarioAsignado.findMany({
@@ -53,7 +56,7 @@ async function getPeriodosAcademicos(req, res) {
     const usuarioId = req.query.usuarioId ? parseInt(req.query.usuarioId) : undefined;
     const esMovil = req.usuario?.rol === 'EMPLEADO';
 
-    const where = {};
+    const where = { fechaEspecifica: null };
     if (usuarioId && !isNaN(usuarioId)) where.usuarioId = usuarioId;
 
     const result = await prisma.horarioAsignado.findMany({
@@ -270,7 +273,12 @@ async function asignarBatch(req, res) {
 async function getHorariosEmpleados(req, res) {
   try {
     const { periodoAcademico } = req.query;
-    const horariosWhere = periodoAcademico ? { periodoAcademico } : {};
+    // La plantilla semanal general solo incluye horarios fijos recurrentes.
+    // Los horarios EXCEPCIONALES por fecha específica (horas extras / reemplazos)
+    // quedan fuera de la vista de Asignación de Periodos.
+    const horariosWhere = periodoAcademico
+      ? { periodoAcademico, fechaEspecifica: null }
+      : { fechaEspecifica: null };
 
     const empleados = await prisma.usuario.findMany({
       where: { rol: 'EMPLEADO', activo: true },
