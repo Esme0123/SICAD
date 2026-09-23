@@ -9,7 +9,9 @@
     "limpiar:horarios": "node src/scripts/limpiarHorariosExpirados.js",
     "limpiar:horarios:apply": "node src/scripts/limpiarHorariosExpirados.js --apply",
     "corregir:desfase": "node src/scripts/corregirDesfaseHorasExtra.js",
-    "corregir:desfase:apply": "node src/scripts/corregirDesfaseHorasExtra.js --apply"
+    "corregir:desfase:apply": "node src/scripts/corregirDesfaseHorasExtra.js --apply",
+    "reevaluar:permiso": "node src/scripts/reevaluarAsistenciasConPermiso.js",
+    "reevaluar:permiso:apply": "node src/scripts/reevaluarAsistenciasConPermiso.js --apply"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

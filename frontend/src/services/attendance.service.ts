@@ -1,6 +1,6 @@
 import api from "./api";
 
-export type AttendanceStatus = "Puntual" | "Tardanza" | "Ausente";
+export type AttendanceStatus = "Puntual" | "Tardanza" | "Ausente" | "Con Permiso";
 
 export interface AttendanceRecord {
   id: string;
@@ -14,6 +14,7 @@ export interface AttendanceRecord {
   horaEntrada: string;
   horaSalida: string | null;
   status: AttendanceStatus;
+  tienePermiso?: boolean;
   academicPeriod?: string;
   periodoAcademico?: string;
 }
@@ -50,6 +51,7 @@ interface AsistenciaBackend {
   observacion?: string | null;
   periodo?: string | null;
   estado?: string | null;
+  tienePermiso?: boolean;
   usuario?: { id: number; nombre: string; codigo?: string; ci?: string };
 }
 
@@ -68,7 +70,8 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       ? new Date(a.horaSalida).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" })
       : null;
 
-    const status: AttendanceStatus = a.estado === "TARDANZA" ? "Tardanza" : "Puntual";
+    const conPermiso = a.estado === "CON PERMISO";
+    const status: AttendanceStatus = a.estado === "TARDANZA" ? "Tardanza" : (conPermiso ? "Con Permiso" : "Puntual");
 
     const dateStr = entrada.toLocaleDateString("es-BO", {
       day: "2-digit", month: "2-digit", year: "numeric",
@@ -86,6 +89,7 @@ export async function getAttendanceHistory(filters?: AttendanceFilters): Promise
       horaEntrada: entradaStr,
       horaSalida: salidaStr,
       status,
+      tienePermiso: a.tienePermiso === true || conPermiso,
     };
   });
 }

@@ -22,12 +22,13 @@ interface Marcacion {
   fechaLegible: string;
   horaEntrada: string | null;
   horaSalida: string | null;
-  estado: "Puntual" | "Tardanza" | "Justificado" | "Ausente" | "FERIADO" | "Salida" | "Fuera de horario";
+  estado: "Puntual" | "Tardanza" | "Con Permiso" | "Justificado" | "Ausente" | "FERIADO" | "Salida" | "Fuera de horario";
   periodo: string | null;
   periodoHorario: string | null;
   observacion: string | null;
   minutosRetraso: number | null;
   salidaOmitida: boolean;
+  tienePermiso?: boolean;
 }
 
 interface HistorialResponse {
@@ -51,6 +52,7 @@ const filtrosLabel: Record<Filtro, string> = {
 const estadoConfig: Record<string, { icon: React.ElementType; color: string; bg: string; border: string }> = {
   Puntual: { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
   Tardanza: { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/20", border: "border-amber-500/30" },
+  "Con Permiso": { icon: FileText, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
   Justificado: { icon: FileText, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
   Ausente: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" },
   FERIADO: { icon: CalendarDays, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30" },
@@ -218,7 +220,7 @@ export const MobileHistorial: React.FC = () => {
       if (m.estado === "FERIADO") { counts.feriado++; return; }
       const esTardanzaReal = m.estado === "Tardanza" && (m.minutosRetraso ?? 0) > TOLERANCIA_MINUTOS;
       const estadoEfectivo = esTardanzaReal ? "Tardanza" : (m.estado === "Tardanza" ? "Puntual" : m.estado);
-      if (estadoEfectivo === "Puntual") counts.puntual++;
+      if (estadoEfectivo === "Puntual" || estadoEfectivo === "Con Permiso") counts.puntual++;
       else if (estadoEfectivo === "Tardanza") counts.tardanza++;
       else if (estadoEfectivo === "Justificado") counts.justificado++;
       else if (estadoEfectivo === "Ausente") counts.ausente++;
@@ -347,6 +349,9 @@ export const MobileHistorial: React.FC = () => {
             if (txt === "Puntual") {
               data_.cell.styles.textColor = [22, 163, 74];
               data_.cell.styles.fontStyle = "bold";
+            } else if (txt === "Con Permiso") {
+              data_.cell.styles.textColor = [59, 130, 246];
+              data_.cell.styles.fontStyle = "bold";
             } else if (txt === "Tardanza") {
               data_.cell.styles.textColor = [245, 158, 11];
               data_.cell.styles.fontStyle = "bold";
@@ -440,6 +445,8 @@ export const MobileHistorial: React.FC = () => {
           cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
           if (j === 3 && v === "Puntual") {
             cell.font = { ...cell.font, bold: true, color: { argb: "FF16A34A" } };
+          } else if (j === 3 && v === "Con Permiso") {
+            cell.font = { ...cell.font, bold: true, color: { argb: "FF3B82F6" } };
           } else if (j === 3 && v === "Tardanza") {
             cell.font = { ...cell.font, bold: true, color: { argb: "FFF59E0B" } };
           }
@@ -678,9 +685,16 @@ export const MobileHistorial: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ml-2 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
-                    <Icon size={10} />
-                    <span>{estadoLabel}</span>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    {m.tienePermiso && (
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold border border-blue-500/40 text-blue-400 bg-blue-500/10">
+                        Permiso aprobado
+                      </span>
+                    )}
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
+                      <Icon size={10} />
+                      <span>{estadoLabel}</span>
+                    </div>
                   </div>
                 </div>
 

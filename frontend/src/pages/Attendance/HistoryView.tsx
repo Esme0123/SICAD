@@ -459,12 +459,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
     return filteredRows.slice(start, start + PAGE_SIZE);
   }, [filteredRows, currentPage]);
 
-  const renderStatusBadge = (status: string) => {
+  const renderStatusBadge = (status: string, tienePermiso?: boolean) => {
     let style = { bg: "", text: "", dot: "" };
     if (status === "Presente" || status === "Puntual") {
       style = dark
         ? { bg: "bg-green-500/10", text: "text-green-400", dot: "bg-green-400" }
         : { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
+    } else if (status === "Con Permiso") {
+      style = dark
+        ? { bg: "bg-blue-500/15", text: "text-blue-400", dot: "bg-blue-400" }
+        : { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" };
     } else if (status === "Atraso" || status === "Tardanza") {
       style = dark
         ? { bg: "bg-yellow-500/15", text: "text-yellow-400", dot: "bg-yellow-400" }
@@ -479,9 +483,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         : { bg: "bg-primary/10", text: "text-primary", dot: "bg-primary" };
     }
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
-        {status}
+      <span className="inline-flex items-center gap-1.5">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
+          {status}
+        </span>
+        {tienePermiso && status !== "Con Permiso" && (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${dark ? "border-blue-500/40 text-blue-400 bg-blue-500/10" : "border-blue-300 text-blue-600 bg-blue-50"}`}>
+            Permiso
+          </span>
+        )}
       </span>
     );
   };
@@ -751,7 +762,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
                     <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-white/60" : "text-slate-500"}`}>{r.period}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${dark ? "text-green-400" : "text-green-700"}`}>{r.horaEntrada || "—"}</td>
                     <td className={`px-5 py-3.5 text-sm font-mono ${dark ? "text-red-400" : "text-red-600"}`}>{r.horaSalida || "—"}</td>
-                    <td className="px-5 py-3.5">{renderStatusBadge(r.status)}</td>
+                    <td className="px-5 py-3.5">{renderStatusBadge(r.status, r.tienePermiso)}</td>
                     {isAdmin && (
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1">
