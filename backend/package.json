@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "limpiar:horarios": "node src/scripts/limpiarHorariosExpirados.js",
-    "limpiar:horarios:apply": "node src/scripts/limpiarHorariosExpirados.js --apply"
+    "limpiar:horarios:apply": "node src/scripts/limpiarHorariosExpirados.js --apply",
+    "corregir:desfase": "node src/scripts/corregirDesfaseHorasExtra.js",
+    "corregir:desfase:apply": "node src/scripts/corregirDesfaseHorasExtra.js --apply"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

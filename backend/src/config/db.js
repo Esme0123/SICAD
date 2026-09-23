@@ -2,6 +2,10 @@
 // Singleton de PrismaClient con driver adapter pg — requerido en Prisma 7.
 // El engine type "client" ya no usa el motor binario; necesita un adapter explícito.
 
+// TZ = UTC: hace determinística la escritura/lectura de columnas DATE. Debe
+// fijarse ANTES de que Prisma inicialice su serializador de fechas.
+process.env.TZ = 'UTC';
+
 require('dotenv').config();
 const { Pool } = require('pg');
 const { PrismaClient } = require('../../generated/prisma');

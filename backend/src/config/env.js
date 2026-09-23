@@ -2,6 +2,12 @@
 // Centraliza y valida todas las variables de entorno requeridas.
 // Falla rápido en inicio si falta alguna variable crítica.
 
+// Zona horaria del servidor fijada a UTC: las columnas DATE de PostgreSQL
+// (@db.Date) se leen/guardan como medianoche UTC. Fijar UTC hace determinística
+// la serialización de fechas en cualquier entorno (dev o prod) y evita que los
+// getters locales desplacen fechas al día anterior en servidores UTC-4.
+process.env.TZ = 'UTC';
+
 require('dotenv').config();
 
 const required = ['DATABASE_URL', 'QR_SECRET_KEY', 'JWT_SECRET', 'SENDGRID_API_KEY'];

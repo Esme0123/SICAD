@@ -99,8 +99,12 @@ export const Employees: React.FC<EmployeesProps> = ({ dark }) => {
 
   const getDynamicStatus = (emp: Employee): string => {
     if (emp.status !== "Activo") return emp.status;
+    const pad = (n: number) => String(n).padStart(2, "0");
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    // Fecha de hoy local del dispositivo (America/La_Paz). NUNCA usar
+    // toISOString().split("T")[0]: en horas 00:00–03:59 devuelve el día
+    // siguiente y rompería la comparación con p.fecha.
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
     const currentMinutes = today.getHours() * 60 + today.getMinutes();
     const hasActivePermiso = permisos.some(p => {
       if (p.estado !== "APROBADO") return false;

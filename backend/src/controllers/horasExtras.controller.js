@@ -11,31 +11,27 @@
 const prisma = require('../config/db');
 const { crearNotificacion } = require('./notificacion.controller');
 const { obtenerOCrearGestionPorNombre } = require('../utils/periodo.utils');
+const { parseFechaPura, fechaPuraStr, rangoFechaPura } = require('../utils/fechaPura.utils');
 
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 const ESTADOS = ['PENDIENTE', 'APROBADO', 'RECHAZADO'];
 
+// NOTA: las columnas DATE (@db.Date) se guardan/leen como medianoche UTC.
+// Por eso las funciones siguientes usan medianoche UTC y getters UTC; usar
+// getters locales desplazaría la fecha al día anterior en servidores UTC-4.
+
 function parseLocalDate(isoStr) {
-  const [y, m, d] = isoStr.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return parseFechaPura(isoStr);
 }
 
-/** Convierte un Date a "YYYY-MM-DD" con getters LOCALES (evita desfase UTC). */
+/** Convierte un Date leído de @db.Date a "YYYY-MM-DD". */
 function getLocalDateString(d) {
-  const date = new Date(d);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
+  return fechaPuraStr(d);
 }
 
-/** Rango [00:00:00.000, 23:59:59.999] local de una fecha para consultas @db.Date. */
+/** Rango [00:00:00.000Z, 23:59:59.999Z] de una fecha para consultas @db.Date. */
 function rangoDelDia(isoStr) {
-  const [y, m, d] = isoStr.split('-').map(Number);
-  return {
-    start: new Date(y, m - 1, d, 0, 0, 0, 0),
-    end: new Date(y, m - 1, d, 23, 59, 59, 999),
-  };
+  return rangoFechaPura(isoStr);
 }
 
 /**

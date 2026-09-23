@@ -3,6 +3,7 @@
 
 const prisma = require('../config/db');
 const { crearNotificacion } = require('./notificacion.controller');
+const { parseFechaPura, rangoFechaPura } = require('../utils/fechaPura.utils');
 
 // GET /api/permisos
 async function getAll(req, res) {
@@ -93,8 +94,12 @@ async function create(req, res) {
       });
     }
 
-    // @db.Date en PostgreSQL: solo almacena fecha, sin timezone
-    const fechaLocal = new Date(`${fecha}T00:00:00`);
+    // @db.Date en PostgreSQL: solo almacena fecha, sin timezone.
+    // Se guarda como medianoche UTC para que la fecha calendario sea exacta.
+    const fechaLocal = parseFechaPura(fecha);
+    if (!fechaLocal) {
+      return res.status(400).json({ ok: false, message: 'Fecha inválida. Debe ser YYYY-MM-DD' });
+    }
 
     // Validar que no exista permiso duplicado (mismo día y periodos, estado PENDIENTE o APROBADO)
     const permisoExistente = await prisma.permiso.findFirst({
@@ -158,7 +163,7 @@ async function create(req, res) {
     const empleado = permiso?.usuario;
     crearNotificacion({
       titulo: 'Nueva solicitud de permiso',
-      mensaje: `${empleado?.nombre || 'Un empleado'} solicitó un permiso de tipo "${permiso?.tipoPermiso?.nombre || tipoPermisoNombre}" para el ${fechaLocal.toLocaleDateString('es-BO')}.`,
+      mensaje: `${empleado?.nombre || 'Un empleado'} solicitó un permiso de tipo "${permiso?.tipoPermiso?.nombre || tipoPermisoNombre}" para el ${fecha}.`,
       permisoId: permiso?.id,
       paraRol: 'ADMIN',
     });
@@ -241,28 +246,28 @@ async function misPermisos(req, res) {
 
     const { fechaInicio, fechaFin } = req.query;
 
-    function fechaLocalMedioDia(isoStr) {
-      const [y, m, d] = isoStr.split('-').map(Number);
-      return new Date(y, m - 1, d, 12, 0, 0);
-    }
-
+    // Los rangos para columnas DATE (@db.Date) van de 00:00:00.000Z a
+    // 23:59:59.999Z (medianoche UTC). No usar horas locales/mediodía.
     if (fechaInicio && fechaFin) {
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
       if (!reDate.test(fechaInicio) || !reDate.test(fechaFin)) {
         return res.json({ ok: true, data: [] });
       }
-      const startDate = fechaLocalMedioDia(fechaInicio);
-      const endDate   = fechaLocalMedioDia(fechaFin);
-      fechaFilter = { gte: startDate, lte: endDate };
+      const rInit = rangoFechaPura(fechaInicio);
+      const rFin = rangoFechaPura(fechaFin);
+      if (!rInit || !rFin) {
+        return res.json({ ok: true, data: [] });
+      }
+      fechaFilter = { gte: rInit.start, lte: rFin.end };
     } else {
       const anio = parseInt(req.query.anio) || ahoraBolivia.getFullYear();
       const mes  = parseInt(req.query.mes)  || (ahoraBolivia.getMonth() + 1);
       if (mes < 1 || mes > 12) {
         return res.json({ ok: true, data: [] });
       }
-      const ultimoDia = new Date(anio, mes, 0, 12, 0, 0).getDate();
-      const startDate = new Date(anio, mes - 1, 1, 12, 0, 0);
-      const endDate   = new Date(anio, mes - 1, ultimoDia, 12, 0, 0);
+      const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+      const startDate = new Date(Date.UTC(anio, mes - 1, 1, 0, 0, 0, 0));
+      const endDate   = new Date(Date.UTC(anio, mes - 1, ultimoDia, 23, 59, 59, 999));
       fechaFilter = { gte: startDate, lte: endDate };
     }
 

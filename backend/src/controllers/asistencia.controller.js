@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
 const { verifyQRToken } = require('../utils/qrGenerator');
 const { obtenerPeriodoActual, obtenerOCrearGestionActiva } = require('../utils/periodo.utils');
+const { parseFechaPura, rangoFechaPura, fechaPuraStr } = require('../utils/fechaPura.utils');
 
 const QR_JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
 
@@ -73,7 +74,7 @@ function getLocalDateString(d) {
 
 function dateOnly(date = new Date()) {
   const str = toBoliviaDateStr(date);
-  return new Date(`${str}T00:00:00`);
+  return parseFechaPura(str);
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -566,8 +567,12 @@ async function getAll(req, res) {
     if (usuarioId) where.usuarioId = parseInt(usuarioId);
 
     if (fecha) {
-      const { start, end } = getDayRange(new Date(fecha));
-      where.fecha = { gte: start, lte: end };
+      // `fecha` es una fecha pura (YYYY-MM-DD). El rango correcto para la
+      // columna @db.Date es medianoche-a-medianoche UTC de ESE día; NO pasar
+      // por new Date(fecha) (medianoche UTC → -4h en Bolivia = día anterior)
+      // ni por getDayRange que interpreta el instante en hora Bolivia.
+      const r = rangoFechaPura(fecha);
+      if (r) where.fecha = { gte: r.start, lte: r.end };
     }
 
     const asistencias = await prisma.asistencia.findMany({
@@ -1639,8 +1644,7 @@ async function miHistorial(req, res) {
     // ── Indexar asistencias por fecha ──
     const asistenciaPorFecha = new Map();
     for (const a of asistencias) {
-      const fd = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-      const fechaStr = fd.toISOString().split('T')[0];
+      const fechaStr = fechaPuraStr(a.fecha); // @db.Date → getters UTC
       if (!asistenciaPorFecha.has(fechaStr)) asistenciaPorFecha.set(fechaStr, []);
       asistenciaPorFecha.get(fechaStr).push(a);
     }
@@ -1709,8 +1713,7 @@ async function miHistorial(req, res) {
     const data = [];
 
     const pushMarcacionFueraHorario = (a) => {
-      const fd2 = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-      const fStr2 = fd2.toISOString().split('T')[0];
+      const fStr2 = fechaPuraStr(a.fecha); // @db.Date → getters UTC
       let estado = 'Puntual';
       let minutosRetraso = null;
       if (a.horaEntrada) {
@@ -1742,7 +1745,9 @@ async function miHistorial(req, res) {
     };
 
     for (const fecha of fechasEnRango) {
-      const fechaStr = fecha.toISOString().split('T')[0];
+      // `fecha` es mediodía LOCAL del día calendario: usar getters locales para
+      // obtener el "YYYY-MM-DD" correcto (getLocalDateString), nunca toISOString.
+      const fechaStr = getLocalDateString(fecha);
       if (fechaStr > hoyStr) continue;
 
       const diaNum = new Date(fechaStr + 'T12:00:00Z').getUTCDay();
