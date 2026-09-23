@@ -975,6 +975,204 @@ async function editarAdmin(req, res) {
 }
 
 /**
+ * POST /api/asistencia/guardar-admin
+ * Alta/edición manual de marcaciones para días ausentes (días no laborales no
+ * marcados, fallos de escaneo) — exclusivo de ADMIN.
+ * Body: {
+ *   empleadoId: number,
+ *   fecha: "YYYY-MM-DD",
+ *   periodoId?: number,        // id del catálogo Periodo (bloque a asignar)
+ *   horaEntrada: "HH:mm"|null, // obligatoria al crear (columna NOT NULL)
+ *   horaSalida:  "HH:mm"|null,
+ *   motivo: string             // obligatorio
+ * }
+ *
+ * Si ya existe una marcación para (empleadoId, fecha) la ACTUALIZA recalculando
+ * el estado; si no existe, la CREA con la misma trazabilidad de auditoría
+ * (editadoPorAdminId, fechaEdicion, motivoEdicion).
+ */
+async function guardarMarcacionAdmin(req, res) {
+  try {
+    const { empleadoId, fecha, periodoId, horaEntrada, horaSalida, motivo } = req.body ?? {};
+
+    const empleado = parseInt(empleadoId);
+    if (isNaN(empleado)) {
+      return res.status(400).json({ ok: false, message: 'empleadoId es requerido' });
+    }
+
+    const fechaDate = parseFechaPura(fecha);
+    if (!fechaDate) {
+      return res.status(400).json({ ok: false, message: 'fecha debe tener formato YYYY-MM-DD' });
+    }
+
+    const motivoTexto = String(motivo ?? '').trim();
+    if (!motivoTexto) {
+      return res.status(400).json({ ok: false, message: 'motivo es requerido para registrar la marcación' });
+    }
+
+    const reTime = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const entradaLimpiada = horaEntrada === '' || horaEntrada === undefined || horaEntrada === null
+      ? null
+      : String(horaEntrada).trim();
+    const salidaLimpiada = horaSalida === '' || horaSalida === undefined || horaSalida === null
+      ? null
+      : String(horaSalida).trim();
+
+    if (entradaLimpiada !== null && !reTime.test(entradaLimpiada)) {
+      return res.status(400).json({ ok: false, message: 'horaEntrada debe tener formato HH:mm' });
+    }
+    if (salidaLimpiada !== null && !reTime.test(salidaLimpiada)) {
+      return res.status(400).json({ ok: false, message: 'horaSalida debe tener formato HH:mm' });
+    }
+
+    const empleadoDb = await prisma.usuario.findUnique({
+      where: { id: empleado },
+      select: { id: true, nombre: true, codigo: true, ci: true },
+    });
+    if (!empleadoDb) {
+      return res.status(404).json({ ok: false, message: 'Empleado no encontrado' });
+    }
+
+    // Bloque asignado → etiqueta "HH:mm–HH:mm" (misma convención de extraerHoraInicio)
+    let etiquetaPeriodo = null;
+    if (periodoId) {
+      const periodoDb = await prisma.periodo.findUnique({ where: { id: parseInt(periodoId) } });
+      if (periodoDb?.horaInicio && periodoDb?.horaFin) {
+        etiquetaPeriodo = `${periodoDb.horaInicio}–${periodoDb.horaFin}`;
+      }
+    } else if (entradaLimpiada && salidaLimpiada) {
+      etiquetaPeriodo = `${entradaLimpiada}–${salidaLimpiada}`;
+    }
+
+    // Buscar marcaciones existentes del día: casar por bloque, por unicidad o por
+    // el bloque horario más cercano a la hora de entrada solicitada.
+    const existentes = await prisma.asistencia.findMany({
+      where: { usuarioId: empleado, fecha: fechaDate },
+      orderBy: { horaEntrada: 'asc' },
+    });
+
+    let target = existentes[0] ?? null;
+    if (existentes.length > 0) {
+      if (etiquetaPeriodo) {
+        target = existentes.find(a => a.periodo === etiquetaPeriodo) || null;
+      }
+      if (!target && existentes.length === 1) {
+        target = existentes[0];
+      }
+      if (!target && existentes.length > 1) {
+        const minEntrada = entradaLimpiada !== null ? timeToMinutes(entradaLimpiada) : null;
+        target = existentes.reduce((mejor, a) => {
+          const minA = timeToMinutes(toBoliviaTimeStr(a.horaEntrada));
+          if (mejor === null) return a;
+          const diffA = minEntrada === null ? 0 : Math.abs(minA - minEntrada);
+          const diffMejor = minEntrada === null ? 0 : Math.abs(timeToMinutes(toBoliviaTimeStr(mejor.horaEntrada)) - minEntrada);
+          return diffA < diffMejor ? a : mejor;
+        }, null);
+      }
+    }
+
+    const esCreacion = !target;
+    if (esCreacion && entradaLimpiada === null) {
+      return res.status(400).json({ ok: false, message: 'horaEntrada es requerida al crear una marcación' });
+    }
+
+    // Fecha definitiva de entrada/salida: las aportadas o las del registro previo
+    const nuevaEntradaStr = entradaLimpiada ?? (target ? toBoliviaTimeStr(target.horaEntrada) : null);
+
+    const data = {};
+    data.horaEntrada = entradaLimpiada !== null
+      ? construirFechaHoraBolivia(fechaDate, entradaLimpiada)
+      : (target ? target.horaEntrada : null);
+    data.horaSalida = salidaLimpiada !== null
+      ? construirFechaHoraBolivia(fechaDate, salidaLimpiada)
+      : (target ? target.horaSalida : null);
+    data.periodo = etiquetaPeriodo ?? (target ? target.periodo : null);
+
+    // Recalcular estado contra el inicio del periodo, considerando permiso APROBADO
+    // o reemplazo ACEPTADO (misma lógica que editarAdmin).
+    const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
+    const tolerancia = target?.minutosTolerancia ?? config?.tiempoTolerancia ?? 20;
+    const horaInicioStr = extraerHoraInicio(data.periodo);
+
+    let estado = 'PUNTUAL';
+    let minutosRetraso = null;
+    if (nuevaEntradaStr) {
+      const [permisos, reemplazos] = await Promise.all([
+        prisma.permiso.findMany({
+          where: { usuarioId: empleado, estado: 'APROBADO', fecha: dateOnly(fechaDate) },
+          include: { periodos: { include: { periodo: { select: { horaInicio: true, horaFin: true } } } } },
+        }),
+        prisma.solicitudReemplazo.findMany({
+          where: { solicitanteId: empleado, estado: 'ACEPTADO', fecha: dateOnly(fechaDate) },
+        }),
+      ]);
+
+      const ajuste = horaInicioStr
+        ? obtenerEntradaEsperadaAjustada(permisos, reemplazos, horaInicioStr)
+        : null;
+      const esperadaMin = ajuste ? ajuste.esperadaMin : null;
+
+      if (esperadaMin !== null) {
+        const retrasoMin = Math.max(0, timeToMinutes(nuevaEntradaStr) - esperadaMin);
+        if (retrasoMin > tolerancia) {
+          estado = 'TARDANZA';
+          minutosRetraso = retrasoMin;
+        } else {
+          estado = ajuste.porPermiso ? 'CON PERMISO' : 'PUNTUAL';
+        }
+      } else {
+        estado = calcularEstadoAsistencia(nuevaEntradaStr, horaInicioStr, tolerancia);
+        if (estado === 'TARDANZA' && horaInicioStr) {
+          minutosRetraso = timeToMinutes(nuevaEntradaStr) - timeToMinutes(horaInicioStr);
+        }
+      }
+    }
+
+    data.observacion = minutosRetraso
+      ? `Llegó ${minutosRetraso} min tarde (tolerancia: ${tolerancia} min)`
+      : null;
+    data.minutosTolerancia = tolerancia;
+    data.editadoPorAdminId = req.usuario?.id ?? null;
+    data.fechaEdicion = new Date();
+    data.motivoEdicion = motivoTexto;
+
+    const includeUsuario = { include: { usuario: { select: { id: true, nombre: true, codigo: true, ci: true } } } };
+
+    const resultado = esCreacion
+      ? await prisma.asistencia.create({
+          data: {
+            usuarioId: empleado,
+            fecha: fechaDate,
+            ...data,
+            salidaOmitida: false,
+          },
+          ...includeUsuario,
+        })
+      : await prisma.asistencia.update({
+          where: { id: target.id },
+          data: { ...data, updatedAt: new Date() },
+          ...includeUsuario,
+        });
+
+    res.json({
+      ok: true,
+      message: esCreacion ? 'Marcación creada correctamente' : 'Marcación actualizada correctamente',
+      data: {
+        ...resultado,
+        estado,
+        minutosRetraso,
+        creado: esCreacion,
+        horaEntradaStr: resultado.horaEntrada ? toBoliviaTimeStr(resultado.horaEntrada) : null,
+        horaSalidaStr: resultado.horaSalida ? toBoliviaTimeStr(resultado.horaSalida) : null,
+      },
+    });
+  } catch (error) {
+    console.error('[asistencia.guardarMarcacionAdmin]', error);
+    res.status(500).json({ ok: false, message: `Error al registrar la marcación: ${error.message}` });
+  }
+}
+
+/**
  * POST /api/asistencias/marcar
  * Body: { token: string }
  * Auth: req.usuario.id (viene del authMiddleware)
@@ -2372,5 +2570,5 @@ async function cumplimientoSemanal(req, res) {
   }
 }
 
-module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, editarAdmin, getEstadoHoy, miHistorial, cumplimientoSemanal, eliminar };
+module.exports = { registrar, marcar, marcarMovil, getQrDashboard, getAll, getById, cerrarTurno, editarAdmin, guardarMarcacionAdmin, getEstadoHoy, miHistorial, cumplimientoSemanal, eliminar };
 

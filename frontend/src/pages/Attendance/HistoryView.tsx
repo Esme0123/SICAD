@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText, Pencil, Trash2, X } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Filter, Search, Download, ChevronDown, File, FileSpreadsheet, FileText, Pencil, Trash2, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/common/Avatar";
 import { card } from "@/utils/card";
 import { COLORS } from "@/theme/colors";
-import { getAttendanceHistory, editarAsistenciaAdmin, eliminarAsistenciaAdmin, AttendanceRecord } from "@/services/attendance.service";
+import { getAttendanceHistory, editarAsistenciaAdmin, eliminarAsistenciaAdmin, guardarMarcacionAdmin, AttendanceRecord } from "@/services/attendance.service";
 import { getPeriods, Periodo } from "@/services/schedules.service";
+import { getEmpleadosReemplazo, EmpleadoRef } from "@/services/reemplazos.service";
 import { exportToExcel, exportToPDF } from "@/utils/export.utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -70,19 +71,56 @@ function normalizeToHHmm(v: string | null | undefined): string {
   return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
 }
 
+/** Fecha de hoy en La Paz como "YYYY-MM-DD" (sin importar la zona del navegador). */
+function hoyLaPaz(): string {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/La_Paz" }));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export interface GuardarModalPayload {
+  horaEntrada: string;
+  horaSalida: string;
+  motivo: string;
+  empleadoId?: number;
+  fecha?: string; // "YYYY-MM-DD"
+  periodoId?: number;
+}
+
 interface ModalEditarAsistenciaProps {
   dark: boolean;
-  record: AttendanceRecord;
+  record: AttendanceRecord | null;
+  esCreacion: boolean;
   saving: boolean;
+  empleados: EmpleadoRef[];
+  periodOptions: Periodo[];
+  defaultEmpleadoId?: number;
+  defaultFecha?: string; // "YYYY-MM-DD"
+  defaultPeriodoId?: number;
   onClose: () => void;
-  onSave: (horaEntrada: string, horaSalida: string, motivo: string) => void;
+  onSave: (payload: GuardarModalPayload) => void;
   onDelete: () => void;
 }
 
-function ModalEditarAsistencia({ dark, record, saving, onClose, onSave, onDelete }: ModalEditarAsistenciaProps) {
-  const [horaEntrada, setHoraEntrada] = useState(normalizeToHHmm(record.horaEntrada));
-  const [horaSalida, setHoraSalida] = useState(normalizeToHHmm(record.horaSalida));
+function ModalEditarAsistencia({
+  dark,
+  record,
+  esCreacion,
+  saving,
+  empleados,
+  periodOptions,
+  defaultEmpleadoId,
+  defaultFecha,
+  defaultPeriodoId,
+  onClose,
+  onSave,
+  onDelete,
+}: ModalEditarAsistenciaProps) {
+  const [horaEntrada, setHoraEntrada] = useState(normalizeToHHmm(record?.horaEntrada ?? ""));
+  const [horaSalida, setHoraSalida] = useState(normalizeToHHmm(record?.horaSalida ?? ""));
   const [motivo, setMotivo] = useState("");
+  const [empleadoId, setEmpleadoId] = useState<number | "">(esCreacion ? (defaultEmpleadoId ?? "") : "");
+  const [fecha, setFecha] = useState<string>(esCreacion ? (defaultFecha ?? "") : "");
+  const [periodoId, setPeriodoId] = useState<number | "">(esCreacion ? (defaultPeriodoId ?? "") : "");
 
   const fieldCls = `w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all ${dark
     ? "bg-white/5 border-white/10 text-white focus:border-primary/60"
@@ -97,33 +135,86 @@ function ModalEditarAsistencia({ dark, record, saving, onClose, onSave, onDelete
     >
       <div className={`w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${dark ? "bg-[#1E293B] border border-white/10" : "bg-white"}`}>
         <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
-          <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>Editar Marcación</h3>
+          <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-slate-800"}`}>
+            {esCreacion ? "Añadir Marcación" : "Editar Marcación"}
+          </h3>
           <button onClick={onClose} disabled={saving} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${dark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"}`}>
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
-          <div className={`flex items-center gap-3 p-3 rounded-xl ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-100"}`}>
-            <Avatar name={record.name} size={38} bg={COLORS.primary} />
-            <div className="min-w-0">
-              <p className={`text-sm font-semibold truncate ${dark ? "text-white" : "text-slate-800"}`}>{record.name}</p>
-              <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
-                CI: {record.ci || "—"} · {record.code}
-              </p>
-            </div>
-          </div>
+          {esCreacion ? (
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>Empleado</label>
+                <select
+                  value={empleadoId}
+                  onChange={(e) => setEmpleadoId(e.target.value ? Number(e.target.value) : "")}
+                  className={fieldCls}
+                >
+                  <option value="">Seleccionar empleado...</option>
+                  {empleados.map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombre} {emp.codigo ? `· ${emp.codigo}` : ""}{emp.ci ? ` · ${emp.ci}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className={`grid grid-cols-2 gap-3 ${dark ? "text-white/60" : "text-slate-600"}`}>
-            <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
-              <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Fecha</p>
-              <p className="text-sm font-semibold mt-1">{record.date}</p>
+              <div>
+                <label className={labelCls}>Fecha</label>
+                <input
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  className={fieldCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Periodo / Bloque</label>
+                <select
+                  value={periodoId}
+                  onChange={(e) => setPeriodoId(e.target.value ? Number(e.target.value) : "")}
+                  className={fieldCls}
+                >
+                  <option value="">Sin periodo específico</option>
+                  {periodOptions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.horaInicio} – {p.horaFin}
+                    </option>
+                  ))}
+                </select>
+                <p className={`text-[11px] mt-1 ${dark ? "text-white/35" : "text-slate-400"}`}>
+                  El bloque determina la hora esperada para el cálculo de tardanza.
+                </p>
+              </div>
             </div>
-            <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
-              <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Periodo</p>
-              <p className="text-sm font-semibold mt-1">{record.period || "—"}</p>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className={`flex items-center gap-3 p-3 rounded-xl ${dark ? "bg-white/5 border border-white/10" : "bg-slate-50 border border-slate-100"}`}>
+                <Avatar name={record?.name ?? ""} size={38} bg={COLORS.primary} />
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold truncate ${dark ? "text-white" : "text-slate-800"}`}>{record?.name}</p>
+                  <p className={`text-xs mt-0.5 ${dark ? "text-white/50" : "text-slate-500"}`}>
+                    CI: {record?.ci || "—"} · {record?.code}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`grid grid-cols-2 gap-3 ${dark ? "text-white/60" : "text-slate-600"}`}>
+                <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Fecha</p>
+                  <p className="text-sm font-semibold mt-1">{record?.date}</p>
+                </div>
+                <div className={`p-3 rounded-xl text-center ${dark ? "bg-white/5" : "bg-slate-50"}`}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold opacity-60">Periodo</p>
+                  <p className="text-sm font-semibold mt-1">{record?.period || "—"}</p>
+                </div>
+              </div>
+            </>
+          )}
 
           <div>
             <label className={labelCls}>Hora de Entrada</label>
@@ -144,30 +235,36 @@ function ModalEditarAsistencia({ dark, record, saving, onClose, onSave, onDelete
               className={fieldCls}
             />
             <p className={`text-[11px] mt-1 ${dark ? "text-white/35" : "text-slate-400"}`}>
-              Si la dejás vacía se eliminará la marcación de salida.
+              {esCreacion
+                ? "Opcional: si el día fue trabajado sin salida registrada."
+                : "Si la dejás vacía se eliminará la marcación de salida."}
             </p>
           </div>
 
           <div>
-            <label className={labelCls}>Motivo de la Corrección</label>
+            <label className={labelCls}>{esCreacion ? "Motivo del Registro" : "Motivo de la Corrección"}</label>
             <textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               rows={3}
-              placeholder="Describí la contingencia o justificación de la corrección..."
+              placeholder={esCreacion
+                ? "Describí por qué se registra esta marcación (ausente, fallo de escaneo...)..."
+                : "Describí la contingencia o justificación de la corrección..."}
               className={`${fieldCls} resize-none`}
             />
           </div>
         </div>
 
         <div className={`flex items-center justify-end gap-2 px-6 py-4 border-t flex-shrink-0 ${dark ? "border-white/10" : "border-slate-100"}`}>
-          <button
-            onClick={onDelete}
-            disabled={saving}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-red-600 border border-red-500/40 transition-colors cursor-pointer disabled:opacity-50 hover:bg-red-500/10"
-          >
-            <span className="inline-flex items-center gap-1.5"><Trash2 size={15} /> Eliminar Marcación</span>
-          </button>
+          {!esCreacion && (
+            <button
+              onClick={onDelete}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-red-600 border border-red-500/40 transition-colors cursor-pointer disabled:opacity-50 hover:bg-red-500/10"
+            >
+              <span className="inline-flex items-center gap-1.5"><Trash2 size={15} /> Eliminar Marcación</span>
+            </button>
+          )}
           <button
             onClick={onClose}
             disabled={saving}
@@ -176,12 +273,23 @@ function ModalEditarAsistencia({ dark, record, saving, onClose, onSave, onDelete
             Cancelar
           </button>
           <button
-            onClick={() => onSave(horaEntrada, horaSalida, motivo)}
+            onClick={() => onSave({
+              horaEntrada,
+              horaSalida,
+              motivo,
+              ...(esCreacion
+                ? {
+                    empleadoId: empleadoId === "" ? undefined : empleadoId,
+                    fecha,
+                    periodoId: periodoId === "" ? undefined : periodoId,
+                  }
+                : {}),
+            })}
             disabled={saving}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: COLORS.primary }}
           >
-            {saving ? "Guardando..." : "Guardar Cambios"}
+            {saving ? "Guardando..." : esCreacion ? "Guardar Marcación" : "Guardar Cambios"}
           </button>
         </div>
       </div>
@@ -274,6 +382,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleteRecord, setDeleteRecord] = useState<AttendanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [empleados, setEmpleados] = useState<EmpleadoRef[]>([]);
+  const [createDefaults, setCreateDefaults] = useState<{ empleadoId?: number; fecha: string; periodoId?: number }>({ fecha: hoyLaPaz() });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -296,6 +407,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   }, [loadData]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+    getEmpleadosReemplazo().then(setEmpleados).catch(() => setEmpleados([]));
+  }, [isAdmin]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
@@ -313,6 +429,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
   const uniqueEmployees = useMemo(
     () => Array.from(new Map(rows.map(item => [item.code, item])).values()),
     [rows]
+  );
+
+  const opcionesEmpleados = useMemo<EmpleadoRef[]>(
+    () => (empleados.length > 0
+      ? empleados
+      : uniqueEmployees
+          .map(u => ({ id: Number(u.employeeId) || 0, nombre: u.name, codigo: u.code, ci: u.ci }))
+          .filter(e => e.id > 0)),
+    [empleados, uniqueEmployees]
   );
 
   const suggestions = searchQuery.trim()
@@ -521,28 +646,67 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
 
   const handleOpenEdit = (r: AttendanceRecord) => {
     setEditRecord(r);
+    setIsCreating(false);
   };
 
-  const handleSaveEdit = async (horaEntrada: string, horaSalida: string, motivo: string) => {
-    if (!editRecord) return;
-    const motivoTrim = motivo.trim();
+  const handleOpenCreate = () => {
+    const defaultFecha = filterDate ? format(filterDate, "yyyy-MM-dd") : hoyLaPaz();
+    const defaultPeriodoId = filterPeriod
+      ? periodOptions.find(p => `${p.horaInicio}–${p.horaFin}` === filterPeriod)?.id
+      : periodOptions[0]?.id ?? undefined;
+    let defaultEmpleadoId: number | undefined;
+    if (suggestions.length === 1) {
+      defaultEmpleadoId = Number(suggestions[0].employeeId) || undefined;
+    }
+    setCreateDefaults({ empleadoId: defaultEmpleadoId, fecha: defaultFecha, periodoId: defaultPeriodoId });
+    setEditRecord(null);
+    setIsCreating(true);
+  };
+
+  const handleSaveEdit = async (payload: GuardarModalPayload) => {
+    const motivoTrim = payload.motivo.trim();
     if (!motivoTrim) {
-      toast.error("Debés indicar el motivo de la corrección");
+      toast.error("Debés indicar el motivo del registro");
+      return;
+    }
+    if (isCreating && !payload.empleadoId) {
+      toast.error("Seleccioná un empleado");
+      return;
+    }
+    if (isCreating && !payload.fecha) {
+      toast.error("Indicá la fecha de la marcación");
+      return;
+    }
+    if (isCreating && !payload.horaEntrada) {
+      toast.error("Debés indicar la hora de entrada");
       return;
     }
     setSavingEdit(true);
     try {
-      await editarAsistenciaAdmin(editRecord.id, {
-        horaEntrada: horaEntrada || null,
-        horaSalida: horaSalida || null,
-        motivoEdicion: motivoTrim,
-        motivo: motivoTrim,
-      });
-      toast.success("Marcación actualizada correctamente");
+      if (isCreating) {
+        await guardarMarcacionAdmin({
+          empleadoId: payload.empleadoId!,
+          fecha: payload.fecha!,
+          periodoId: payload.periodoId || undefined,
+          horaEntrada: payload.horaEntrada || null,
+          horaSalida: payload.horaSalida || null,
+          motivo: motivoTrim,
+        });
+        toast.success("Marcación añadida correctamente");
+      } else if (editRecord) {
+        await editarAsistenciaAdmin(editRecord.id, {
+          horaEntrada: payload.horaEntrada || null,
+          horaSalida: payload.horaSalida || null,
+          motivoEdicion: motivoTrim,
+          motivo: motivoTrim,
+        });
+        toast.success("Marcación actualizada correctamente");
+      }
       setEditRecord(null);
+      setIsCreating(false);
       await loadData();
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || "Error al editar la marcación";
+      const message = error?.response?.data?.message || error?.message || "Error al guardar la marcación";
       toast.error(message);
     } finally {
       setSavingEdit(false);
@@ -672,6 +836,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             </div>
           </div>
 
+          {isAdmin && (
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer border-dashed"
+              style={{ borderColor: COLORS.primary, color: dark ? "#fff" : COLORS.primary }}
+            >
+              <Plus size={14} style={{ color: COLORS.primary }} /> Añadir Marcación
+            </button>
+          )}
+
           <div className="relative" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -681,7 +855,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
               <Download size={14} /> Exportar <ChevronDown size={14} />
             </button>
             {showExportMenu && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-lg border overflow-hidden z-20 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
                 <button onClick={() => { setShowExportMenu(false); exportPDF(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
                   <File size={16} className="text-red-500" /> Exportar a PDF
                 </button>
@@ -825,13 +998,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
         </div>
       </div>
 
-      {isAdmin && editRecord && (
+      {isAdmin && (editRecord || isCreating) && (
         <ModalEditarAsistencia
-          key={editRecord.id}
+          key={isCreating ? "nueva-marcacion" : (editRecord?.id ?? "cerrado")}
           dark={dark}
           record={editRecord}
+          esCreacion={isCreating}
           saving={savingEdit}
-          onClose={() => setEditRecord(null)}
+          empleados={opcionesEmpleados}
+          periodOptions={periodOptions}
+          defaultEmpleadoId={createDefaults.empleadoId}
+          defaultFecha={createDefaults.fecha}
+          defaultPeriodoId={createDefaults.periodoId}
+          onClose={() => { setEditRecord(null); setIsCreating(false); }}
           onSave={handleSaveEdit}
           onDelete={handleDeleteFromEdit}
         />

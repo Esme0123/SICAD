@@ -1,7 +1,7 @@
 // src/routes/asistencia.routes.js
 
 const { Router } = require('express');
-const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, editarAdmin, eliminar, getEstadoHoy, getQrDashboard, miHistorial, cumplimientoSemanal } = require('../controllers/asistencia.controller');
+const { registrar, marcar, marcarMovil, getAll, getById, cerrarTurno, editarAdmin, guardarMarcacionAdmin, eliminar, getEstadoHoy, getQrDashboard, miHistorial, cumplimientoSemanal } = require('../controllers/asistencia.controller');
 const { authMiddleware, requireRol } = require('../middlewares/auth.middleware');
 
 const router = Router();
@@ -30,6 +30,10 @@ router.patch('/:id/cerrar',       requireRol('ADMIN'), cerrarTurno);
 
 // PUT /api/asistencia/:id/editar — edición manual de marcaciones (solo ADMIN)
 router.put('/:id/editar',         requireRol('ADMIN'), editarAdmin);
+
+// POST /api/asistencia/guardar-admin — alta/edición de marcaciones para días
+// ausentes o registros faltantes (solo ADMIN)
+router.post('/guardar-admin',     requireRol('ADMIN'), guardarMarcacionAdmin);
 
 // DELETE /api/asistencia/:id — eliminación de marcaciones (solo ADMIN)
 router.delete('/:id',             requireRol('ADMIN'), eliminar);

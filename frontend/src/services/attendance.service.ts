@@ -138,6 +138,36 @@ export async function eliminarAsistenciaAdmin(id: number | string): Promise<void
   if (!data.ok) throw new Error(data.message || "Error al eliminar la marcación");
 }
 
+export interface GuardarMarcacionAdminPayload {
+  empleadoId: number;
+  fecha: string; // "YYYY-MM-DD"
+  periodoId?: number;
+  horaEntrada?: string | null;
+  horaSalida?: string | null;
+  motivo: string;
+}
+
+export interface GuardarMarcacionAdminResult extends EditarAsistenciaResult {
+  creado: boolean;
+}
+
+/**
+ * POST /api/asistencia/guardar-admin — Alta/edición de marcaciones para días
+ * ausentes o registros faltantes (solo ADMIN).
+ * Crea si no existe la marcación del día o actualiza la existente, recalculando
+ * el estado automáticamente.
+ */
+export async function guardarMarcacionAdmin(
+  payload: GuardarMarcacionAdminPayload
+): Promise<GuardarMarcacionAdminResult> {
+  const { data } = await api.post<{ ok: boolean; message: string; data: GuardarMarcacionAdminResult }>(
+    "/asistencia/guardar-admin",
+    payload
+  );
+  if (!data.ok) throw new Error(data.message || "Error al guardar la marcación");
+  return data.data;
+}
+
 export async function getTodaySummary(): Promise<AttendanceSummary> {
   return Promise.reject(new Error("Attendance service not connected to backend yet"));
 }
