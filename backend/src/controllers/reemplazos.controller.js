@@ -279,22 +279,33 @@ async function solicitar(req, res) {
   }
 }
 
-// ── GET /api/reemplazos/mis-solicitudes ──────────────────────
-// Devuelve:
-//   enviadas  → solicitudes creadas por el empleado (solicitanteId = yo)
-//   recibidas → dirigidas a él (reemplazanteId = yo) o peticiones ABIERTAS
-//               pendientes de otros empleados.
+async function adjuntarEmpleados(solicitudes) {
+  const ids = new Set();
+  for (const s of solicitudes) {
+    if (s.solicitanteId != null) ids.add(s.solicitanteId);
+    if (s.reemplazanteId != null) ids.add(s.reemplazanteId);
+  }
+  const usuarios = ids.size > 0
+    ? await prisma.usuario.findMany({
+        where: { id: { in: [...ids] } },
+        select: { id: true, nombre: true, codigo: true, ci: true },
+      })
+    : [];
+  const mapa = new Map(usuarios.map((u) => [u.id, u]));
+  return solicitudes.map((s) => ({
+    ...s,
+    solicitante: s.solicitanteId != null ? (mapa.get(s.solicitanteId) || null) : null,
+    reemplazante: s.reemplazanteId != null ? (mapa.get(s.reemplazanteId) || null) : null,
+  }));
+}
+
 async function misSolicitudes(req, res) {
   try {
     const usuarioId = parseInt(req.usuario.id);
 
-    const [enviadas, recibidas] = await Promise.all([
+    const [enviadasCrudas, recibidasCrudas] = await Promise.all([
       prisma.solicitudReemplazo.findMany({
         where: { solicitanteId: usuarioId },
-        include: {
-          solicitante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-          reemplazante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-        },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.solicitudReemplazo.findMany({
@@ -304,12 +315,13 @@ async function misSolicitudes(req, res) {
             { esAbierta: true, estado: 'PENDIENTE', solicitanteId: { not: usuarioId } },
           ],
         },
-        include: {
-          solicitante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-          reemplazante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-        },
         orderBy: { createdAt: 'desc' },
       }),
+    ]);
+
+    const [enviadas, recibidas] = await Promise.all([
+      adjuntarEmpleados(enviadasCrudas),
+      adjuntarEmpleados(recibidasCrudas),
     ]);
 
     res.json({ ok: true, data: { enviadas, recibidas } });
@@ -486,8 +498,6 @@ async function rechazar(req, res) {
   }
 }
 
-// ── GET /api/reemplazos/admin ────────────────────────────────
-// Historial general para el Panel Web. Query: ?estado=&fecha=&q=
 async function adminListar(req, res) {
   try {
     const { estado, fecha, q } = req.query;
@@ -498,22 +508,28 @@ async function adminListar(req, res) {
       const r = rangoDelDia(fecha);
       where.fecha = { gte: r.start, lte: r.end };
     }
-    if (q && q.trim()) {
-      const qLike = q.trim().toLowerCase();
-      where.OR = [
-        { solicitante: { OR: [{ nombre: { contains: qLike, mode: 'insensitive' } }, { codigo: { contains: qLike, mode: 'insensitive' } }, { ci: { contains: qLike, mode: 'insensitive' } }] } },
-        { reemplazante: { OR: [{ nombre: { contains: qLike, mode: 'insensitive' } }, { codigo: { contains: qLike, mode: 'insensitive' } }, { ci: { contains: qLike, mode: 'insensitive' } }] } },
-      ];
-    }
 
-    const solicitudes = await prisma.solicitudReemplazo.findMany({
+    const crudas = await prisma.solicitudReemplazo.findMany({
       where,
-      include: {
-        solicitante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-        reemplazante: { select: { id: true, nombre: true, codigo: true, ci: true } },
-      },
       orderBy: { createdAt: 'desc' },
     });
+
+    let solicitudes = await adjuntarEmpleados(crudas);
+
+    if (q && q.trim()) {
+      const qLike = q.trim().toLowerCase();
+      solicitudes = solicitudes.filter((s) => {
+        const coincidencia = [s.solicitante, s.reemplazante]
+          .filter(Boolean)
+          .some((u) => {
+            const nombre = (u.nombre || '').toLowerCase();
+            const codigo = (u.codigo || '').toLowerCase();
+            const ci = (u.ci || '').toLowerCase();
+            return nombre.includes(qLike) || codigo.includes(qLike) || ci.includes(qLike);
+          });
+        return coincidencia;
+      });
+    }
 
     res.json({ ok: true, data: solicitudes });
   } catch (error) {
