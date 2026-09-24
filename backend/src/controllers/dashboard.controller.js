@@ -152,7 +152,13 @@ async function getResumen(req, res) {
     let ausentes = 0;
     if (rango === 'hoy') {
       const horariosHoy = await prisma.horarioAsignado.findMany({
-        where: { diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true, rol: 'EMPLEADO' } },
+        where: {
+          usuario: { activo: true, rol: 'EMPLEADO' },
+          OR: [
+            { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
+            { fechaEspecifica: { gte: start, lte: end } },
+          ],
+        },
         include: { periodo: true },
       });
       // Empleados esperados hoy = activos con turno asignado en este día de la semana

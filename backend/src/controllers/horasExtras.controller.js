@@ -11,7 +11,7 @@
 const prisma = require('../config/db');
 const { crearNotificacion } = require('./notificacion.controller');
 const { obtenerOCrearGestionPorNombre } = require('../utils/periodo.utils');
-const { parseFechaPura, fechaPuraStr, rangoFechaPura } = require('../utils/fechaPura.utils');
+const { parseFechaPura, fechaPuraStr, rangoFechaPura, diaSemanaDeFechaStr } = require('../utils/fechaPura.utils');
 
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 const ESTADOS = ['PENDIENTE', 'APROBADO', 'RECHAZADO'];
@@ -63,14 +63,20 @@ async function bloquesDisponibles(req, res) {
       return res.status(400).json({ ok: false, message: 'La fecha es requerida (formato YYYY-MM-DD)' });
     }
 
-    const diaSemana = DIAS_SEMANA[parseLocalDate(fecha).getDay()];
+    const diaSemanaIdx = diaSemanaDeFechaStr(fecha);
+    const diaSemana = DIAS_SEMANA[diaSemanaIdx];
+    const periodoAcademicoFecha = obtenerPeriodoDeFechaStr(fecha);
     const { start, end } = rangoDelDia(fecha);
 
-    // Horarios del empleado: recurrentes (diaSemana) + excepcionales (fecha puntual)
+    // Horarios del empleado: recurrentes del mismo diaSemana (fechaEspecifica IS NULL)
+    // más excepcionales de la fecha exacta (horas extras/reemplazos ya aprobados)
     const horarios = await prisma.horarioAsignado.findMany({
       where: {
         usuarioId: empleadoId,
-        OR: [{ diaSemana }, { fechaEspecifica: { gte: start, lte: end } }],
+        OR: [
+          { diaSemana, periodoAcademico: periodoAcademicoFecha, fechaEspecifica: null },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
       },
       select: { periodoId: true },
     });
@@ -124,11 +130,13 @@ async function solicitar(req, res) {
       return res.status(400).json({ ok: false, message: 'Debes seleccionar al menos un bloque.' });
     }
 
-    const diaSemana = DIAS_SEMANA[parseLocalDate(fecha).getDay()];
+    const diaSemanaIdx = diaSemanaDeFechaStr(fecha);
+    const diaSemana = DIAS_SEMANA[diaSemanaIdx];
     if (diaSemana === 'Domingo') {
       return res.status(400).json({ ok: false, message: 'No se pueden solicitar horas extras para un domingo.' });
     }
 
+    const periodoAcademicoFecha = obtenerPeriodoDeFechaStr(fecha);
     const { start, end } = rangoDelDia(fecha);
 
     // Normalizar bloques recibidos
@@ -160,11 +168,15 @@ async function solicitar(req, res) {
       return res.status(400).json({ ok: false, message: 'Ninguno de los bloques seleccionados es válido.' });
     }
 
-    // Validar que los bloques estén LIBRES: sin horario asignado (recurrente o excepcional)
+    // Validar que los bloques estén LIBRES: recurrentes del mismo diaSemana (IS NULL)
+    // más excepcionales de la misma fecha exacta
     const asignados = await prisma.horarioAsignado.findMany({
       where: {
         usuarioId: empleadoId,
-        OR: [{ diaSemana }, { fechaEspecifica: { gte: start, lte: end } }],
+        OR: [
+          { diaSemana, periodoAcademico: periodoAcademicoFecha, fechaEspecifica: null },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
       },
       select: { periodoId: true },
     });
@@ -309,14 +321,22 @@ async function aprobar(req, res) {
 
     const fechaStr = getLocalDateString(solicitud.fecha);
     const { start, end } = rangoDelDia(fechaStr);
-    const diaSemana = DIAS_SEMANA[parseLocalDate(fechaStr).getDay()];
+    // Calcular diaSemana a partir de la fechaEspecifica ya normalizada en UTC,
+    // usando diaSemanaDeFechaStr() para evitar desfase de zona horaria.
+    const diaSemanaIdx = diaSemanaDeFechaStr(fechaStr);
+    const diaSemana = DIAS_SEMANA[diaSemanaIdx];
     const periodoAcademico = obtenerPeriodoDeFechaStr(fechaStr);
 
-    // Validar que los bloques siguen LIBRES (no fueron asignados/cambiados en el ínterin)
+    // Validar que los bloques siguen LIBRES:
+    // - Recurrentes del mismo diaSemana (solo periodos regulares, fechaEspecifica IS NULL)
+    // - Excepcionales de la fecha exacta (horas extras previas, fechaEspecifica = start..end)
     const asignados = await prisma.horarioAsignado.findMany({
       where: {
         usuarioId: solicitud.empleadoId,
-        OR: [{ diaSemana }, { fechaEspecifica: { gte: start, lte: end } }],
+        OR: [
+          { diaSemana, periodoAcademico, fechaEspecifica: null },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
       },
       select: { periodoId: true },
     });

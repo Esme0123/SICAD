@@ -28,7 +28,9 @@ async function getAll(req, res) {
         activo: true,
         inviteToken: true,
         createdAt: true,
-        _count: { select: { horariosAsignados: true } },
+        // Solo la plantilla recurrente: los excepcionales (horas extras /
+        // reemplazos) son de una fecha puntual y no cuentan como asignación fija.
+        _count: { select: { horariosAsignados: { where: { fechaEspecifica: null } } } },
       },
       orderBy: { nombre: 'asc' },
     });
@@ -37,7 +39,7 @@ async function getAll(req, res) {
     if (periodoAcademico) {
       const counts = await prisma.horarioAsignado.groupBy({
         by: ['usuarioId'],
-        where: { periodoAcademico: String(periodoAcademico) },
+        where: { periodoAcademico: String(periodoAcademico), fechaEspecifica: null },
         _count: { _all: true },
       });
       horariosPorUsuario = new Map(counts.map(c => [c.usuarioId, c._count._all]));

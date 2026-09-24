@@ -11,7 +11,9 @@
     "corregir:desfase": "node src/scripts/corregirDesfaseHorasExtra.js",
     "corregir:desfase:apply": "node src/scripts/corregirDesfaseHorasExtra.js --apply",
     "reevaluar:permiso": "node src/scripts/reevaluarAsistenciasConPermiso.js",
-    "reevaluar:permiso:apply": "node src/scripts/reevaluarAsistenciasConPermiso.js --apply"
+    "reevaluar:permiso:apply": "node src/scripts/reevaluarAsistenciasConPermiso.js --apply",
+    "corregir:he-temporales": "node src/scripts/corregirHorasExtrasTemporales.js",
+    "corregir:he-temporales:apply": "node src/scripts/corregirHorasExtrasTemporales.js --apply"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

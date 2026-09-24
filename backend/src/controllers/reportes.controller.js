@@ -120,8 +120,11 @@ async function getAnalisis(req, res) {
     // ════════════════════════════════════════════════════════════════
 
     // ── Empleados esperados por día de la semana según horarios asignados ──
+    // Solo plantilla semanal RECURRENTE (fechaEspecifica IS NULL). Los horarios
+    // EXCEPCIONALES (horas extras / reemplazos) son de una fecha puntual y NO
+    // deben proyectarse a todos los días del mismo `diaSemana` en el gráfico.
     const horariosAsignadosDia = await prisma.horarioAsignado.findMany({
-      where: { usuarioId: { in: userIds } },
+      where: { usuarioId: { in: userIds }, fechaEspecifica: null },
       select: { usuarioId: true, diaSemana: true },
     });
     const esperadosPorDia = {}; // diaSemana -> Set(usuarioId)
@@ -259,7 +262,7 @@ async function getAnalisis(req, res) {
     });
 
     const horariosAsignados = await prisma.horarioAsignado.findMany({
-      where: { usuario: { activo: true, rol: 'EMPLEADO' } },
+      where: { usuario: { activo: true, rol: 'EMPLEADO' }, fechaEspecifica: null },
       include: { periodo: true },
     });
 

@@ -18,7 +18,7 @@
 const prisma = require('../config/db');
 const { crearNotificacion } = require('./notificacion.controller');
 const { obtenerOCrearGestionPorNombre } = require('../utils/periodo.utils');
-const { parseFechaPura, fechaPuraStr, rangoFechaPura } = require('../utils/fechaPura.utils');
+const { parseFechaPura, fechaPuraStr, rangoFechaPura, diaSemanaDeFechaStr } = require('../utils/fechaPura.utils');
 
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 const ESTADOS = ['PENDIENTE', 'ACEPTADO', 'RECHAZADO'];
@@ -64,7 +64,7 @@ function formatoHoras(minutos) {
  * horarios excepcionales (fechaEspecifica). Devuelve el detalle del Periodo.
  */
 async function obtenerBloquesDelDia(usuarioId, fechaStr) {
-  const diaSemana = DIAS_SEMANA[parseLocalDate(fechaStr).getDay()];
+  const diaSemana = DIAS_SEMANA[diaSemanaDeFechaStr(fechaStr)];
   const periodoAcademico = obtenerPeriodoDeFechaStr(fechaStr);
   const { start, end } = rangoDelDia(fechaStr);
 
@@ -72,7 +72,7 @@ async function obtenerBloquesDelDia(usuarioId, fechaStr) {
     where: {
       usuarioId,
       OR: [
-        { diaSemana, periodoAcademico },
+        { diaSemana, periodoAcademico, fechaEspecifica: null },
         { fechaEspecifica: { gte: start, lte: end } },
       ],
     },
@@ -114,7 +114,7 @@ async function obtenerBloquesDelDia(usuarioId, fechaStr) {
  * Usado para validar conflictos al aceptar un reemplazo.
  */
 async function periodosOcupadosDelDia(usuarioId, fechaStr) {
-  const diaSemana = DIAS_SEMANA[parseLocalDate(fechaStr).getDay()];
+  const diaSemana = DIAS_SEMANA[diaSemanaDeFechaStr(fechaStr)];
   const periodoAcademico = obtenerPeriodoDeFechaStr(fechaStr);
   const { start, end } = rangoDelDia(fechaStr);
 
@@ -122,7 +122,7 @@ async function periodosOcupadosDelDia(usuarioId, fechaStr) {
     where: {
       usuarioId,
       OR: [
-        { diaSemana, periodoAcademico },
+        { diaSemana, periodoAcademico, fechaEspecifica: null },
         { fechaEspecifica: { gte: start, lte: end } },
       ],
     },
@@ -361,7 +361,7 @@ async function aceptar(req, res) {
     }
 
     const fechaStr = getLocalDateString(solicitud.fecha);
-    const diaSemana = DIAS_SEMANA[parseLocalDate(fechaStr).getDay()];
+    const diaSemana = DIAS_SEMANA[diaSemanaDeFechaStr(fechaStr)];
     const periodoAcademico = obtenerPeriodoDeFechaStr(fechaStr);
     const { start } = rangoDelDia(fechaStr);
 

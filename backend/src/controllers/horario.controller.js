@@ -91,8 +91,10 @@ async function asignarDia(uid, diaSemana, periodosIds, periodo) {
   const gestionId = gestion.id;
 
   return await prisma.$transaction(async (tx) => {
+    // Solo reemplaza la plantilla RECURRENTE de ese día. Los horarios
+    // EXCEPCIONALES (fechaEspecifica, horas extras / reemplazos) se conservan.
     await tx.horarioAsignado.deleteMany({
-      where: { usuarioId: uid, diaSemana },
+      where: { usuarioId: uid, diaSemana, fechaEspecifica: null },
     });
 
     if (periodosIds.length > 0) {
@@ -207,9 +209,11 @@ async function asignarBatch(req, res) {
 
     // 2. Transacción: limpiar horarios previos + insertar nuevos
     const resultado = await prisma.$transaction(async (tx) => {
-      // Eliminar asignaciones previas de este usuario para este periodo
+      // Eliminar asignaciones previas RECURRENTES de este usuario para este
+      // periodo. Los horarios EXCEPCIONALES (fechaEspecifica, horas extras /
+      // reemplazos) se conservan: son de fechas puntuales.
       await tx.horarioAsignado.deleteMany({
-        where: { usuarioId: uid, gestionId: gestion.id },
+        where: { usuarioId: uid, gestionId: gestion.id, fechaEspecifica: null },
       });
 
       let totalAsignados = 0;

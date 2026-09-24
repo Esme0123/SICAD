@@ -512,7 +512,7 @@ async function registrar(req, res) {
       where: {
         usuarioId: uid,
         OR: [
-          { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+          { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
           { fechaEspecifica: { gte: start, lte: end } },
         ],
       },
@@ -612,14 +612,25 @@ async function getAll(req, res) {
       select: {
         usuarioId: true,
         diaSemana: true,
+        fechaEspecifica: true,
         periodo: { select: { horaInicio: true, horaFin: true } },
       },
     });
-    const horariosPorUsuarioDia = new Map(); // key: `${usuarioId}_${diaSemana}`
+    const horariosPorUsuarioDia = new Map(); // key: `${usuarioId}_${diaSemana}` (solo recurrentes)
+    const horariosPorUsuarioFecha = new Map(); // key: `${usuarioId}_${fechaStr}` (excepcionales por fecha específica)
     for (const h of horariosAsignados) {
-      const key = `${h.usuarioId}_${h.diaSemana}`;
-      if (!horariosPorUsuarioDia.has(key)) horariosPorUsuarioDia.set(key, []);
-      horariosPorUsuarioDia.get(key).push({ inicio: h.periodo.horaInicio, fin: h.periodo.horaFin });
+      if (h.fechaEspecifica) {
+        const fStr = fechaPuraStr(h.fechaEspecifica);
+        if (fStr) {
+          const key = `${h.usuarioId}_${fStr}`;
+          if (!horariosPorUsuarioFecha.has(key)) horariosPorUsuarioFecha.set(key, []);
+          horariosPorUsuarioFecha.get(key).push({ inicio: h.periodo.horaInicio, fin: h.periodo.horaFin });
+        }
+      } else {
+        const key = `${h.usuarioId}_${h.diaSemana}`;
+        if (!horariosPorUsuarioDia.has(key)) horariosPorUsuarioDia.set(key, []);
+        horariosPorUsuarioDia.get(key).push({ inicio: h.periodo.horaInicio, fin: h.periodo.horaFin });
+      }
     }
 
     // ── Permisos APROBADOS y reemplazos ACEPTADOS (ajustan la entrada esperada) ──
@@ -669,9 +680,11 @@ async function getAll(req, res) {
      */
     const resolverPeriodoConsolidado = (a) => {
       if (!a.fecha) return null;
-      const fechaStr = a.fecha instanceof Date ? a.fecha.toISOString().split('T')[0] : String(a.fecha).split('T')[0];
+      const fechaStr = fechaPuraStr(a.fecha);
       const diaSemana = diasSemana[new Date(fechaStr + 'T12:00:00Z').getUTCDay()];
-      const bloques = horariosPorUsuarioDia.get(`${a.usuarioId}_${diaSemana}`) || [];
+      const recurrentes = horariosPorUsuarioDia.get(`${a.usuarioId}_${diaSemana}`) || [];
+      const excepcionales = horariosPorUsuarioFecha.get(`${a.usuarioId}_${fechaStr}`) || [];
+      const bloques = [...recurrentes, ...excepcionales];
       if (bloques.length === 0) return null;
 
       bloques.sort((x, y) => timeToMinutes(x.inicio) - timeToMinutes(y.inicio));
@@ -1260,7 +1273,7 @@ async function marcar(req, res) {
       where: {
         usuarioId: uid,
         OR: [
-          { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+          { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
           { fechaEspecifica: { gte: inicioHoy, lte: finHoy } },
         ],
       },
@@ -1411,7 +1424,7 @@ async function marcarMovil(req, res) {
           where: {
             usuarioId: usuario.id,
             OR: [
-              { diaSemana, periodoAcademico: obtenerPeriodoActual() },
+              { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
               { fechaEspecifica: { gte: inicioHoy, lte: finHoy } },
             ],
           },
@@ -1623,7 +1636,13 @@ async function getEstadoHoy(req, res) {
 
     // Pre-cargar todos los horarios asignados hoy para construir bloques continuos por usuario
     const todosAsignadosHoy = await prisma.horarioAsignado.findMany({
-      where: { diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
+      where: {
+        usuario: { activo: true },
+        OR: [
+          { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
+      },
       select: { usuarioId: true, periodoId: true, periodo: { select: { horaInicio: true, horaFin: true } } },
       orderBy: [{ usuarioId: 'asc' }, { periodo: { horaInicio: 'asc' } }],
     });
@@ -1690,7 +1709,14 @@ async function getEstadoHoy(req, res) {
         const isActive = estado === 'ACTIVO' || estado === 'RETRASO';
 
         const totalEmpleados = await prisma.horarioAsignado.count({
-          where: { periodoId: p.id, diaSemana, periodoAcademico: obtenerPeriodoActual(), usuario: { activo: true } },
+          where: {
+            periodoId: p.id,
+            usuario: { activo: true },
+            OR: [
+              { diaSemana, periodoAcademico: obtenerPeriodoActual(), fechaEspecifica: null },
+              { fechaEspecifica: { gte: start, lte: end } },
+            ],
+          },
         });
 
         if (totalEmpleados === 0) {
@@ -1864,27 +1890,40 @@ async function miHistorial(req, res) {
     const fmtTime = (d) =>
       d ? getBoliviaDate(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : null;
 
-    // ── Cargar horarios asignados con su createdAt (fecha de asignaci�n) ──
+    // ── Cargar horarios asignados (recurrentes + excepcionales) ──
     const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
     const horariosAsignados = await prisma.horarioAsignado.findMany({
       where: { usuarioId },
       include: { periodo: { select: { id: true, nombre: true, horaInicio: true, horaFin: true } } },
     });
 
-    const horarioPorDia = new Map();
+    // Horarios recurrentes: fechaEspecifica IS NULL (plantilla semanal por diaSemana)
+    // Horarios excepcionales: fechaEspecifica IS NOT NULL (horas extras / reemplazos, estrictos por fecha exacta)
+    const horarioRecurrentePorDia = new Map(); // key: `${diaSemana}|${periodoAcademico}`
+    const horarioExcepcionalPorFecha = new Map(); // key: "YYYY-MM-DD"
+
     for (const h of horariosAsignados) {
-      // Clave: "diaSemana|periodoAcademico" — evita cruzar horarios de periodos
-      // académicos concluidos con fechas que pertenecen a periodos diferentes.
-      const key = `${h.diaSemana}|${h.periodoAcademico}`;
-      if (!horarioPorDia.has(key)) horarioPorDia.set(key, []);
-      horarioPorDia.get(key).push({
+      const periodoInfo = {
         id: h.id,
         periodoId: h.periodo.id,
         horaInicio: h.periodo.horaInicio,
         horaFin: h.periodo.horaFin,
         nombre: h.periodo.nombre,
         createdAt: h.createdAt,
-      });
+        fechaEspecifica: h.fechaEspecifica,
+      };
+
+      if (h.fechaEspecifica) {
+        const fStr = fechaPuraStr(h.fechaEspecifica);
+        if (fStr) {
+          if (!horarioExcepcionalPorFecha.has(fStr)) horarioExcepcionalPorFecha.set(fStr, []);
+          horarioExcepcionalPorFecha.get(fStr).push(periodoInfo);
+        }
+      } else {
+        const key = `${h.diaSemana}|${h.periodoAcademico}`;
+        if (!horarioRecurrentePorDia.has(key)) horarioRecurrentePorDia.set(key, []);
+        horarioRecurrentePorDia.get(key).push(periodoInfo);
+      }
     }
 
     // ── Indexar asistencias por fecha ──
@@ -2007,10 +2046,16 @@ async function miHistorial(req, res) {
       // crucen con fechas de periodos diferentes.
       const periodoFecha = obtenerPeriodoDeFechaStr(fechaStr);
       if (periodoAcademico && periodoAcademico !== periodoFecha && !rangoFechaExplicito) continue;
-      const horariosDia = horarioPorDia.get(`${diaSemana}|${periodoFecha}`) || [];
 
-      // Solo periodos ya asignados para esa fecha
+      // Horarios base recurrentes de la plantilla semanal para este día
+      const recurrentesDia = horarioRecurrentePorDia.get(`${diaSemana}|${periodoFecha}`) || [];
+      // Horarios excepcionales estrictos para ESTA fecha específica (horas extras / reemplazos)
+      const excepcionalesDia = horarioExcepcionalPorFecha.get(fechaStr) || [];
+      const horariosDia = [...recurrentesDia, ...excepcionalesDia];
+
+      // Solo periodos ya asignados para esa fecha (para excepcionales fechaEspecifica ya garantiza el día)
       const horariosValidos = horariosDia.filter(h => {
+        if (h.fechaEspecifica) return true;
         const createdAtStr = typeof h.createdAt === 'string'
           ? h.createdAt.split('T')[0]
           : h.createdAt instanceof Date
@@ -2355,10 +2400,15 @@ async function cumplimientoSemanal(req, res) {
       where: {
         usuario: { rol: 'EMPLEADO', activo: true },
         periodoAcademico: { in: [...periodosEnRango] },
+        OR: [
+          { fechaEspecifica: null },
+          { fechaEspecifica: { gte: start, lte: end } },
+        ],
       },
       select: {
         usuarioId: true,
         diaSemana: true,
+        fechaEspecifica: true,
         periodo: { select: { duracion: true, horaInicio: true, horaFin: true } },
       },
     });
@@ -2371,24 +2421,43 @@ async function cumplimientoSemanal(req, res) {
       return 0;
     }
 
-    // programadoPorEmpleado: empId → { diaSemana: minutosTotales }
+    // programadoPorEmpleado: empId → { diaSemana: minutosTotales } (solo recurrentes)
     const programadoPorEmpleado = new Map();
-    // bloquesPorEmpleadoDia: empId → { diaSemana: [{ startMin, endMin }] }
-    const bloquesPorEmpleadoDia = new Map();
-    for (const h of horariosAsignados) {
-      if (!programadoPorEmpleado.has(h.usuarioId)) programadoPorEmpleado.set(h.usuarioId, {});
-      const mapa = programadoPorEmpleado.get(h.usuarioId);
-      mapa[h.diaSemana] = (mapa[h.diaSemana] || 0) + minutosProgramadosHorario(h);
+    // programadoExcepcionalPorEmpleadoFecha: `${empId}|${fechaStr}` → minutosTotales (horas extras/reemplazos)
+    const programadoExcepcionalPorEmpleadoFecha = new Map();
 
+    // bloquesPorEmpleadoDia: empId → { diaSemana: [{ startMin, endMin }] } (solo recurrentes)
+    const bloquesPorEmpleadoDia = new Map();
+    // bloquesExcepcionalesPorEmpleadoFecha: `${empId}|${fechaStr}` → [{ startMin, endMin }]
+    const bloquesExcepcionalesPorEmpleadoFecha = new Map();
+
+    for (const h of horariosAsignados) {
       const startMin = timeToMinutes(h.periodo?.horaInicio || '');
-      if (isNaN(startMin)) continue;
-      if (!bloquesPorEmpleadoDia.has(h.usuarioId)) bloquesPorEmpleadoDia.set(h.usuarioId, {});
-      const mapaBloques = bloquesPorEmpleadoDia.get(h.usuarioId);
-      if (!mapaBloques[h.diaSemana]) mapaBloques[h.diaSemana] = [];
-      mapaBloques[h.diaSemana].push({
-        startMin,
-        endMin: timeToMinutes(h.periodo?.horaFin || ''),
-      });
+      const endMin = timeToMinutes(h.periodo?.horaFin || '');
+      const minProg = minutosProgramadosHorario(h);
+
+      if (h.fechaEspecifica) {
+        const fStr = fechaPuraStr(h.fechaEspecifica);
+        if (fStr) {
+          const key = `${h.usuarioId}|${fStr}`;
+          programadoExcepcionalPorEmpleadoFecha.set(key, (programadoExcepcionalPorEmpleadoFecha.get(key) || 0) + minProg);
+          if (!isNaN(startMin)) {
+            if (!bloquesExcepcionalesPorEmpleadoFecha.has(key)) bloquesExcepcionalesPorEmpleadoFecha.set(key, []);
+            bloquesExcepcionalesPorEmpleadoFecha.get(key).push({ startMin, endMin });
+          }
+        }
+      } else {
+        if (!programadoPorEmpleado.has(h.usuarioId)) programadoPorEmpleado.set(h.usuarioId, {});
+        const mapa = programadoPorEmpleado.get(h.usuarioId);
+        mapa[h.diaSemana] = (mapa[h.diaSemana] || 0) + minProg;
+
+        if (!isNaN(startMin)) {
+          if (!bloquesPorEmpleadoDia.has(h.usuarioId)) bloquesPorEmpleadoDia.set(h.usuarioId, {});
+          const mapaBloques = bloquesPorEmpleadoDia.get(h.usuarioId);
+          if (!mapaBloques[h.diaSemana]) mapaBloques[h.diaSemana] = [];
+          mapaBloques[h.diaSemana].push({ startMin, endMin });
+        }
+      }
     }
 
     // ── 4. Cálculo seguro de horas + desglose diario (Lunes a Sábado) ──
@@ -2447,7 +2516,9 @@ async function cumplimientoSemanal(req, res) {
 
           const turnos = marcacionesPorDia[fKey] || [];
           let minutosDia = turnos.reduce((acc, t) => acc + t.minutos, 0);
-          const programado = (programadoPorEmpleado.get(emp.id) || {})[diasKey[diaSemana]] || 0;
+          const programadoRecurrente = (programadoPorEmpleado.get(emp.id) || {})[diasKey[diaSemana]] || 0;
+          const programadoExcepcional = programadoExcepcionalPorEmpleadoFecha.get(`${emp.id}|${fKey}`) || 0;
+          const programado = programadoRecurrente + programadoExcepcional;
 
           // Estado del día:
           //  - Con marcaciones                          → PRESENTE
@@ -2470,7 +2541,9 @@ async function cumplimientoSemanal(req, res) {
           }
 
           // ── Cumplimiento de Bloques / Turnos y Minutos de Retraso ──
-          const bloquesDia = (bloquesPorEmpleadoDia.get(emp.id) || {})[diasKey[diaSemana]] || [];
+          const bloquesRecurrentes = (bloquesPorEmpleadoDia.get(emp.id) || {})[diasKey[diaSemana]] || [];
+          const bloquesExcepcionales = bloquesExcepcionalesPorEmpleadoFecha.get(`${emp.id}|${fKey}`) || [];
+          const bloquesDia = [...bloquesRecurrentes, ...bloquesExcepcionales];
           const bloquesProgramadosDia = bloquesDia.length;
           let bloquesCumplidosDia = 0;
           let retrasoDia = 0;
