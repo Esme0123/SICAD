@@ -38,6 +38,16 @@
 //      tardanza que corresponda según sus marcaciones reales. Las ausencias
 //      falsas del histórico son VIRTUALES (no hay fila en `asistencias`), por
 //      lo que desaparecen solas al eliminar el turno proyectado.
+//   D) Corrige el DESFASE DE FECHA de horarios excepcionales de horas extras /
+//      reemplazos APROBADOS: la `fechaEspecifica` debe ser EXACTAMENTE igual a
+//      la `fecha` de su solicitud. P. ej. la Hora Extra solicitada para el
+//      Miércoles 02/09/2026 que quedó guardada como Jueves 03/09/2026 (desfase
+//      +1 día) abría un bloque en el día equivocado y provocaba una falsa
+//      "Ausencia" el Jueves. Se vincula por (usuarioId, periodoId) y se relocaliza
+//      `fechaEspecifica = solicitud.fecha`, recalculando también `diaSemana` y
+//      `periodoAcademico`. Los días afectados entran en la re-evaluación [C].
+//      Antes de reportar como HUÉRFANO ([B1]) a un excepcional, se verifica que
+//      no sea un desfase corregible por [D].
 //
 // Uso:
 //   node src/scripts/corregirHorasExtrasTemporales.js                 (auditoría)
@@ -52,7 +62,7 @@
 process.env.TZ = 'UTC';
 
 const prisma = require('../config/db');
-const { parseFechaPura, fechaPuraStr, diaSemanaDeFechaStr } = require('../utils/fechaPura.utils');
+const { parseFechaPura, fechaPuraStr, diaSemanaDeFechaStr, sumarDias } = require('../utils/fechaPura.utils');
 
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
@@ -210,11 +220,67 @@ async function main() {
   for (const s of solicitudes) addCobertura(s.empleadoId, fechaPuraStr(s.fecha), s.bloques);
   for (const r of reemplazos) addCobertura(r.reemplazanteId, fechaPuraStr(r.fecha), r.bloques);
 
+  // ── D) Desfase de fechaEspecifica en horarios excepcionales ──
+  // Un HorarioExcepcional creado para una Hora Extra/Reemplazo APROBADO debe
+  // tener fechaEspecifica EXACTAMENTE igual a solicitud.fecha. Si quedó
+  // desfasado (p. ej. HE del Miércoles 02/09 guardada como Jueves 03/09), la
+  // falsa fecha abre un bloque en el día equivocado y genera una "Ausencia"
+  // falsa. Se vincula por (usuarioId, periodoId) y se corrige a la fecha de la
+  // solicitud. Los ids detectados se excluyen de [A] y [B1] (su fecha/diaSemana
+  // se relocalizan aquí) y sus usuarios/días entran en la re-evaluación [C].
+  const coberturaFechas = new Map(); // `${usuarioId}|${periodoId}` -> Set<fechaStr>
+  const addCoberturaFecha = (usuarioId, fechaStr, bloques) => {
+    if (!usuarioId || !fechaStr) return;
+    for (const pid of idsDeBloques(bloques)) {
+      const key = `${usuarioId}|${pid}`;
+      if (!coberturaFechas.has(key)) coberturaFechas.set(key, new Set());
+      coberturaFechas.get(key).add(fechaStr);
+    }
+  };
+  for (const s of solicitudes) addCoberturaFecha(s.empleadoId, fechaPuraStr(s.fecha), s.bloques);
+  for (const r of reemplazos) addCoberturaFecha(r.reemplazanteId, fechaPuraStr(r.fecha), r.bloques);
+
+  const desfases = [];
+  const desfasesAmbiguos = [];
+  for (const h of horarios) {
+    if (!h.fechaEspecifica) continue;
+    const fStr = fechaPuraStr(h.fechaEspecifica);
+    if (!enRango(fStr)) continue;
+    const fechas = coberturaFechas.get(`${h.usuarioId}|${h.periodoId}`);
+    if (!fechas || fechas.size === 0) continue; // sin solicitud que lo cubra → lo decide [B1]
+    if (fechas.has(fStr)) continue; // ya coincide con la solicitud
+    const prev = sumarDias(fStr, -1);
+    const next = sumarDias(fStr, 1);
+    let nueva;
+    if (prev && fechas.has(prev)) {
+      nueva = prev; // desfase +1 día: quedó un día DESPUÉS de la solicitud
+    } else if (next && fechas.has(next)) {
+      nueva = next; // desfase -1 día: quedó un día ANTES de la solicitud
+    } else if (fechas.size === 1) {
+      nueva = [...fechas][0]; // única solicitud que cubre (usuario, bloque)
+    } else {
+      desfasesAmbiguos.push({ id: h.id, usuarioId: h.usuarioId, periodoId: h.periodoId, fStr, fechas: [...fechas].sort() });
+      continue;
+    }
+    const idxCorrecto = diaSemanaDeFechaStr(nueva);
+    desfases.push({
+      id: h.id,
+      usuarioId: h.usuarioId,
+      periodoId: h.periodoId,
+      fechaVieja: fStr,
+      fechaNueva: nueva,
+      diaAnterior: h.diaSemana,
+      diaCorrecto: idxCorrecto === null ? h.diaSemana : DIAS_SEMANA[idxCorrecto],
+    });
+  }
+  const idsDesfase = new Set(desfases.map((d) => d.id));
+
   // ── A) diaSemana inconsistente en horarios excepcionales ──
   const fixDia = [];
   const avisoPeriodo = [];
   for (const h of horarios) {
     if (!h.fechaEspecifica) continue;
+    if (idsDesfase.has(h.id)) continue; // [D] relocalizará fecha, diaSemana y periodoAcademico
     const fStr = fechaPuraStr(h.fechaEspecifica);
     if (!enRango(fStr)) continue;
     const idx = diaSemanaDeFechaStr(fStr);
@@ -229,6 +295,7 @@ async function main() {
   const huerfanos = [];
   for (const h of horarios) {
     if (!h.fechaEspecifica) continue;
+    if (idsDesfase.has(h.id)) continue; // no es huérfano: [D] lo relocaliza a la fecha de su solicitud
     const fStr = fechaPuraStr(h.fechaEspecifica);
     if (!enRango(fStr)) continue;
     if (!cobertura.has(`${h.usuarioId}|${h.periodoId}|${fStr}`)) {
@@ -290,7 +357,18 @@ async function main() {
     }
   }
 
-  // ── Reporte A/B ──
+  // ── Reporte A/B/D ──
+  console.log(`[D] Horarios excepcionales con fechaEspecifica desfasada respecto a su solicitud: ${desfases.length}`);
+  for (const d of desfases) {
+    console.log(`    #${d.id} | usuarioId=${d.usuarioId} | periodoId=${d.periodoId} | fechaEspecifica ${d.fechaVieja} → ${d.fechaNueva} | dia "${d.diaAnterior}" → "${d.diaCorrecto}"`);
+  }
+  if (desfasesAmbiguos.length > 0) {
+    console.log(`    (revisar manualmente) desfases ambiguos (múltiples solicitudes cubren el mismo usuario/bloque): ${desfasesAmbiguos.length}`);
+    for (const a of desfasesAmbiguos) {
+      console.log(`      #${a.id} | usuarioId=${a.usuarioId} | fecha=${a.fStr} | solicitudes=${a.fechas.join(', ')}`);
+    }
+  }
+
   console.log(`[A] Horarios excepcionales con diaSemana inconsistente: ${fixDia.length}`);
   for (const h of fixDia) {
     console.log(`    #${h.id} | usuarioId=${h.usuarioId} | periodoId=${h.periodoId} | fecha=${h.fStr} | "${h.actual}" → "${h.correcto}"`);
@@ -319,20 +397,29 @@ async function main() {
   // ── C) Re-evaluación de marcaciones reales de empleados afectados ──
   const idsEliminar = new Set([...huerfanos.map((h) => h.id), ...proyecciones.map((h) => h.id)]);
   const diaCorregidoPorId = new Map(fixDia.map((h) => [h.id, h.correcto]));
+  const fechaNuevaPorId = new Map(desfases.map((d) => [d.id, d.fechaNueva]));
+  const diaNuevoPorId = new Map(desfases.map((d) => [d.id, d.diaCorrecto]));
 
   const usuariosAfectados = new Set([
     ...fixDia.map((h) => h.usuarioId),
     ...huerfanos.map((h) => h.usuarioId),
     ...proyecciones.map((h) => h.usuarioId),
+    ...desfases.map((d) => d.usuarioId),
   ]);
 
-  // Vista corregida de horarios (sin filas a eliminar, con diaSemana arreglado)
+  // Vista corregida de horarios (sin filas a eliminar, con diaSemana arreglado
+  // y los excepcionales [D] relocalizados a la fecha exacta de su solicitud)
   const horariosCorregidos = horarios
     .filter((h) => !idsEliminar.has(h.id))
-    .map((h) => ({
-      ...h,
-      diaSemana: diaCorregidoPorId.has(h.id) ? diaCorregidoPorId.get(h.id) : h.diaSemana,
-    }));
+    .map((h) => {
+      const rec = { ...h };
+      if (fechaNuevaPorId.has(h.id)) {
+        rec.fechaEspecifica = parseFechaPura(fechaNuevaPorId.get(h.id));
+        rec.diaSemana = diaNuevoPorId.get(h.id);
+      }
+      rec.diaSemana = diaCorregidoPorId.has(h.id) ? diaCorregidoPorId.get(h.id) : rec.diaSemana;
+      return rec;
+    });
 
   const config = await prisma.configuracionSistema.findUnique({ where: { id: 1 } });
   const toleranciaGlobal = config?.tiempoTolerancia ?? 20;
@@ -341,6 +428,7 @@ async function main() {
   const fechasAfectadas = new Set();
 
   for (const usuarioId of usuariosAfectados) {
+    try {
     const recurrentes = new Map(); // diaSemana -> [{ periodoId, horaInicio, horaFin, createdAt }]
     const excepcionales = new Map(); // fStr -> [{ periodoId, horaInicio, horaFin }]
 
@@ -363,7 +451,9 @@ async function main() {
     }
 
     const asistencias = await prisma.asistencia.findMany({
-      where: { usuarioId, horaEntrada: { not: null } },
+      // `horaEntrada` es columna NOT NULL: no requiere filtro (Prisma rechaza
+      // `not: null` en campos no anulables con "Argument 'not' must not be null").
+      where: { usuarioId },
       select: { id: true, fecha: true, horaEntrada: true, periodo: true, observacion: true, minutosTolerancia: true },
     });
 
@@ -460,6 +550,9 @@ async function main() {
         fechasAfectadas.add(fStr);
       }
     }
+    } catch (err) {
+      console.error(`    ! Error al re-evaluar asistencia del usuario ${usuarioId}: ${err.message}`);
+    }
   }
 
   console.log(`[C] Marcaciones reales a recalcular (periodo/observacion): ${correccionesAsistencia.length}`);
@@ -500,6 +593,24 @@ async function main() {
     return;
   }
 
+  // ── Aplicar D) relocalizar fechaEspecifica de excepcionales desfasados ──
+  let aplicadosDesfase = 0;
+  for (const d of desfases) {
+    try {
+      await prisma.horarioAsignado.update({
+        where: { id: d.id },
+        data: {
+          fechaEspecifica: parseFechaPura(d.fechaNueva),
+          diaSemana: d.diaCorrecto,
+          periodoAcademico: obtenerPeriodoDeFechaStr(d.fechaNueva),
+        },
+      });
+      aplicadosDesfase++;
+    } catch (err) {
+      console.error(`    ! No se pudo corregir #${d.id}: ${err.message}`);
+    }
+  }
+
   // ── Aplicar A) diaSemana ──
   let aplicadosDia = 0;
   for (const h of fixDia) {
@@ -514,37 +625,49 @@ async function main() {
   // ── Aplicar B1/B2) eliminar huérfanos y proyecciones ──
   let eliminados = 0;
   if (idsEliminar.size > 0) {
-    const res = await prisma.horarioAsignado.deleteMany({ where: { id: { in: [...idsEliminar] } } });
-    eliminados = res.count;
+    try {
+      const res = await prisma.horarioAsignado.deleteMany({ where: { id: { in: [...idsEliminar] } } });
+      eliminados = res.count;
+    } catch (err) {
+      console.error(`    ! No se pudieron eliminar los horarios temporales: ${err.message}`);
+    }
   }
 
   // ── Aplicar C) recalcular marcaciones ──
   let aplicadosAsistencia = 0;
   for (const c of correccionesAsistencia) {
-    await prisma.asistencia.update({
-      where: { id: c.id },
-      data: {
-        periodo: c.periodoDespues,
-        observacion: c.observacionDespues === '—' ? null : c.observacionDespues,
-      },
-    });
-    aplicadosAsistencia++;
+    try {
+      await prisma.asistencia.update({
+        where: { id: c.id },
+        data: {
+          periodo: c.periodoDespues,
+          observacion: c.observacionDespues === '—' ? null : c.observacionDespues,
+        },
+      });
+      aplicadosAsistencia++;
+    } catch (err) {
+      console.error(`    ! No se pudo recalcular la marcación #${c.id}: ${err.message}`);
+    }
   }
 
   // ── Recalcular horasProgramadas de los empleados afectados ──
   for (const uid of usuariosAfectados) {
-    const todos = await prisma.horarioAsignado.findMany({
-      where: { usuarioId: uid },
-      include: { periodo: { select: { duracion: true } } },
-    });
-    const totalMin = todos.reduce((acc, h) => acc + (h.periodo?.duracion ?? 0), 0);
-    await prisma.usuario.update({
-      where: { id: uid },
-      data: { horasProgramadas: parseFloat((totalMin / 60).toFixed(2)) },
-    });
+    try {
+      const todos = await prisma.horarioAsignado.findMany({
+        where: { usuarioId: uid },
+        include: { periodo: { select: { duracion: true } } },
+      });
+      const totalMin = todos.reduce((acc, h) => acc + (h.periodo?.duracion ?? 0), 0);
+      await prisma.usuario.update({
+        where: { id: uid },
+        data: { horasProgramadas: parseFloat((totalMin / 60).toFixed(2)) },
+      });
+    } catch (err) {
+      console.error(`    ! No se pudo recalcular horasProgramadas del usuario ${uid}: ${err.message}`);
+    }
   }
 
-  console.log(`Aplicado: ${aplicadosDia} diaSemana corregido(s), ${eliminados} horario(s) temporal(es) eliminado(s), ${aplicadosAsistencia} marcación(es) recalculada(s).`);
+  console.log(`Aplicado: ${aplicadosDesfase} fechaEspecifica desfasada(s) corregida(s), ${aplicadosDia} diaSemana corregido(s), ${eliminados} horario(s) temporal(es) eliminado(s), ${aplicadosAsistencia} marcación(es) recalculada(s).`);
   console.log(`horasProgramadas recalculadas para ${usuariosAfectados.size} empleado(s).`);
   console.log('El historial de asistencia se recalcula dinámicamente al consultar: las ausencias falsas ya no aparecerán.');
 

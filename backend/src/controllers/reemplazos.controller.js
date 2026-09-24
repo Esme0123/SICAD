@@ -361,6 +361,12 @@ async function aceptar(req, res) {
     }
 
     const fechaStr = getLocalDateString(solicitud.fecha);
+    // La fechaEspecifica del HorarioExcepcional DEBE ser EXACTAMENTE igual a la
+    // fecha de la solicitud (medianoche UTC, parseFechaPura) para no desfasarla.
+    const fechaExacta = parseFechaPura(fechaStr);
+    if (!fechaExacta) {
+      return res.status(500).json({ ok: false, message: 'Fecha de la solicitud inválida.' });
+    }
     const diaSemana = DIAS_SEMANA[diaSemanaDeFechaStr(fechaStr)];
     const periodoAcademico = obtenerPeriodoDeFechaStr(fechaStr);
     const { start } = rangoDelDia(fechaStr);
@@ -386,7 +392,7 @@ async function aceptar(req, res) {
           diaSemana,
           periodoAcademico,
           gestionId: gestion.id,
-          fechaEspecifica: start,
+          fechaEspecifica: fechaExacta,
         })),
         skipDuplicates: true,
       });
