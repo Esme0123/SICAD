@@ -854,15 +854,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ dark }) => {
             >
               <Download size={14} /> Exportar <ChevronDown size={14} />
             </button>
-            {showExportMenu && (
-                <button onClick={() => { setShowExportMenu(false); exportPDF(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
-                  <File size={16} className="text-red-500" /> Exportar a PDF
-                </button>
-                <button onClick={() => { setShowExportMenu(false); exportExcel(); }} className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}>
-                  <FileSpreadsheet size={16} className="text-green-600" /> Exportar a Excel
-                </button>
-              </div>
-            )}
+{showExportMenu && (
+  <div className={`absolute right-0 top-full mt-1 w-48 rounded-xl border shadow-xl overflow-hidden z-30 ${dark ? "bg-[#1E293B] border-white/10" : "bg-white border-slate-200"}`}>
+    <button 
+      onClick={() => { setShowExportMenu(false); exportPDF(); }} 
+      className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left cursor-pointer ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}
+    >
+      <File size={16} className="text-red-500" /> Exportar a PDF
+    </button>
+    <button 
+      onClick={() => { setShowExportMenu(false); exportExcel(); }} 
+      className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-left cursor-pointer ${dark ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"}`}
+    >
+      <FileSpreadsheet size={16} className="text-green-600" /> Exportar a Excel
+    </button>
+  </div>
+)}
+
           </div>
         </div>
 
